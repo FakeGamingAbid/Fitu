@@ -34,10 +34,6 @@ class StepCounterService : Service(), SensorEventListener {
     private var stepCounterSensor: Sensor? = null
     private var accelerometerSensor: Sensor? = null
 
-    // Simple step detection variables for accelerometer fallback
-    private var lastMagnitude = 0.0
-    private val magnitudeThreshold = 11.0 // Lowered threshold for better sensitivity
-
     companion object {
         private val _stepCount = MutableStateFlow(0)
         val stepCount: StateFlow<Int> = _stepCount
@@ -79,8 +75,18 @@ class StepCounterService : Service(), SensorEventListener {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    // --- High Precision Algorithm Refs (Ported from React) ---
+    private val gravity = FloatArray(3)
+    private var smoothedMag = 0.0
+    private var isBelowReset = true
     private var lastStepTime = 0L
-    private val stepCooldownMs = 300L // Minimum time between steps
+
+    // Tuning Constants for Accuracy (Exact matches from React)
+    private val ALPHA = 0.92f
+    private val SMOOTH_FACTOR = 0.7f
+    private val STEP_THRESHOLD = 2.4f
+    private val RESET_THRESHOLD = 1.2f
+    private val MIN_STEP_TIME = 420L
 
     private fun registerSensors() {
         // Prioritize Accelerometer as per user request
@@ -88,19 +94,9 @@ class StepCounterService : Service(), SensorEventListener {
             accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         }
         
-        // Still try to get step counter for hybrid approach if needed later, but we will use accelerometer primarily
-        if (stepCounterSensor == null) {
-            stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        }
-
         // Register Accelerometer
         accelerometerSensor?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) // Faster delay for better detection
-        }
-        
-        // Register Step Counter just in case, but we might ignore it
-        stepCounterSensor?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
         }
     }
 
@@ -112,18 +108,35 @@ class StepCounterService : Service(), SensorEventListener {
             val y = event.values[1]
             val z = event.values[2]
 
-            val magnitude = Math.sqrt((x * x + y * y + z * z).toDouble())
-            _motionMagnitude.value = magnitude.toFloat()
+            // 1. Gravity Filter
+            gravity[0] = ALPHA * gravity[0] + (1 - ALPHA) * x
+            gravity[1] = ALPHA * gravity[1] + (1 - ALPHA) * y
+            gravity[2] = ALPHA * gravity[2] + (1 - ALPHA) * z
 
-            // Peak detection with cooldown
-            if (magnitude > magnitudeThreshold && lastMagnitude <= magnitudeThreshold) {
-                val currentTime = System.currentTimeMillis()
-                if (currentTime - lastStepTime > stepCooldownMs) {
+            // 2. Linear Acceleration (Remove Gravity)
+            val lx = x - gravity[0]
+            val ly = y - gravity[1]
+            val lz = z - gravity[2]
+
+            // 3. Magnitude
+            val rawMag = Math.sqrt((lx * lx + ly * ly + lz * lz).toDouble()).toFloat()
+
+            // 4. Smoothing
+            smoothedMag = (SMOOTH_FACTOR * smoothedMag) + ((1 - SMOOTH_FACTOR) * rawMag)
+            _motionMagnitude.value = smoothedMag.toFloat()
+
+            // 5. Step Detection Logic
+            val now = System.currentTimeMillis()
+            if (smoothedMag > STEP_THRESHOLD && isBelowReset) {
+                if (now - lastStepTime > MIN_STEP_TIME) {
+                    // STEP DETECTED
                     _stepCount.value += 1
-                    lastStepTime = currentTime
+                    lastStepTime = now
+                    isBelowReset = false
                 }
+            } else if (smoothedMag < RESET_THRESHOLD) {
+                isBelowReset = true
             }
-            lastMagnitude = magnitude
         }
     }
 
