@@ -35,8 +35,18 @@ jobs:
       run: chmod +x gradlew
 
     - name: Compile Kotlin (Debug Step)
-      run: ./gradlew compileReleaseKotlin --stacktrace
+      run: |
+        ./gradlew compileReleaseKotlin --stacktrace 2>&1 | tee kotlin_compile_log.txt
+        exit ${PIPESTATUS[0]}
       continue-on-error: true
+
+    - name: Upload Kotlin Compile Log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: kotlin-compile-log
+        path: kotlin_compile_log.txt
+        retention-days: 7
 
     - name: Build Release APK (ProGuard if Enabled)
       run: |
