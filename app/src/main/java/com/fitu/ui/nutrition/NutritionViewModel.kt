@@ -132,7 +132,10 @@ class NutritionViewModel @Inject constructor(
                     """.trimIndent())
                 }
 
-                val response = geminiModelProvider.generateContentWithRetry(inputContent)
+                val response = geminiModelProvider.generateContentWithRetry(
+                    prompt = inputContent,
+                    modelName = "gemini-3-flash-preview"
+                )
                 
                 if (response != null && response.text != null) {
                     val text = response.text!!.trim()
@@ -193,7 +196,10 @@ class NutritionViewModel @Inject constructor(
                     """.trimIndent())
                 }
 
-                val response = geminiModelProvider.generateContentWithRetry(inputContent)
+                val response = geminiModelProvider.generateContentWithRetry(
+                    prompt = inputContent,
+                    modelName = "gemini-3-flash-preview"
+                )
                 
                 if (response != null && response.text != null) {
                     val text = response.text!!.trim()

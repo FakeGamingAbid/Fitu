@@ -22,22 +22,23 @@ import javax.inject.Singleton
 class GeminiModelProvider @Inject constructor(
     private val secureStorage: SecureStorage
 ) {
-    fun getModel(): GenerativeModel? {
+    fun getModel(modelName: String = "gemini-1.5-flash"): GenerativeModel? {
         val apiKey = secureStorage.getApiKey()
         if (apiKey.isBlank()) return null
         
         return GenerativeModel(
-            modelName = "gemini-1.5-flash",
+            modelName = modelName,
             apiKey = apiKey
         )
     }
 
     suspend fun generateContentWithRetry(
         prompt: Content,
+        modelName: String = "gemini-1.5-flash",
         maxRetries: Int = 3,
         initialDelay: Long = 1000
     ): GenerateContentResponse? {
-        val model = getModel() ?: return null
+        val model = getModel(modelName) ?: return null
         var currentDelay = initialDelay
         
         repeat(maxRetries) { attempt ->
