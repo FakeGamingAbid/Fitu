@@ -1,0 +1,47 @@
+name: Fitu APK Build (Release - Unsigned)
+on:
+  workflow_dispatch:  # Manual trigger button only
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Java 17 (Fitu Req)
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Cache Gradle + SDK/MLKit (5x Faster Repeats)
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          .gradle
+          $ANDROID_HOME
+        key: ${{ runner.os }}-gradle-fitu-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/pubspec.lock') }}  # Pub if any
+
+    - name: Validate Gradle Wrapper
+      run: ./gradlew --version
+
+    - name: Make Gradle Wrapper Executable
+      run: chmod +x gradlew
+
+    - name: Build Release APK (ProGuard if Enabled)
+      run: |
+        ./gradlew clean assembleRelease --stacktrace --info
+        # Outputs: app/build/outputs/apk/release/app-release.apk
+
+    - name: Upload Fitu APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Fitu-APK-v${{ github.sha }}
+        path: app/build/outputs/apk/release/app-release.apk
+        retention-days: 90  # Long-term access
