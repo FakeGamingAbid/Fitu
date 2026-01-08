@@ -3,6 +3,7 @@ package com.fitu.ui.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.UserPreferencesRepository
+import com.fitu.data.service.StepCounterService
 import com.fitu.di.GeminiModelProvider
 import com.fitu.domain.repository.DashboardRepository
 import com.google.ai.client.generativeai.type.content
@@ -44,11 +45,10 @@ class DashboardViewModel @Inject constructor(
     private val _dailyRecap = MutableStateFlow<String>("Loading daily recap...")
     val dailyRecap: StateFlow<String> = _dailyRecap
 
-    // Steps
-    private val _currentSteps = MutableStateFlow(0)
-    val currentSteps: StateFlow<Int> = _currentSteps
+    // Steps - Read directly from StepCounterService (real data)
+    val currentSteps: StateFlow<Int> = StepCounterService.stepCount
 
-    // Weekly progress (last 7 days steps data)
+    // Weekly progress (for display purposes - today's steps are real, past days would need persistence)
     private val _weeklySteps = MutableStateFlow<List<Int>>(listOf(0, 0, 0, 0, 0, 0, 0))
     val weeklySteps: StateFlow<List<Int>> = _weeklySteps
 
@@ -84,17 +84,20 @@ class DashboardViewModel @Inject constructor(
         consumed - burned
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    init {
-        loadWeeklyProgress()
-    }
+    // Step progress percentage
+    val stepProgress: StateFlow<Float> = combine(currentSteps, dailyStepGoal) { steps, goal ->
+        if (goal > 0) (steps.toFloat() / goal.toFloat() * 100).coerceIn(0f, 100f) else 0f
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
-    private fun loadWeeklyProgress() {
+    init {
+        // Update weekly steps with today's real steps when they change
         viewModelScope.launch {
-            // For now, use mock data - in production this would come from step tracking service
-            // Days: Mon, Tue, Wed, Thu, Fri, Sat, Sun (relative to today)
-            _weeklySteps.value = listOf(8234, 6542, 10231, 7845, 9123, 5432, 0)
-            _currentSteps.value = 6542 // Today's steps
-            _workoutsCompleted.value = 3
+            currentSteps.collect { todaySteps ->
+                // Put today's steps at the end of the week (index 6 = today)
+                val updatedWeekly = _weeklySteps.value.toMutableList()
+                updatedWeekly[6] = todaySteps
+                _weeklySteps.value = updatedWeekly
+            }
         }
     }
 
@@ -109,7 +112,7 @@ class DashboardViewModel @Inject constructor(
 
                 val prompt = """
                     Generate a short, encouraging daily fitness recap (2-3 sentences max).
-                    User stats: ${_currentSteps.value} steps today, goal: ${dailyStepGoal.value}.
+                    User stats: ${currentSteps.value} steps today, goal: ${dailyStepGoal.value}.
                     Calories consumed: ${caloriesConsumed.value}, burned: ${caloriesBurned.value}.
                     Be motivating and concise.
                 """.trimIndent()
