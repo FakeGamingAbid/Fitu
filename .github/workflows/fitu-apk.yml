@@ -34,9 +34,13 @@ jobs:
     - name: Make Gradle Wrapper Executable
       run: chmod +x gradlew
 
+    - name: Compile Kotlin (Debug Step)
+      run: ./gradlew compileReleaseKotlin --stacktrace
+      continue-on-error: true
+
     - name: Build Release APK (ProGuard if Enabled)
       run: |
-        ./gradlew clean assembleRelease --stacktrace --info
+        ./gradlew clean assembleRelease --stacktrace
         # Outputs: app/build/outputs/apk/release/app-release.apk
 
     - name: Upload Fitu APK Artifact
