@@ -1,30 +1,31 @@
 package com.fitu.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -32,14 +33,20 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fitu.navigation.NavGraph
 import com.fitu.navigation.Screen
+import com.fitu.ui.components.AppleIcon
+import com.fitu.ui.components.CircleUserIcon
+import com.fitu.ui.components.DumbbellIcon
+import com.fitu.ui.components.FootprintsIcon
+import com.fitu.ui.components.GlassCard
+import com.fitu.ui.components.HouseIcon
 import com.fitu.ui.theme.OrangePrimary
 
 sealed class BottomNavItem(val route: String, val label: String, val icon: ImageVector) {
-    object Dashboard : BottomNavItem(Screen.Dashboard.route, "Dashboard", Icons.Filled.Home)
-    object Steps : BottomNavItem(Screen.Steps.route, "Steps", Icons.Filled.DirectionsRun)
-    object Coach : BottomNavItem(Screen.Coach.route, "AI Coach", Icons.Filled.Person)
-    object Nutrition : BottomNavItem(Screen.Nutrition.route, "Nutrition", Icons.Filled.Restaurant)
-    object Profile : BottomNavItem(Screen.Profile.route, "Profile", Icons.Filled.AccountCircle)
+    object Home : BottomNavItem(Screen.Dashboard.route, "Home", HouseIcon)
+    object Steps : BottomNavItem(Screen.Steps.route, "Steps", FootprintsIcon)
+    object Coach : BottomNavItem(Screen.Coach.route, "Coach", DumbbellIcon)
+    object Food : BottomNavItem(Screen.Nutrition.route, "Food", AppleIcon)
+    object Profile : BottomNavItem(Screen.Profile.route, "Profile", CircleUserIcon)
 }
 
 @Composable
@@ -49,29 +56,24 @@ fun MainScreen(
     val isOnboardingComplete by viewModel.isOnboardingComplete.collectAsState(initial = null)
     val navController = rememberNavController()
     
-    // Updated navigation order: Dashboard | Steps | AI Coach | Nutrition | Profile
     val items = listOf(
-        BottomNavItem.Dashboard,
+        BottomNavItem.Home,
         BottomNavItem.Steps,
         BottomNavItem.Coach,
-        BottomNavItem.Nutrition,
+        BottomNavItem.Food,
         BottomNavItem.Profile
     )
 
-    // Wait for onboarding state to load
     if (isOnboardingComplete == null) return
 
-    // Request Camera Permission on start
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        // Handle permission result if needed
-    }
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        val permission = android.Manifest.permission.CAMERA
-        if (androidx.core.content.ContextCompat.checkSelfPermission(context, permission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+    LaunchedEffect(Unit) {
+        val permission = Manifest.permission.CAMERA
+        if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
             permissionLauncher.launch(permission)
         }
     }
@@ -82,65 +84,55 @@ fun MainScreen(
     val showBottomBar = currentDestination?.route != Screen.Onboarding.route
 
     Scaffold(
-        containerColor = androidx.compose.ui.graphics.Color(0xFF0A0A0F)
+        containerColor = Color(0xFF0A0A0F)
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             // Main Content
-            Box(modifier = Modifier.padding(bottom = if (showBottomBar) 0.dp else 0.dp)) {
-                NavGraph(navController = navController, startDestination = startDestination)
-            }
+            NavGraph(navController = navController, startDestination = startDestination)
 
             // Floating Bottom Navigation
             if (showBottomBar) {
                 Box(
                     modifier = Modifier
-                        .align(androidx.compose.ui.Alignment.BottomCenter)
-                        .padding(16.dp)
-                        .padding(bottom = 16.dp)
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 24.dp)
                 ) {
-                    com.fitu.ui.components.GlassCard(
-                        modifier = Modifier.height(80.dp)
+                    // Glass background
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(72.dp)
+                            .background(
+                                Color.White.copy(alpha = 0.05f),
+                                RoundedCornerShape(24.dp)
+                            )
+                            .border(
+                                1.dp,
+                                Color.White.copy(alpha = 0.1f),
+                                RoundedCornerShape(24.dp)
+                            )
                     ) {
-                        androidx.compose.foundation.layout.Row(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             items.forEach { screen ->
                                 val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                                 val isCoach = screen == BottomNavItem.Coach
 
                                 if (isCoach) {
-                                    // Center Coach Button
-                                    androidx.compose.foundation.layout.Box(
-                                        modifier = Modifier
-                                            .offset(y = (-24).dp) // Float up
-                                            .size(56.dp)
-                                            .background(
-                                                if (selected) androidx.compose.ui.graphics.Color.White else OrangePrimary,
-                                                androidx.compose.foundation.shape.CircleShape
-                                            )
-                                            .border(4.dp, androidx.compose.ui.graphics.Color(0xFF0A0A0F), androidx.compose.foundation.shape.CircleShape)
-                                            .clickable {
-                                                navController.navigate(screen.route) {
-                                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                                    launchSingleTop = true
-                                                    restoreState = true
-                                                }
-                                            },
-                                        contentAlignment = androidx.compose.ui.Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = screen.icon,
-                                            contentDescription = screen.label,
-                                            tint = if (selected) OrangePrimary else androidx.compose.ui.graphics.Color.White
-                                        )
-                                    }
+                                    // Empty space for FAB
+                                    Spacer(modifier = Modifier.width(56.dp))
                                 } else {
-                                    // Standard Icon
-                                    androidx.compose.foundation.layout.Column(
-                                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                                    // Nav Item
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
                                             .clickable {
                                                 navController.navigate(screen.route) {
                                                     popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -148,36 +140,59 @@ fun MainScreen(
                                                     restoreState = true
                                                 }
                                             }
-                                            .padding(horizontal = 12.dp)
+                                            .padding(horizontal = 12.dp, vertical = 8.dp)
                                     ) {
-                                        androidx.compose.foundation.layout.Box(
+                                        Box(
                                             modifier = Modifier
-                                                .padding(8.dp)
                                                 .background(
-                                                    if (selected) OrangePrimary else androidx.compose.ui.graphics.Color.Transparent,
-                                                    androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                                                    if (selected) OrangePrimary.copy(alpha = 0.2f) else Color.Transparent,
+                                                    RoundedCornerShape(10.dp)
                                                 )
                                                 .padding(8.dp)
                                         ) {
                                             Icon(
                                                 imageVector = screen.icon,
                                                 contentDescription = screen.label,
-                                                tint = if (selected) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.5f),
+                                                tint = if (selected) OrangePrimary else Color.White.copy(alpha = 0.5f),
                                                 modifier = Modifier.size(24.dp)
                                             )
                                         }
-                                        if (selected) {
-                                            Text(
-                                                text = screen.label,
-                                                fontSize = 10.sp,
-                                                color = androidx.compose.ui.graphics.Color.White,
-                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                            )
-                                        }
+                                        Text(
+                                            text = screen.label,
+                                            fontSize = 10.sp,
+                                            color = if (selected) Color.White else Color.White.copy(alpha = 0.5f),
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                        )
                                     }
                                 }
                             }
                         }
+                    }
+
+                    // Floating Coach FAB (Center)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(y = (-20).dp)
+                            .size(64.dp)
+                            .background(OrangePrimary, CircleShape)
+                            .border(4.dp, Color(0xFF0A0A0F), CircleShape)
+                            .clip(CircleShape)
+                            .clickable {
+                                navController.navigate(Screen.Coach.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = DumbbellIcon,
+                            contentDescription = "AI Coach",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
             }

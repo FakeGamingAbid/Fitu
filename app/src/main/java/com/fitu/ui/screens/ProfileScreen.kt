@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
@@ -44,17 +46,9 @@ fun ProfileScreen(
     val apiKey by viewModel.apiKey.collectAsState()
     val bmi by viewModel.bmi.collectAsState()
     val bmiCategory by viewModel.bmiCategory.collectAsState()
-    val isEditing by viewModel.isEditing.collectAsState()
     val showApiKeyDialog by viewModel.showApiKeyDialog.collectAsState()
     val showAboutDialog by viewModel.showAboutDialog.collectAsState()
 
-    // Edit state
-    var editName by remember(userName) { mutableStateOf(userName) }
-    var editAge by remember(userAge) { mutableStateOf(userAge.toString()) }
-    var editHeight by remember(userHeightCm) { mutableStateOf(userHeightCm.toString()) }
-    var editWeight by remember(userWeightKg) { mutableStateOf(userWeightKg.toString()) }
-    var editStepGoal by remember(dailyStepGoal) { mutableStateOf(dailyStepGoal.toString()) }
-    var editCalorieGoal by remember(dailyCalorieGoal) { mutableStateOf(dailyCalorieGoal.toString()) }
     var editApiKey by remember(apiKey) { mutableStateOf(apiKey) }
 
     // Dialogs
@@ -77,22 +71,25 @@ fun ProfileScreen(
             .background(Color(0xFF0A0A0F))
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
-            .padding(top = 32.dp, bottom = 100.dp),
+            .padding(top = 32.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         // --- Header ---
         Text(
             text = "Profile",
             color = Color.White,
-            fontSize = 30.sp,
+            fontSize = 28.sp,
             fontWeight = FontWeight.Bold
         )
 
         // --- User Info ---
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(72.dp)
                     .background(
                         Brush.linearGradient(listOf(OrangePrimary, Color(0xFFD94F00))),
                         CircleShape
@@ -102,7 +99,7 @@ fun ProfileScreen(
                 Text(
                     text = getInitials(userName),
                     color = Color.White,
-                    fontSize = 32.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -121,221 +118,148 @@ fun ProfileScreen(
             }
         }
 
-        // --- My Goals ---
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("MY GOALS", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            GlassCard {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text("Daily Steps", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
-                        Text(String.format("%,d", dailyStepGoal), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Column {
-                        Text("Daily Calories", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
-                        Text(String.format("%,d", dailyCalorieGoal), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        // --- Body Stats ---
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // BMI
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("BMI", color = Color.White, fontSize = 16.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = DecimalFormat("#.#").format(bmi),
+                            color = getBmiColor(bmiCategory),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Box(
+                            modifier = Modifier
+                                .background(getBmiColor(bmiCategory).copy(alpha = 0.2f), RoundedCornerShape(100))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = bmiCategory.uppercase(),
+                                color = getBmiColor(bmiCategory),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
-            }
-        }
-
-        // --- Body Stats ---
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("BODY STATS", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            GlassCard {
-                if (isEditing) {
-                    // Edit Mode
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        OutlinedTextField(
-                            value = editName,
-                            onValueChange = { editName = it },
-                            label = { Text("Name", color = Color.White.copy(alpha = 0.5f)) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = OrangePrimary,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = editAge,
-                                onValueChange = { editAge = it.filter { c -> c.isDigit() } },
-                                label = { Text("Age", color = Color.White.copy(alpha = 0.5f)) },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = OrangePrimary,
-                                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = editHeight,
-                                onValueChange = { editHeight = it.filter { c -> c.isDigit() } },
-                                label = { Text("Height (cm)", color = Color.White.copy(alpha = 0.5f)) },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = OrangePrimary,
-                                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = editWeight,
-                                onValueChange = { editWeight = it.filter { c -> c.isDigit() } },
-                                label = { Text("Weight (kg)", color = Color.White.copy(alpha = 0.5f)) },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = OrangePrimary,
-                                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = editStepGoal,
-                                onValueChange = { editStepGoal = it.filter { c -> c.isDigit() } },
-                                label = { Text("Step Goal", color = Color.White.copy(alpha = 0.5f)) },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = OrangePrimary,
-                                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Button(
-                            onClick = {
-                                viewModel.saveProfile(
-                                    name = editName,
-                                    age = editAge.toIntOrNull() ?: userAge,
-                                    heightCm = editHeight.toIntOrNull() ?: userHeightCm,
-                                    weightKg = editWeight.toIntOrNull() ?: userWeightKg,
-                                    stepGoal = editStepGoal.toIntOrNull() ?: dailyStepGoal,
-                                    calorieGoal = editCalorieGoal.toIntOrNull() ?: dailyCalorieGoal
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
-                        ) {
-                            Text("Save Changes", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                } else {
-                    // Display Mode
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("BMI", color = Color.White.copy(alpha = 0.8f))
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(DecimalFormat("#.#").format(bmi), color = getBmiColor(bmiCategory), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                                Box(
-                                    modifier = Modifier
-                                        .background(getBmiColor(bmiCategory).copy(alpha = 0.2f), RoundedCornerShape(100))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(bmiCategory.uppercase(), color = getBmiColor(bmiCategory), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                        Divider(color = Color.White.copy(alpha = 0.1f))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Height", color = Color.White.copy(alpha = 0.8f))
-                            Text("$userHeightCm cm", color = Color.White.copy(alpha = 0.8f))
-                        }
-                        Divider(color = Color.White.copy(alpha = 0.1f))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Weight", color = Color.White.copy(alpha = 0.8f))
-                            Text("$userWeightKg kg", color = Color.White.copy(alpha = 0.8f))
-                        }
-                        Divider(color = Color.White.copy(alpha = 0.1f))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("API Key", color = Color.White.copy(alpha = 0.8f))
-                            Text("••••••••", color = Color.White.copy(alpha = 0.4f))
-                        }
-                    }
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                // Height
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Height", color = Color.White, fontSize = 16.sp)
+                    Text("$userHeightCm cm", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
+                }
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                // Weight
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Weight", color = Color.White, fontSize = 16.sp)
+                    Text("$userWeightKg kg", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
+                }
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                // API Key
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("API Key", color = Color.White, fontSize = 16.sp)
+                    Text(
+                        text = if (apiKey.isNotBlank()) "••••••••" else "Not set",
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 16.sp
+                    )
                 }
             }
         }
 
         // --- App Settings ---
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("APP SETTINGS", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            GlassCard(modifier = Modifier.padding(0.dp)) {
-                Column {
-                    SettingsItem(
-                        icon = Icons.Filled.Edit,
-                        title = "Edit Profile",
-                        onClick = { viewModel.toggleEdit() }
-                    )
-                    Divider(color = Color.White.copy(alpha = 0.1f))
-                    SettingsItem(
-                        icon = Icons.Filled.Key,
-                        title = "Update API Key",
-                        subtitle = if (apiKey.isNotBlank()) "Configured" else "Not set",
-                        onClick = { viewModel.showApiKeyDialog() }
-                    )
-                    Divider(color = Color.White.copy(alpha = 0.1f))
-                    SettingsItem(
-                        icon = Icons.Filled.Refresh,
-                        title = "Reset Onboarding",
-                        subtitle = "Start fresh",
-                        onClick = { viewModel.resetOnboarding() }
-                    )
-                    Divider(color = Color.White.copy(alpha = 0.1f))
-                    SettingsItem(
-                        icon = Icons.Filled.Info,
-                        title = "About",
-                        subtitle = "Version 1.0",
-                        onClick = { viewModel.showAboutDialog() }
-                    )
-                }
+        Text(
+            text = "APP SETTINGS",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                SettingsItem(
+                    icon = Icons.Default.Download,
+                    iconBgColor = Color(0xFF2196F3),
+                    title = "Export Data",
+                    subtitle = "Download JSON backup",
+                    onClick = { /* TODO */ }
+                )
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                SettingsItem(
+                    icon = Icons.Default.Delete,
+                    iconBgColor = Color(0xFFF44336),
+                    title = "Reset App",
+                    subtitle = "Delete all local data",
+                    titleColor = Color(0xFFF44336),
+                    onClick = { viewModel.resetOnboarding() }
+                )
             }
         }
-        
-        Text("Version 2.0.0 • Fitu Android", color = Color.White.copy(alpha = 0.3f), fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+
+        // --- Version ---
+        Text(
+            text = "Version 2.0.0 • Fitu PWA",
+            color = Color.White.copy(alpha = 0.3f),
+            fontSize = 12.sp,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
     }
 }
 
 @Composable
-fun SettingsItem(
+private fun SettingsItem(
     icon: ImageVector,
+    iconBgColor: Color,
     title: String,
-    subtitle: String? = null,
+    subtitle: String,
+    titleColor: Color = Color.White,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(vertical = 16.dp),
+            .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .background(OrangePrimary.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
+                .background(iconBgColor.copy(alpha = 0.2f), RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = OrangePrimary, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = iconBgColor, modifier = Modifier.size(20.dp))
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            if (subtitle != null) {
-                Text(subtitle, color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
-            }
+            Text(title, color = titleColor, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+            Text(subtitle, color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
         }
-        Icon(Icons.Filled.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.3f))
+        Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.3f))
     }
 }
 
 @Composable
-fun ApiKeyDialog(
+private fun ApiKeyDialog(
     currentKey: String,
     onKeyChange: (String) -> Unit,
     onSave: () -> Unit,
@@ -343,57 +267,68 @@ fun ApiKeyDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Update API Key") },
+        containerColor = Color(0xFF1A1A1F),
+        title = { Text("Update API Key", color = Color.White) },
         text = {
             Column {
-                Text("Enter your Gemini API key:")
-                Spacer(modifier = Modifier.height(8.dp))
+                Text("Enter your Gemini API key:", color = Color.White.copy(alpha = 0.7f))
+                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = currentKey,
                     onValueChange = onKeyChange,
-                    label = { Text("API Key") },
+                    label = { Text("API Key", color = Color.White.copy(alpha = 0.5f)) },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = OrangePrimary,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                    )
                 )
             }
         },
         confirmButton = {
-            Button(onClick = onSave) {
-                Text("Save")
+            Button(
+                onClick = onSave,
+                colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
+            ) {
+                Text("Save", color = Color.White)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Cancel", color = Color.White.copy(alpha = 0.7f))
             }
         }
     )
 }
 
 @Composable
-fun AboutDialog(onDismiss: () -> Unit) {
+private fun AboutDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("About Fitu") },
+        containerColor = Color(0xFF1A1A1F),
+        title = { Text("About Fitu", color = Color.White) },
         text = {
             Column {
                 Text(
                     text = "Fitu",
-                    style = MaterialTheme.typography.headlineSmall,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = OrangePrimary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Your AI-powered fitness companion")
+                Text("Your AI-powered fitness companion", color = Color.White.copy(alpha = 0.7f))
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Version 2.0.0", style = MaterialTheme.typography.bodySmall)
-                Text("© 2026 Fitu", style = MaterialTheme.typography.bodySmall)
+                Text("Version 2.0.0", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                Text("© 2026 Fitu", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close")
+                Text("Close", color = OrangePrimary)
             }
         }
     )

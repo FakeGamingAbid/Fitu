@@ -16,12 +16,6 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,7 +30,6 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,14 +44,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.fitu.data.local.entity.MealEntity
+import com.fitu.ui.components.AppleIcon
 import com.fitu.ui.components.GlassCard
-import com.fitu.ui.nutrition.AnalyzedFood
-import com.fitu.ui.nutrition.NutritionUiState
 import com.fitu.ui.nutrition.NutritionViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.nio.ByteBuffer
-import java.text.DecimalFormat
 import java.util.concurrent.Executor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,17 +56,15 @@ import java.util.concurrent.Executor
 fun NutritionScreen(
     viewModel: NutritionViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
     val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
     val todayMeals by viewModel.todayMeals.collectAsState()
     val showAddFoodSheet by viewModel.showAddFoodSheet.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     val analyzedFood by viewModel.analyzedFood.collectAsState()
     val portion by viewModel.portion.collectAsState()
     val textSearch by viewModel.textSearch.collectAsState()
     val selectedMealType by viewModel.selectedMealType.collectAsState()
-
-    val isAnalyzing = uiState is NutritionUiState.Analyzing
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -84,9 +72,9 @@ fun NutritionScreen(
         ModalBottomSheet(
             onDismissRequest = { viewModel.hideAddFood() },
             sheetState = sheetState,
-            containerColor = Color(0xFF1C1C24)
+            containerColor = Color(0xFF1A1A1F)
         ) {
-            AddFoodSheet(
+            AddFoodSheetContent(
                 viewModel = viewModel,
                 uiState = uiState,
                 analyzedFood = analyzedFood,
@@ -103,26 +91,25 @@ fun NutritionScreen(
             .fillMaxSize()
             .background(Color(0xFF0A0A0F))
             .padding(horizontal = 24.dp)
-            .padding(top = 32.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+            .padding(top = 32.dp, bottom = 120.dp)
     ) {
         // --- Header ---
-        Column {
-            Text(
-                text = "Nutrition",
-                color = Color.White,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "AI Food Analysis",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 14.sp
-            )
-        }
+        Text(
+            text = "Nutrition",
+            color = Color.White,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "AI Food Analysis",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 14.sp
+        )
 
-        // --- Summary Card ---
-        GlassCard {
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // --- Today's Calories Card ---
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -132,186 +119,184 @@ fun NutritionScreen(
                     Text(
                         text = "TODAY'S CALORIES",
                         color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
-                            text = "${caloriesConsumed.toInt()}",
+                            text = "$caloriesConsumed",
                             color = OrangePrimary,
-                            fontSize = 30.sp,
+                            fontSize = 32.sp,
                             fontWeight = FontWeight.Bold
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = " / $dailyCalorieGoal",
-                            color = Color.White.copy(alpha = 0.4f),
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
+                            text = "/ $dailyCalorieGoal",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 16.sp,
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
                     }
                 }
-                
-                // Add Button
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(OrangePrimary, CircleShape)
-                        .clickable { viewModel.showAddFood() },
-                    contentAlignment = Alignment.Center
+                // Add button
+                FloatingActionButton(
+                    onClick = { viewModel.showAddFood() },
+                    containerColor = OrangePrimary,
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.Default.Add, null, tint = Color.White)
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Add Food",
+                        tint = Color.White
+                    )
                 }
             }
         }
 
-        // --- Meals List ---
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Today's Meals",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-            // Analyzing State
-            AnimatedVisibility(
-                visible = isAnalyzing,
-                enter = fadeIn() + slideInVertically(),
-                exit = fadeOut() + slideOutVertically()
+        // --- Today's Meals ---
+        Text(
+            text = "Today's Meals",
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (todayMeals.isEmpty()) {
+            // Empty state
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                GlassCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp)
-                        .background(OrangePrimary.copy(alpha = 0.05f), RoundedCornerShape(24.dp))
-                        .border(1.dp, OrangePrimary.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = OrangePrimary, strokeWidth = 2.dp)
-                        Column {
-                            Text("Analyzing Food...", color = OrangePrimary, fontWeight = FontWeight.Bold)
-                            Text("Identifying macros & calories", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                Icon(
+                    Icons.Default.CameraAlt,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier.size(64.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "No meals tracked yet.",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = "Tap + to snap a photo",
+                    color = Color.White.copy(alpha = 0.3f),
+                    fontSize = 14.sp
+                )
+            }
+        } else {
+            // Meals list
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(todayMeals) { meal ->
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Restaurant,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.5f)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = meal.name,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "${meal.calories} kcal",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 12.sp
+                                )
+                            }
+                            // Macro pills
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                MacroPill("P: ${meal.protein}g", OrangePrimary)
+                                MacroPill("C: ${meal.carbs}g", Color(0xFF4CAF50))
+                                MacroPill("F: ${meal.fats}g", Color(0xFF2196F3))
+                            }
                         }
                     }
                 }
             }
-
-            if (todayMeals.isEmpty() && !isAnalyzing) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.CameraAlt, null, tint = Color.White.copy(alpha = 0.2f), modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("No meals tracked yet.", color = Color.White.copy(alpha = 0.3f))
-                        Text("Tap + to snap a photo", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
-                    }
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(todayMeals) { meal ->
-                        MealItemCard(meal = meal, onDelete = { viewModel.deleteMeal(meal.id) })
-                    }
-                }
-            }
         }
     }
 }
 
 @Composable
-fun MealItemCard(meal: MealEntity, onDelete: () -> Unit) {
-    GlassCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Icon Placeholder (or image if available)
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Restaurant, null, tint = Color.White.copy(alpha = 0.5f))
-                }
-                
-                Column {
-                    Text(meal.name, color = Color.White, fontWeight = FontWeight.Bold)
-                    Text(
-                        "${meal.mealType.replaceFirstChar { it.uppercase() }} • ${java.text.SimpleDateFormat("HH:mm").format(meal.timestamp)}",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        MacroPill("P: ${meal.protein}g", OrangePrimary)
-                        MacroPill("C: ${meal.carbs}g", Color(0xFF2196F3))
-                        MacroPill("F: ${meal.fats}g", Color(0xFF4CAF50))
-                    }
-                }
-            }
-            
-            Column(horizontalAlignment = Alignment.End) {
-                Text("${meal.calories}", color = OrangePrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("kcal", color = Color.White.copy(alpha = 0.4f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
-fun MacroPill(text: String, color: Color) {
+private fun MacroPill(text: String, color: Color) {
     Box(
         modifier = Modifier
-            .background(color.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
-            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .background(color.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
-        Text(text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = text,
+            color = color,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
 @Composable
-fun AddFoodSheet(
+private fun AddFoodSheetContent(
     viewModel: NutritionViewModel,
-    uiState: NutritionUiState,
-    analyzedFood: AnalyzedFood?,
+    uiState: NutritionViewModel.UiState,
+    analyzedFood: NutritionViewModel.AnalyzedFood?,
     portion: Float,
     textSearch: String,
     selectedMealType: String,
     onDismiss: () -> Unit
 ) {
-    var showCamera by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var hasCameraPermission by remember { mutableStateOf(false) }
+    var showCamera by remember { mutableStateOf(false) }
+    var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { granted ->
-            hasCameraPermission = granted
-            if (granted) showCamera = true
-        }
-    )
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+        if (granted) showCamera = true
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(24.dp)
     ) {
+        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Add to ${selectedMealType.replaceFirstChar { it.uppercase() }}",
+                text = "Add Food",
                 color = Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
@@ -321,26 +306,38 @@ fun AddFoodSheet(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        if (showCamera && hasCameraPermission) {
-            CameraCapture(
-                onImageCaptured = { bitmap ->
-                    viewModel.analyzeFood(bitmap)
-                    showCamera = false
-                },
-                onClose = { showCamera = false }
-            )
-        } else if (analyzedFood != null) {
-            AnalyzedFoodResult(
-                food = analyzedFood,
-                portion = portion,
-                onPortionChange = { viewModel.updatePortion(it) },
-                onAddToMeal = { viewModel.addFoodToMeal() },
-                onScanAnother = { viewModel.reset() }
-            )
-        } else {
-            // Input Options
+        // Meal type selector
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("breakfast", "lunch", "dinner", "snacks").forEach { type ->
+                val isSelected = selectedMealType == type
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isSelected) OrangePrimary else Color.White.copy(alpha = 0.1f))
+                        .clickable { viewModel.selectMealType(type) }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = type.replaceFirstChar { it.uppercase() },
+                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (!showCamera) {
+            // Camera button
             Button(
                 onClick = {
                     if (hasCameraPermission) {
@@ -349,204 +346,180 @@ fun AddFoodSheet(
                         permissionLauncher.launch(Manifest.permission.CAMERA)
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Default.CameraAlt, null, tint = Color.White)
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("Scan with Camera", color = Color.White, fontWeight = FontWeight.Bold)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.CameraAlt,
+                        null,
+                        tint = OrangePrimary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Snap a Photo", color = Color.White)
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.1f)))
-                Text("  OR  ", color = Color.White.copy(alpha = 0.3f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Box(modifier = Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.1f)))
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
 
+            // Text search
             OutlinedTextField(
                 value = textSearch,
                 onValueChange = { viewModel.updateTextSearch(it) },
-                placeholder = { Text("Search food (e.g. apple)", color = Color.White.copy(alpha = 0.3f)) },
+                label = { Text("Or describe your food...", color = Color.White.copy(alpha = 0.5f)) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = OrangePrimary,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
                     focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = OrangePrimary,
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
                 ),
-                shape = RoundedCornerShape(16.dp),
-                trailingIcon = {
-                    IconButton(onClick = { viewModel.searchFood(textSearch) }) {
-                        Icon(Icons.Default.Search, null, tint = OrangePrimary)
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            if (textSearch.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { viewModel.analyzeText(textSearch) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
+                ) {
+                    Text("Analyze", color = Color.White)
+                }
+            }
+        } else {
+            // Camera preview
+            CameraPreview(
+                onImageCaptured = { bitmap ->
+                    viewModel.analyzeImage(bitmap)
+                    showCamera = false
+                },
+                onError = { Log.e("NutritionScreen", "Camera error", it) }
+            )
+        }
+
+        // Show analyzed food
+        analyzedFood?.let { food ->
+            Spacer(modifier = Modifier.height(16.dp))
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Text(food.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("${(food.calories * portion).toInt()} kcal", color = OrangePrimary)
+                        Text("P: ${(food.protein * portion).toInt()}g", color = Color.White.copy(alpha = 0.7f))
+                        Text("C: ${(food.carbs * portion).toInt()}g", color = Color.White.copy(alpha = 0.7f))
+                        Text("F: ${(food.fats * portion).toInt()}g", color = Color.White.copy(alpha = 0.7f))
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { viewModel.saveAnalyzedFood() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
+                    ) {
+                        Text("Add to ${selectedMealType.replaceFirstChar { it.uppercase() }}", color = Color.White)
                     }
                 }
-            )
-            
-            if (uiState is NutritionUiState.Analyzing) {
-                Spacer(modifier = Modifier.height(24.dp))
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = OrangePrimary)
-                }
             }
         }
-    }
-}
 
-@Composable
-fun AnalyzedFoodResult(
-    food: AnalyzedFood,
-    portion: Float,
-    onPortionChange: (Float) -> Unit,
-    onAddToMeal: () -> Unit,
-    onScanAnother: () -> Unit
-) {
-    Column {
-        Text(food.name, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NutrientChip("${(food.calories * portion).toInt()} kcal", OrangePrimary)
-            NutrientChip("P: ${(food.protein * portion).toInt()}g", Color(0xFF4CAF50))
-            NutrientChip("C: ${(food.carbs * portion).toInt()}g", Color(0xFF2196F3))
-            NutrientChip("F: ${(food.fats * portion).toInt()}g", Color(0xFFFF9800))
-        }
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Text("Portion: ${DecimalFormat("#.#").format(portion)}x", color = Color.White.copy(alpha = 0.7f))
-        Slider(
-            value = portion,
-            onValueChange = onPortionChange,
-            valueRange = 0.25f..3f,
-            steps = 10,
-            colors = SliderDefaults.colors(thumbColor = OrangePrimary, activeTrackColor = OrangePrimary)
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Button(
-                onClick = onScanAnother,
-                modifier = Modifier.weight(1f).height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
-                shape = RoundedCornerShape(16.dp)
+        // Loading state
+        if (uiState is NutritionViewModel.UiState.Loading) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Retake", color = Color.White)
-            }
-            Button(
-                onClick = onAddToMeal,
-                modifier = Modifier.weight(1f).height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Text("Add Food", color = Color.White, fontWeight = FontWeight.Bold)
+                CircularProgressIndicator(color = OrangePrimary, modifier = Modifier.size(24.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("Analyzing...", color = Color.White)
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
 @Composable
-fun NutrientChip(text: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .background(color.copy(alpha = 0.15f), RoundedCornerShape(100))
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Text(text, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-fun CameraCapture(
+private fun CameraPreview(
     onImageCaptured: (Bitmap) -> Unit,
-    onClose: () -> Unit
+    onError: (ImageCaptureException) -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val imageCapture = remember { ImageCapture.Builder().build() }
+    var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
+    val executor = ContextCompat.getMainExecutor(context)
 
-    Box(modifier = Modifier.fillMaxWidth().height(400.dp).clip(RoundedCornerShape(24.dp))) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp)
+            .clip(RoundedCornerShape(16.dp))
+    ) {
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
-                val previewView = PreviewView(ctx).apply {
+                PreviewView(ctx).apply {
                     layoutParams = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
+                    scaleType = PreviewView.ScaleType.FILL_CENTER
                 }
-
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                    }
-
-                    try {
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            CameraSelector.DEFAULT_BACK_CAMERA,
-                            preview,
-                            imageCapture
-                        )
-                    } catch (exc: Exception) {
-                        Log.e("CameraCapture", "Use case binding failed", exc)
-                    }
-                }, ContextCompat.getMainExecutor(ctx))
-
-                previewView
-            }
-        )
+            },
+            modifier = Modifier.fillMaxSize()
+        ) { previewView ->
+            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                val preview = Preview.Builder().build().also {
+                    it.surfaceProvider = previewView.surfaceProvider
+                }
+                imageCapture = ImageCapture.Builder().build()
+                try {
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        preview,
+                        imageCapture
+                    )
+                } catch (e: Exception) {
+                    Log.e("CameraPreview", "Use case binding failed", e)
+                }
+            }, executor)
+        }
 
         // Capture button
-        IconButton(
+        FloatingActionButton(
             onClick = {
-                takePhoto(
-                    imageCapture = imageCapture,
-                    executor = ContextCompat.getMainExecutor(context),
-                    onImageCaptured = onImageCaptured,
-                    onError = { Log.e("CameraCapture", "Error", it) }
+                imageCapture?.takePicture(
+                    executor,
+                    object : ImageCapture.OnImageCapturedCallback() {
+                        override fun onCaptureSuccess(image: ImageProxy) {
+                            val bitmap = imageProxyToBitmap(image)
+                            image.close()
+                            onImageCaptured(bitmap)
+                        }
+                        override fun onError(exception: ImageCaptureException) {
+                            onError(exception)
+                        }
+                    }
                 )
             },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(16.dp)
-                .size(64.dp)
-                .background(OrangePrimary, CircleShape)
-                .border(4.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                .size(64.dp),
+            containerColor = OrangePrimary
         ) {
-            Icon(Icons.Default.CameraAlt, contentDescription = "Capture", tint = Color.White)
+            Icon(Icons.Default.CameraAlt, "Capture", tint = Color.White)
         }
     }
-}
-
-private fun takePhoto(
-    imageCapture: ImageCapture,
-    executor: Executor,
-    onImageCaptured: (Bitmap) -> Unit,
-    onError: (ImageCaptureException) -> Unit
-) {
-    imageCapture.takePicture(
-        executor,
-        object : ImageCapture.OnImageCapturedCallback() {
-            override fun onError(exception: ImageCaptureException) {
-                onError(exception)
-            }
-
-            override fun onCaptureSuccess(image: ImageProxy) {
-                val bitmap = imageProxyToBitmap(image)
-                onImageCaptured(bitmap)
-                image.close()
-            }
-        }
-    )
 }
 
 private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
@@ -554,8 +527,6 @@ private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
     val bytes = ByteArray(buffer.remaining())
     buffer.get(bytes)
     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    
-    val matrix = Matrix()
-    matrix.postRotate(image.imageInfo.rotationDegrees.toFloat())
+    val matrix = Matrix().apply { postRotate(image.imageInfo.rotationDegrees.toFloat()) }
     return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }

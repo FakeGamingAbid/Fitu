@@ -1,5 +1,7 @@
 package com.fitu.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,10 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,15 +22,18 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fitu.ui.components.AppleIcon
+import com.fitu.ui.components.DumbbellIcon
+import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
 import com.fitu.ui.dashboard.DashboardViewModel
 import com.fitu.ui.theme.OrangePrimary
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun DashboardScreen(
@@ -40,18 +42,22 @@ fun DashboardScreen(
     onNavigateToNutrition: () -> Unit = {}
 ) {
     val userName by viewModel.userName.collectAsState()
-    val todayDate = viewModel.todayDate
     val currentSteps by viewModel.currentSteps.collectAsState()
     val dailyStepGoal by viewModel.dailyStepGoal.collectAsState()
-    val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
+    val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
-    val workoutsCompleted by viewModel.workoutsCompleted.collectAsState()
-    val dailyRecap by viewModel.dailyRecap.collectAsState()
 
-    LaunchedEffect(Unit) {
-        viewModel.generateDailyRecap()
-    }
+    val stepProgress = if (dailyStepGoal > 0) currentSteps.toFloat() / dailyStepGoal else 0f
+    val animatedStepProgress by animateFloatAsState(
+        targetValue = stepProgress.coerceIn(0f, 1f),
+        animationSpec = tween(1000),
+        label = "stepProgress"
+    )
+    val stepPercentage = (stepProgress * 100).toInt().coerceIn(0, 100)
+
+    val dateFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
+    val todayDate = dateFormat.format(Date())
 
     Column(
         modifier = Modifier
@@ -59,8 +65,7 @@ fun DashboardScreen(
             .background(Color(0xFF0A0A0F))
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
-            .padding(top = 32.dp, bottom = 100.dp), // Padding for bottom nav
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+            .padding(top = 32.dp, bottom = 120.dp)
     ) {
         // --- Header ---
         Row(
@@ -70,9 +75,9 @@ fun DashboardScreen(
         ) {
             Column {
                 Text(
-                    text = "Hello, ${userName.split(" ").firstOrNull() ?: "User"}",
+                    text = "Hello, ${userName.ifBlank { "User" }}",
                     color = Color.White,
-                    fontSize = 30.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
@@ -81,36 +86,51 @@ fun DashboardScreen(
                     fontSize = 14.sp
                 )
             }
+            // Avatar
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .background(
-                        Brush.linearGradient(listOf(OrangePrimary, Color(0xFFD94F00))),
-                        CircleShape
-                    ),
+                    .size(44.dp)
+                    .background(OrangePrimary, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = userName.firstOrNull()?.toString() ?: "U",
+                    text = userName.take(1).uppercase().ifEmpty { "U" },
                     color = Color.White,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        // --- Main Steps Card ---
-        GlassCard(onClick = onNavigateToSteps) {
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // --- Steps Card ---
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onNavigateToSteps
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Filled.DirectionsRun, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
-                        Text("Steps", color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Medium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            FootprintsIcon,
+                            contentDescription = null,
+                            tint = OrangePrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Steps",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = String.format("%,d", currentSteps),
                         color = Color.White,
@@ -119,159 +139,181 @@ fun DashboardScreen(
                     )
                     Text(
                         text = "Goal: ${String.format("%,d", dailyStepGoal)}",
-                        color = Color.White.copy(alpha = 0.4f),
-                        fontSize = 12.sp
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 14.sp
                     )
                 }
-                
-                // Stat Ring
-                Box(contentAlignment = Alignment.Center) {
-                    val progress = (currentSteps.toFloat() / dailyStepGoal.toFloat()).coerceIn(0f, 1f)
-                    Canvas(modifier = Modifier.size(80.dp)) {
-                        drawCircle(color = Color.White.copy(alpha = 0.1f), style = Stroke(width = 8.dp.toPx()))
+                // Progress Ring
+                Box(
+                    modifier = Modifier.size(64.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.1f),
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = Stroke(width = 6.dp.toPx())
+                        )
                         drawArc(
                             color = OrangePrimary,
                             startAngle = -90f,
-                            sweepAngle = progress * 360f,
+                            sweepAngle = 360f * animatedStepProgress,
                             useCenter = false,
-                            style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+                            style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
                         )
                     }
                     Text(
-                        text = "${(progress * 100).toInt()}%",
+                        text = "${stepPercentage}%",
                         color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
         // --- Burned Card ---
-        GlassCard {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Filled.LocalFireDepartment, null, tint = Color(0xFFFF5252), modifier = Modifier.size(14.dp))
-                    Text("Burned", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = OrangePrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Burned",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "${caloriesBurned.toInt()}",
+                    text = "$caloriesBurned",
                     color = Color.White,
-                    fontSize = 24.sp,
+                    fontSize = 32.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-                // Progress Bar
+                Spacer(modifier = Modifier.height(8.dp))
+                // Progress bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(4.dp)
-                        .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(2.dp))
                 ) {
+                    val burnProgress = if (dailyCalorieGoal > 0) caloriesBurned.toFloat() / dailyCalorieGoal else 0f
                     Box(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth((caloriesBurned.toFloat() / dailyCalorieGoal.toFloat()).coerceIn(0f, 1f))
-                            .background(Color(0xFFFF5252), CircleShape)
+                            .fillMaxWidth(burnProgress.coerceIn(0f, 1f))
+                            .height(4.dp)
+                            .background(OrangePrimary, RoundedCornerShape(2.dp))
                     )
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // --- Nutrition Card ---
-        GlassCard(onClick = onNavigateToNutrition) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Filled.Restaurant, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(18.dp))
-                        Text("Nutrition", color = Color.White, fontWeight = FontWeight.Bold)
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onNavigateToNutrition
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            AppleIcon,
+                            contentDescription = null,
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Nutrition",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
-                    Box(
-                        modifier = Modifier
-                            .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(100))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text("Track", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                if (caloriesConsumed > 0) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Eaten", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                            Text("${caloriesConsumed.toInt()}", color = Color(0xFF4CAF50), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Box(modifier = Modifier.width(1.dp).height(32.dp).background(Color.White.copy(alpha = 0.1f)))
-                        Column {
-                            val net = caloriesConsumed - caloriesBurned
-                            Text("Net", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                            Text(
-                                text = "${if (net > 0) "+" else ""}${net.toInt()}",
-                                color = if (net > 0) Color.White else OrangePrimary,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                } else {
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Track your meals with AI vision.",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 14.sp
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 13.sp
+                    )
+                }
+                // Track pill
+                Box(
+                    modifier = Modifier
+                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Track",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
         }
 
-        // --- AI Coach Card ---
-        GlassCard(
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- AI Workout Coach Card ---
+        Box(
             modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
                 .background(
                     Brush.linearGradient(
-                        colors = listOf(OrangePrimary.copy(alpha = 0.2f), Color.Transparent)
-                    ),
-                    RoundedCornerShape(24.dp)
+                        colors = listOf(
+                            OrangePrimary.copy(alpha = 0.8f),
+                            OrangePrimary.copy(alpha = 0.4f)
+                        )
+                    )
                 )
                 .border(1.dp, OrangePrimary.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
+                .padding(20.dp)
         ) {
-            Column(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("AI Workout Coach", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Real-time form correction & rep counting", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = { /* Navigate to Coach */ },
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
-                    shape = RoundedCornerShape(100)
-                ) {
-                    Text("Start Workout", fontWeight = FontWeight.Bold)
+                Icon(
+                    DumbbellIcon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "AI Workout Coach",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Real-time form correction",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 13.sp
+                    )
                 }
             }
-        }
-        
-        // --- Daily Recap (if available) ---
-        if (dailyRecap.isNotEmpty()) {
-             GlassCard {
-                 Column {
-                     Text("✨ AI Daily Recap", color = OrangePrimary, fontWeight = FontWeight.Bold)
-                     Spacer(modifier = Modifier.height(8.dp))
-                     Text(dailyRecap, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, lineHeight = 20.sp)
-                 }
-             }
         }
     }
 }
