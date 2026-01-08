@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +22,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,17 +37,38 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val userName by viewModel.userName.collectAsState()
+    val userAge by viewModel.userAge.collectAsState()
     val userHeightCm by viewModel.userHeightCm.collectAsState()
     val userWeightKg by viewModel.userWeightKg.collectAsState()
+    val dailyStepGoal by viewModel.dailyStepGoal.collectAsState()
+    val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
     val apiKey by viewModel.apiKey.collectAsState()
     val bmi by viewModel.bmi.collectAsState()
     val bmiCategory by viewModel.bmiCategory.collectAsState()
     val showApiKeyDialog by viewModel.showApiKeyDialog.collectAsState()
     val showAboutDialog by viewModel.showAboutDialog.collectAsState()
 
+    var showEditProfileDialog by remember { mutableStateOf(false) }
     var editApiKey by remember(apiKey) { mutableStateOf(apiKey) }
 
-    // Dialogs
+    // Edit Profile Dialog
+    if (showEditProfileDialog) {
+        EditProfileDialog(
+            currentName = userName,
+            currentAge = userAge,
+            currentHeight = userHeightCm,
+            currentWeight = userWeightKg,
+            currentStepGoal = dailyStepGoal,
+            currentCalorieGoal = dailyCalorieGoal,
+            onSave = { name, age, height, weight, stepGoal, calorieGoal ->
+                viewModel.saveProfile(name, age, height, weight, stepGoal, calorieGoal)
+                showEditProfileDialog = false
+            },
+            onDismiss = { showEditProfileDialog = false }
+        )
+    }
+
+    // API Key Dialog
     if (showApiKeyDialog) {
         ApiKeyDialog(
             currentKey = editApiKey,
@@ -76,41 +101,104 @@ fun ProfileScreen(
 
         // --- User Info ---
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .background(
-                        Brush.linearGradient(listOf(OrangePrimary, Color(0xFFD94F00))),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = getInitials(userName),
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .background(
+                            Brush.linearGradient(listOf(OrangePrimary, Color(0xFFD94F00))),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = getInitials(userName),
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Column {
+                    Text(
+                        text = userName.ifBlank { "User" },
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Pro Member",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 14.sp
+                    )
+                }
             }
-            Column {
-                Text(
-                    text = userName.ifBlank { "User" },
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Pro Member",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 14.sp
+            // Edit button
+            IconButton(
+                onClick = { showEditProfileDialog = true },
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+            ) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = "Edit Profile",
+                    tint = OrangePrimary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
 
+        // --- My Goals ---
+        Text(
+            text = "MY GOALS",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Daily Steps", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = String.format("%,d", dailyStepGoal),
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Daily Calories", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = String.format("%,d", dailyCalorieGoal),
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
         // --- Body Stats ---
+        Text(
+            text = "BODY STATS",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 // BMI
@@ -163,17 +251,31 @@ fun ProfileScreen(
                     Text("$userWeightKg kg", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
                 Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
-                // API Key
+                // API Key (clickable)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.showApiKeyDialog() },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("API Key", color = Color.White, fontSize = 16.sp)
-                    Text(
-                        text = if (apiKey.isNotBlank()) "••••••••" else "Not set",
-                        color = Color.White.copy(alpha = 0.4f),
-                        fontSize = 16.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = if (apiKey.isNotBlank()) "••••••••" else "Not set",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 16.sp
+                        )
+                        Icon(
+                            Icons.Default.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.3f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -188,6 +290,14 @@ fun ProfileScreen(
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
+                SettingsItem(
+                    icon = Icons.Default.Key,
+                    iconBgColor = OrangePrimary,
+                    title = "Update API Key",
+                    subtitle = "Change your Gemini API key",
+                    onClick = { viewModel.showApiKeyDialog() }
+                )
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
                 SettingsItem(
                     icon = Icons.Default.Download,
                     iconBgColor = Color(0xFF2196F3),
@@ -248,6 +358,117 @@ private fun SettingsItem(
         }
         Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.3f))
     }
+}
+
+@Composable
+private fun EditProfileDialog(
+    currentName: String,
+    currentAge: Int,
+    currentHeight: Int,
+    currentWeight: Int,
+    currentStepGoal: Int,
+    currentCalorieGoal: Int,
+    onSave: (String, Int, Int, Int, Int, Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(currentName) }
+    var age by remember { mutableStateOf(currentAge.toString()) }
+    var height by remember { mutableStateOf(currentHeight.toString()) }
+    var weight by remember { mutableStateOf(currentWeight.toString()) }
+    var stepGoal by remember { mutableStateOf(currentStepGoal.toString()) }
+    var calorieGoal by remember { mutableStateOf(currentCalorieGoal.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1A1A1F),
+        title = { Text("Edit Profile", color = Color.White, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ProfileTextField(value = name, onValueChange = { name = it }, label = "Name")
+                ProfileTextField(value = age, onValueChange = { age = it.filter { c -> c.isDigit() } }, label = "Age", isNumber = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ProfileTextField(
+                        value = height,
+                        onValueChange = { height = it.filter { c -> c.isDigit() } },
+                        label = "Height (cm)",
+                        isNumber = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    ProfileTextField(
+                        value = weight,
+                        onValueChange = { weight = it.filter { c -> c.isDigit() } },
+                        label = "Weight (kg)",
+                        isNumber = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ProfileTextField(
+                        value = stepGoal,
+                        onValueChange = { stepGoal = it.filter { c -> c.isDigit() } },
+                        label = "Step Goal",
+                        isNumber = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    ProfileTextField(
+                        value = calorieGoal,
+                        onValueChange = { calorieGoal = it.filter { c -> c.isDigit() } },
+                        label = "Calorie Goal",
+                        isNumber = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        name,
+                        age.toIntOrNull() ?: currentAge,
+                        height.toIntOrNull() ?: currentHeight,
+                        weight.toIntOrNull() ?: currentWeight,
+                        stepGoal.toIntOrNull() ?: currentStepGoal,
+                        calorieGoal.toIntOrNull() ?: currentCalorieGoal
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
+            ) {
+                Text("Save", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+            }
+        }
+    )
+}
+
+@Composable
+private fun ProfileTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    isNumber: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, color = Color.White.copy(alpha = 0.5f)) },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (isNumber) KeyboardType.Number else KeyboardType.Text
+        ),
+        singleLine = true,
+        modifier = modifier.fillMaxWidth(),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            focusedBorderColor = OrangePrimary,
+            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+        )
+    )
 }
 
 @Composable
