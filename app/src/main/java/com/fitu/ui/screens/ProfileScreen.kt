@@ -10,16 +10,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -38,11 +33,8 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val userName by viewModel.userName.collectAsState()
-    val userAge by viewModel.userAge.collectAsState()
     val userHeightCm by viewModel.userHeightCm.collectAsState()
     val userWeightKg by viewModel.userWeightKg.collectAsState()
-    val dailyStepGoal by viewModel.dailyStepGoal.collectAsState()
-    val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
     val apiKey by viewModel.apiKey.collectAsState()
     val bmi by viewModel.bmi.collectAsState()
     val bmiCategory by viewModel.bmiCategory.collectAsState()
@@ -152,7 +144,7 @@ fun ProfileScreen(
                         }
                     }
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
                 // Height
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -161,7 +153,7 @@ fun ProfileScreen(
                     Text("Height", color = Color.White, fontSize = 16.sp)
                     Text("$userHeightCm cm", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
                 // Weight
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -170,7 +162,7 @@ fun ProfileScreen(
                     Text("Weight", color = Color.White, fontSize = 16.sp)
                     Text("$userWeightKg kg", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
                 // API Key
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -203,7 +195,7 @@ fun ProfileScreen(
                     subtitle = "Download JSON backup",
                     onClick = { /* TODO */ }
                 )
-                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
                 SettingsItem(
                     icon = Icons.Default.Delete,
                     iconBgColor = Color(0xFFF44336),

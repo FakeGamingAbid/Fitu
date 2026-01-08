@@ -15,7 +15,6 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,7 +27,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,12 +42,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.fitu.ui.components.AppleIcon
 import com.fitu.ui.components.GlassCard
+import com.fitu.ui.nutrition.AnalyzedFood
+import com.fitu.ui.nutrition.NutritionUiState
 import com.fitu.ui.nutrition.NutritionViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.nio.ByteBuffer
-import java.util.concurrent.Executor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -264,8 +262,8 @@ private fun MacroPill(text: String, color: Color) {
 @Composable
 private fun AddFoodSheetContent(
     viewModel: NutritionViewModel,
-    uiState: NutritionViewModel.UiState,
-    analyzedFood: NutritionViewModel.AnalyzedFood?,
+    uiState: NutritionUiState,
+    analyzedFood: AnalyzedFood?,
     portion: Float,
     textSearch: String,
     selectedMealType: String,
@@ -275,7 +273,6 @@ private fun AddFoodSheetContent(
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasCameraPermission by remember { mutableStateOf(false) }
     var showCamera by remember { mutableStateOf(false) }
-    var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -384,7 +381,7 @@ private fun AddFoodSheetContent(
             if (textSearch.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
-                    onClick = { viewModel.analyzeText(textSearch) },
+                    onClick = { viewModel.searchFood(textSearch) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
                 ) {
@@ -393,9 +390,9 @@ private fun AddFoodSheetContent(
             }
         } else {
             // Camera preview
-            CameraPreview(
+            CameraPreviewSection(
                 onImageCaptured = { bitmap ->
-                    viewModel.analyzeImage(bitmap)
+                    viewModel.analyzeFood(bitmap)
                     showCamera = false
                 },
                 onError = { Log.e("NutritionScreen", "Camera error", it) }
@@ -417,7 +414,7 @@ private fun AddFoodSheetContent(
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
-                        onClick = { viewModel.saveAnalyzedFood() },
+                        onClick = { viewModel.addFoodToMeal() },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
                     ) {
@@ -428,7 +425,7 @@ private fun AddFoodSheetContent(
         }
 
         // Loading state
-        if (uiState is NutritionViewModel.UiState.Loading) {
+        if (uiState is NutritionUiState.Loading) {
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -446,7 +443,7 @@ private fun AddFoodSheetContent(
 }
 
 @Composable
-private fun CameraPreview(
+private fun CameraPreviewSection(
     onImageCaptured: (Bitmap) -> Unit,
     onError: (ImageCaptureException) -> Unit
 ) {
@@ -471,28 +468,29 @@ private fun CameraPreview(
                     scaleType = PreviewView.ScaleType.FILL_CENTER
                 }
             },
-            modifier = Modifier.fillMaxSize()
-        ) { previewView ->
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-            cameraProviderFuture.addListener({
-                val cameraProvider = cameraProviderFuture.get()
-                val preview = Preview.Builder().build().also {
-                    it.surfaceProvider = previewView.surfaceProvider
-                }
-                imageCapture = ImageCapture.Builder().build()
-                try {
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        CameraSelector.DEFAULT_BACK_CAMERA,
-                        preview,
-                        imageCapture
-                    )
-                } catch (e: Exception) {
-                    Log.e("CameraPreview", "Use case binding failed", e)
-                }
-            }, executor)
-        }
+            modifier = Modifier.fillMaxSize(),
+            update = { previewView ->
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                cameraProviderFuture.addListener({
+                    val cameraProvider = cameraProviderFuture.get()
+                    val preview = Preview.Builder().build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+                    imageCapture = ImageCapture.Builder().build()
+                    try {
+                        cameraProvider.unbindAll()
+                        cameraProvider.bindToLifecycle(
+                            lifecycleOwner,
+                            CameraSelector.DEFAULT_BACK_CAMERA,
+                            preview,
+                            imageCapture
+                        )
+                    } catch (e: Exception) {
+                        Log.e("CameraPreview", "Use case binding failed", e)
+                    }
+                }, executor)
+            }
+        )
 
         // Capture button
         FloatingActionButton(

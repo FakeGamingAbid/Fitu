@@ -4,7 +4,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -17,11 +16,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,12 +35,10 @@ import com.fitu.ui.theme.OrangePrimary
 fun StepsScreen(
     viewModel: StepsViewModel = hiltViewModel()
 ) {
-    val currentSteps by viewModel.currentSteps.collectAsState()
+    val currentSteps by viewModel.stepCount.collectAsState()
     val dailyGoal by viewModel.dailyStepGoal.collectAsState()
-    val isTracking by viewModel.isTracking.collectAsState()
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val distanceKm by viewModel.distanceKm.collectAsState()
-    val weeklySteps by viewModel.weeklySteps.collectAsState()
 
     val progress = if (dailyGoal > 0) currentSteps.toFloat() / dailyGoal.toFloat() else 0f
     val animatedProgress by animateFloatAsState(
@@ -146,9 +144,9 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Start/Stop Tracking Button ---
+        // --- Start Tracking Button ---
         Button(
-            onClick = { viewModel.toggleTracking() },
+            onClick = { viewModel.startService() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
@@ -163,7 +161,7 @@ fun StepsScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (isTracking) "Stop Tracking" else "Start Tracking",
+                text = "Start Tracking",
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -325,7 +323,7 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Weekly Bar Chart
+        // Weekly Bar Chart (placeholder data)
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
                 Row(
@@ -336,23 +334,21 @@ fun StepsScreen(
                     verticalAlignment = Alignment.Bottom
                 ) {
                     val days = listOf("Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri")
-                    val maxSteps = (weeklySteps.maxOrNull() ?: 1).coerceAtLeast(1)
+                    // Placeholder weekly data - in a real app this would come from repository
+                    val weeklyData = listOf(0, 0, 0, 0, 0, 0, currentSteps)
+                    val maxSteps = weeklyData.maxOrNull()?.coerceAtLeast(1) ?: 1
                     
-                    weeklySteps.forEachIndexed { index, steps ->
+                    weeklyData.forEach { steps ->
                         val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 80).dp else 4.dp
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(24.dp)
-                                    .height(barHeight.coerceAtLeast(4.dp))
-                                    .background(
-                                        if (steps > 0) OrangePrimary else Color.White.copy(alpha = 0.1f),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                            )
-                        }
+                        Box(
+                            modifier = Modifier
+                                .width(24.dp)
+                                .height(barHeight.coerceAtLeast(4.dp))
+                                .background(
+                                    if (steps > 0) OrangePrimary else Color.White.copy(alpha = 0.1f),
+                                    RoundedCornerShape(4.dp)
+                                )
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
@@ -373,18 +369,16 @@ fun StepsScreen(
     }
 }
 
-// Sneaker Icon (from original)
+// Sneaker Icon
 private val SneakerIcon: ImageVector
-    get() = androidx.compose.ui.graphics.vector.ImageVector.Builder(
+    get() = ImageVector.Builder(
         name = "Sneaker",
         defaultWidth = 24.dp,
         defaultHeight = 24.dp,
         viewportWidth = 256f,
         viewportHeight = 256f
     ).apply {
-        androidx.compose.ui.graphics.vector.path(
-            fill = androidx.compose.ui.graphics.SolidColor(Color.White)
-        ) {
+        path(fill = SolidColor(Color.White)) {
             moveTo(231.16f, 166.63f)
             lineTo(202.53f, 152.32f)
             arcTo(47.74f, 47.74f, 0f, false, true, 176f, 109.39f)
