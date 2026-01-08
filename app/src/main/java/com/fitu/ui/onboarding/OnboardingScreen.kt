@@ -12,7 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.*
@@ -181,7 +181,7 @@ fun PersonalInfoPage(viewModel: OnboardingViewModel) {
             )
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
+                Icons.Filled.ArrowForward,
                 contentDescription = null,
                 tint = Color.White
             )
