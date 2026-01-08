@@ -425,7 +425,7 @@ private fun AddFoodSheetContent(
         }
 
         // Loading state
-        if (uiState is NutritionUiState.Loading) {
+        if (uiState is NutritionUiState.Analyzing) {
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
