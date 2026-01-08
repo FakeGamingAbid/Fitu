@@ -1,7 +1,0 @@
-{
-  "name": "Fitu",
-  "description": "AI-powered fitness tracker with real-time pose detection and nutrition analysis.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
