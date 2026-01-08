@@ -50,6 +50,7 @@ import java.text.DecimalFormat
 @Composable
 fun StepsScreen(
     viewModel: StepsViewModel = hiltViewModel()
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var hasPermission by remember { mutableStateOf(false) }
     
