@@ -1,7 +1,14 @@
 package com.fitu.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.DirectionsRun
@@ -9,9 +16,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +23,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -76,42 +82,105 @@ fun MainScreen(
     val showBottomBar = currentDestination?.route != Screen.Onboarding.route
 
     Scaffold(
-        bottomBar = {
+        containerColor = androidx.compose.ui.graphics.Color(0xFF0A0A0F)
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Main Content
+            Box(modifier = Modifier.padding(bottom = if (showBottomBar) 0.dp else 0.dp)) {
+                NavGraph(navController = navController, startDestination = startDestination)
+            }
+
+            // Floating Bottom Navigation
             if (showBottomBar) {
-                NavigationBar {
-                    items.forEach { screen ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                        NavigationBarItem(
-                            icon = { 
-                                Icon(
-                                    imageVector = screen.icon, 
-                                    contentDescription = screen.label
-                                ) 
-                            },
-                            label = { Text(screen.label) },
-                            selected = selected,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = OrangePrimary,
-                                selectedTextColor = OrangePrimary,
-                                indicatorColor = OrangePrimary.copy(alpha = 0.1f)
-                            ),
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                Box(
+                    modifier = Modifier
+                        .align(androidx.compose.ui.Alignment.BottomCenter)
+                        .padding(16.dp)
+                        .padding(bottom = 16.dp)
+                ) {
+                    com.fitu.ui.components.GlassCard(
+                        modifier = Modifier.height(80.dp)
+                    ) {
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            items.forEach { screen ->
+                                val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                                val isCoach = screen == BottomNavItem.Coach
+
+                                if (isCoach) {
+                                    // Center Coach Button
+                                    androidx.compose.foundation.layout.Box(
+                                        modifier = Modifier
+                                            .offset(y = (-24).dp) // Float up
+                                            .size(56.dp)
+                                            .background(
+                                                if (selected) androidx.compose.ui.graphics.Color.White else OrangePrimary,
+                                                androidx.compose.foundation.shape.CircleShape
+                                            )
+                                            .border(4.dp, androidx.compose.ui.graphics.Color(0xFF0A0A0F), androidx.compose.foundation.shape.CircleShape)
+                                            .clickable {
+                                                navController.navigate(screen.route) {
+                                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                    launchSingleTop = true
+                                                    restoreState = true
+                                                }
+                                            },
+                                        contentAlignment = androidx.compose.ui.Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = screen.icon,
+                                            contentDescription = screen.label,
+                                            tint = if (selected) OrangePrimary else androidx.compose.ui.graphics.Color.White
+                                        )
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
+                                } else {
+                                    // Standard Icon
+                                    androidx.compose.foundation.layout.Column(
+                                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                                        modifier = Modifier
+                                            .clickable {
+                                                navController.navigate(screen.route) {
+                                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                    launchSingleTop = true
+                                                    restoreState = true
+                                                }
+                                            }
+                                            .padding(horizontal = 12.dp)
+                                    ) {
+                                        androidx.compose.foundation.layout.Box(
+                                            modifier = Modifier
+                                                .padding(8.dp)
+                                                .background(
+                                                    if (selected) OrangePrimary else androidx.compose.ui.graphics.Color.Transparent,
+                                                    androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                                                )
+                                                .padding(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = screen.icon,
+                                                contentDescription = screen.label,
+                                                tint = if (selected) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.5f),
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                        if (selected) {
+                                            Text(
+                                                text = screen.label,
+                                                fontSize = 10.sp,
+                                                color = androidx.compose.ui.graphics.Color.White,
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                        )
+                        }
                     }
                 }
             }
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
-            NavGraph(navController = navController, startDestination = startDestination)
         }
     }
 }

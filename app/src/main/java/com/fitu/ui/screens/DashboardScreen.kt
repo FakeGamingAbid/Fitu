@@ -3,38 +3,21 @@ package com.fitu.ui.screens
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -43,7 +26,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fitu.ui.components.GlassCard
 import com.fitu.ui.dashboard.DashboardViewModel
 import com.fitu.ui.theme.OrangePrimary
 
@@ -61,7 +46,6 @@ fun DashboardScreen(
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
     val workoutsCompleted by viewModel.workoutsCompleted.collectAsState()
-    val weeklySteps by viewModel.weeklySteps.collectAsState()
     val dailyRecap by viewModel.dailyRecap.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -71,353 +55,222 @@ fun DashboardScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color(0xFF0A0A0F))
             .verticalScroll(rememberScrollState())
-            .padding(20.dp)
+            .padding(horizontal = 24.dp)
+            .padding(top = 32.dp, bottom = 100.dp), // Padding for bottom nav
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // Greeting Header
-        GreetingSection(userName = userName, date = todayDate)
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Steps Summary Card (Clickable)
-        SummaryCard(
-            title = "Steps",
-            value = "$currentSteps",
-            subtitle = "of $dailyStepGoal goal",
-            progress = currentSteps.toFloat() / dailyStepGoal.toFloat(),
-            icon = Icons.Filled.DirectionsRun,
-            gradientColors = listOf(OrangePrimary, Color(0xFFFF6B35)),
-            onClick = onNavigateToSteps
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Workout and Nutrition Cards Row
+        // --- Header ---
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Workout Summary Card
-            SmallSummaryCard(
-                modifier = Modifier.weight(1f),
-                title = "Workouts",
-                value = "$workoutsCompleted",
-                subtitle = "completed",
-                icon = Icons.Filled.FitnessCenter,
-                color = Color(0xFF7C4DFF),
-                onClick = {}
-            )
-
-            // Nutrition Summary Card
-            SmallSummaryCard(
-                modifier = Modifier.weight(1f),
-                title = "Nutrition",
-                value = "$caloriesConsumed",
-                subtitle = "kcal consumed",
-                icon = Icons.Filled.Restaurant,
-                color = Color(0xFF4CAF50),
-                onClick = onNavigateToNutrition
-            )
+            Column {
+                Text(
+                    text = "Hello, ${userName.split(" ").firstOrNull() ?: "User"}",
+                    color = Color.White,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = todayDate,
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 14.sp
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        Brush.linearGradient(listOf(OrangePrimary, Color(0xFFD94F00))),
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = userName.firstOrNull()?.toString() ?: "U",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Weekly Progress Chart
-        WeeklyProgressSection(weeklySteps = weeklySteps, stepGoal = dailyStepGoal)
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // AI Daily Recap
-        DailyRecapCard(recap = dailyRecap)
-    }
-}
-
-@Composable
-fun GreetingSection(userName: String, date: String) {
-    Column {
-        Text(
-            text = "Hello, ${userName.ifBlank { "there" }}",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = date,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
-    }
-}
-
-@Composable
-fun SummaryCard(
-    title: String,
-    value: String,
-    subtitle: String,
-    progress: Float,
-    icon: ImageVector,
-    gradientColors: List<Color>,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(gradientColors),
-                    RoundedCornerShape(20.dp)
-                )
-                .padding(20.dp)
-        ) {
+        // --- Main Steps Card ---
+        GlassCard(onClick = onNavigateToSteps) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = "Steps Icon",
-                            tint = Color.White.copy(alpha = 0.9f),
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White.copy(alpha = 0.9f)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Filled.DirectionsRun, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+                        Text("Steps", color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Medium)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = String.format("%,d", currentSteps),
+                        color = Color.White,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Goal: ${String.format("%,d", dailyStepGoal)}",
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 12.sp
+                    )
+                }
+                
+                // Stat Ring
+                Box(contentAlignment = Alignment.Center) {
+                    val progress = (currentSteps.toFloat() / dailyStepGoal.toFloat()).coerceIn(0f, 1f)
+                    Canvas(modifier = Modifier.size(80.dp)) {
+                        drawCircle(color = Color.White.copy(alpha = 0.1f), style = Stroke(width = 8.dp.toPx()))
+                        drawArc(
+                            color = OrangePrimary,
+                            startAngle = -90f,
+                            sweepAngle = progress * 360f,
+                            useCenter = false,
+                            style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = value,
-                        style = MaterialTheme.typography.displaySmall,
+                        text = "${(progress * 100).toInt()}%",
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.8f)
+                        fontSize = 12.sp
                     )
                 }
-
-                // Circular Progress
-                CircularProgressIndicator(
-                    progress = progress.coerceIn(0f, 1f),
-                    size = 70.dp,
-                    strokeWidth = 8.dp,
-                    backgroundColor = Color.White.copy(alpha = 0.3f),
-                    progressColor = Color.White
-                )
             }
         }
-    }
-}
 
-@Composable
-fun SmallSummaryCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    value: String,
-    subtitle: String,
-    icon: ImageVector,
-    color: Color,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier
-            .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        // --- Burned Card ---
+        GlassCard {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Filled.LocalFireDepartment, null, tint = Color(0xFFFF5252), modifier = Modifier.size(14.dp))
+                    Text("Burned", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "${caloriesBurned.toInt()}",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                // Progress Bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth((caloriesBurned.toFloat() / dailyCalorieGoal.toFloat()).coerceIn(0f, 1f))
+                            .background(Color(0xFFFF5252), CircleShape)
+                    )
+                }
+            }
+        }
+
+        // --- Nutrition Card ---
+        GlassCard(onClick = onNavigateToNutrition) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Filled.Restaurant, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(18.dp))
+                        Text("Nutrition", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(100))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("Track", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (caloriesConsumed > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Eaten", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                            Text("${caloriesConsumed.toInt()}", color = Color(0xFF4CAF50), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Box(modifier = Modifier.width(1.dp).height(32.dp).background(Color.White.copy(alpha = 0.1f)))
+                        Column {
+                            val net = caloriesConsumed - caloriesBurned
+                            Text("Net", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                            Text(
+                                text = "${if (net > 0) "+" else ""}${net.toInt()}",
+                                color = if (net > 0) Color.White else OrangePrimary,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Track your meals with AI vision.",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+
+        // --- AI Coach Card ---
+        GlassCard(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(OrangePrimary.copy(alpha = 0.2f), Color.Transparent)
+                    ),
+                    RoundedCornerShape(24.dp)
+                )
+                .border(1.dp, OrangePrimary.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(color.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = "Nutrition Icon",
-                    tint = color,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium,
-                color = color
-            )
-        }
-    }
-}
-
-@Composable
-fun WeeklyProgressSection(weeklySteps: List<Int>, stepGoal: Int) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Weekly Progress",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            WeeklyBarChart(
-                data = weeklySteps,
-                maxValue = stepGoal,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Day labels
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                listOf("M", "T", "W", "T", "F", "S", "S").forEach { day ->
-                    Text(
-                        text = day,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
+                Text("AI Workout Coach", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Real-time form correction & rep counting", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = { /* Navigate to Coach */ },
+                    colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
+                    shape = RoundedCornerShape(100)
+                ) {
+                    Text("Start Workout", fontWeight = FontWeight.Bold)
                 }
             }
         }
-    }
-}
-
-@Composable
-fun WeeklyBarChart(
-    data: List<Int>,
-    maxValue: Int,
-    modifier: Modifier = Modifier
-) {
-    val barColor = OrangePrimary
-    val backgroundColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-
-    Canvas(modifier = modifier) {
-        val barWidth = size.width / (data.size * 2f)
-        val spacing = barWidth
-        val maxHeight = size.height
-
-        data.forEachIndexed { index, value ->
-            val x = spacing / 2 + (barWidth + spacing) * index
-            val barHeight = (value.toFloat() / maxValue.toFloat() * maxHeight).coerceAtMost(maxHeight)
-
-            // Background bar
-            drawRoundRect(
-                color = backgroundColor,
-                topLeft = Offset(x, 0f),
-                size = Size(barWidth, maxHeight),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
-            )
-
-            // Progress bar
-            if (barHeight > 0) {
-                drawRoundRect(
-                    color = barColor,
-                    topLeft = Offset(x, maxHeight - barHeight),
-                    size = Size(barWidth, barHeight),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
-                )
-            }
+        
+        // --- Daily Recap (if available) ---
+        if (dailyRecap.isNotEmpty()) {
+             GlassCard {
+                 Column {
+                     Text("✨ AI Daily Recap", color = OrangePrimary, fontWeight = FontWeight.Bold)
+                     Spacer(modifier = Modifier.height(8.dp))
+                     Text(dailyRecap, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, lineHeight = 20.sp)
+                 }
+             }
         }
-    }
-}
-
-@Composable
-fun DailyRecapCard(recap: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "✨ AI Daily Recap",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = OrangePrimary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = recap,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-            )
-        }
-    }
-}
-
-@Composable
-fun CircularProgressIndicator(
-    progress: Float,
-    size: Dp,
-    strokeWidth: Dp,
-    backgroundColor: Color,
-    progressColor: Color
-) {
-    Box(contentAlignment = Alignment.Center) {
-        Canvas(modifier = Modifier.size(size)) {
-            // Background circle
-            drawArc(
-                color = backgroundColor,
-                startAngle = 0f,
-                sweepAngle = 360f,
-                useCenter = false,
-                style = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)
-            )
-            // Progress arc
-            drawArc(
-                color = progressColor,
-                startAngle = -90f,
-                sweepAngle = 360 * progress,
-                useCenter = false,
-                style = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)
-            )
-        }
-        Text(
-            text = "${(progress * 100).toInt()}%",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = progressColor
-        )
     }
 }

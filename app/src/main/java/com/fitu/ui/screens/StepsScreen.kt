@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fitu.ui.components.GlassCard
 import com.fitu.ui.steps.StepsViewModel
 import com.fitu.ui.theme.OrangePrimary
 import kotlinx.coroutines.delay
@@ -336,21 +337,6 @@ fun StepsScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun GlassCard(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(24.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(24.dp))
-            .padding(20.dp)
-    ) {
-        content()
     }
 }
 
