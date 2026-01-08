@@ -58,24 +58,6 @@ class StepCounterService : Service(), SensorEventListener {
         return START_STICKY
     }
 
-    private fun registerSensors() {
-        if (stepCounterSensor == null) {
-            stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        }
-        if (accelerometerSensor == null) {
-            accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        }
-
-        if (stepCounterSensor != null) {
-            sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_UI)
-        } else {
-            // Fallback to accelerometer
-            accelerometerSensor?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
-            }
-        }
-    }
-
     private fun startForegroundService() {
         val channelId = "step_counter_channel"
         val channelName = "Step Counter"
@@ -97,18 +79,35 @@ class StepCounterService : Service(), SensorEventListener {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private var initialStepCount = -1
+    private var lastStepTime = 0L
+    private val stepCooldownMs = 300L // Minimum time between steps
+
+    private fun registerSensors() {
+        // Prioritize Accelerometer as per user request
+        if (accelerometerSensor == null) {
+            accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        }
+        
+        // Still try to get step counter for hybrid approach if needed later, but we will use accelerometer primarily
+        if (stepCounterSensor == null) {
+            stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        }
+
+        // Register Accelerometer
+        accelerometerSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) // Faster delay for better detection
+        }
+        
+        // Register Step Counter just in case, but we might ignore it
+        stepCounterSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        }
+    }
 
     override fun onSensorChanged(event: SensorEvent?) {
         event ?: return
 
-        if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
-            val totalSteps = event.values[0].toInt()
-            if (initialStepCount == -1) {
-                initialStepCount = totalSteps
-            }
-            _stepCount.value = totalSteps - initialStepCount
-        } else if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+        if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
             val x = event.values[0]
             val y = event.values[1]
             val z = event.values[2]
@@ -116,11 +115,12 @@ class StepCounterService : Service(), SensorEventListener {
             val magnitude = Math.sqrt((x * x + y * y + z * z).toDouble())
             _motionMagnitude.value = magnitude.toFloat()
 
-            // Simple peak detection
+            // Peak detection with cooldown
             if (magnitude > magnitudeThreshold && lastMagnitude <= magnitudeThreshold) {
-                // Only increment if step counter sensor is not available
-                if (stepCounterSensor == null) {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastStepTime > stepCooldownMs) {
                     _stepCount.value += 1
+                    lastStepTime = currentTime
                 }
             }
             lastMagnitude = magnitude
