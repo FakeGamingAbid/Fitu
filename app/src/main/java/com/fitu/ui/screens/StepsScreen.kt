@@ -59,6 +59,9 @@ fun StepsScreen(
         contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasPermission = isGranted
+        if (isGranted) {
+            viewModel.startService()
+        }
     }
 
     LaunchedEffect(Unit) {

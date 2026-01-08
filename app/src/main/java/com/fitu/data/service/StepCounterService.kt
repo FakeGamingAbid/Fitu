@@ -36,7 +36,7 @@ class StepCounterService : Service(), SensorEventListener {
 
     // Simple step detection variables for accelerometer fallback
     private var lastMagnitude = 0.0
-    private val magnitudeThreshold = 12.0 // Adjust based on testing
+    private val magnitudeThreshold = 11.0 // Lowered threshold for better sensitivity
 
     companion object {
         private val _stepCount = MutableStateFlow(0)
@@ -50,9 +50,21 @@ class StepCounterService : Service(), SensorEventListener {
     override fun onCreate() {
         super.onCreate()
         startForegroundService()
+        registerSensors()
+    }
 
-        stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        registerSensors()
+        return START_STICKY
+    }
+
+    private fun registerSensors() {
+        if (stepCounterSensor == null) {
+            stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        }
+        if (accelerometerSensor == null) {
+            accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        }
 
         if (stepCounterSensor != null) {
             sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_UI)
