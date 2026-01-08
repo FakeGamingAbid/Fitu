@@ -48,10 +48,10 @@ jobs:
         path: kotlin_compile_log.txt
         retention-days: 7
 
-    - name: Build Release APK (ProGuard if Enabled)
+    - name: Build Debug APK (Auto-Signed)
       run: |
-        ./gradlew clean assembleRelease --stacktrace
-        # Outputs: app/build/outputs/apk/release/app-release.apk
+        ./gradlew clean assembleDebug --stacktrace
+        # Outputs: app/build/outputs/apk/debug/app-debug.apk
 
     - name: List APK Files
       run: find app/build/outputs/apk -name "*.apk" -type f 2>/dev/null || echo "No APKs found"
@@ -60,6 +60,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Fitu-APK-v${{ github.sha }}
-        path: app/build/outputs/apk/release/*.apk
+        path: app/build/outputs/apk/debug/*.apk
         retention-days: 90  # Long-term access
         if-no-files-found: error
