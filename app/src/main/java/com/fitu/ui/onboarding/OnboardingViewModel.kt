@@ -2,6 +2,7 @@ package com.fitu.ui.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitu.data.local.SecureStorage
 import com.fitu.data.local.UserPreferencesRepository
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
@@ -16,7 +17,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val secureStorage: SecureStorage
 ) : ViewModel() {
 
     // Page 1 - Personal Info
@@ -166,8 +168,8 @@ class OnboardingViewModel @Inject constructor(
                 calorieGoal = _calorieGoal.value.toIntOrNull() ?: 2000
             )
 
-            // Save API key
-            userPreferencesRepository.saveApiKey(_apiKey.value)
+            // Save API key to secure storage
+            secureStorage.saveApiKey(_apiKey.value)
 
             // Mark onboarding complete
             userPreferencesRepository.setOnboardingComplete(true)
