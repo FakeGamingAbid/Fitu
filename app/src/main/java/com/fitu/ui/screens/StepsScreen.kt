@@ -50,7 +50,20 @@ import java.text.DecimalFormat
 @Composable
 fun StepsScreen(
     viewModel: StepsViewModel = hiltViewModel()
-) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var hasPermission by remember { mutableStateOf(false) }
+    
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasPermission = isGranted
+    }
+
+    LaunchedEffect(Unit) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            permissionLauncher.launch(android.Manifest.permission.ACTIVITY_RECOGNITION)
+        }
+    }
     val stepCount by viewModel.stepCount.collectAsState()
     val dailyStepGoal by viewModel.dailyStepGoal.collectAsState()
     val progress by viewModel.progress.collectAsState()

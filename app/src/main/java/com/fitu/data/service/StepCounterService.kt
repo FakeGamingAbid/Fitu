@@ -85,11 +85,17 @@ class StepCounterService : Service(), SensorEventListener {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private var initialStepCount = -1
+
     override fun onSensorChanged(event: SensorEvent?) {
         event ?: return
 
         if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
-            _stepCount.value = event.values[0].toInt()
+            val totalSteps = event.values[0].toInt()
+            if (initialStepCount == -1) {
+                initialStepCount = totalSteps
+            }
+            _stepCount.value = totalSteps - initialStepCount
         } else if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
             val x = event.values[0]
             val y = event.values[1]
@@ -100,7 +106,10 @@ class StepCounterService : Service(), SensorEventListener {
 
             // Simple peak detection
             if (magnitude > magnitudeThreshold && lastMagnitude <= magnitudeThreshold) {
-                _stepCount.value += 1
+                // Only increment if step counter sensor is not available
+                if (stepCounterSensor == null) {
+                    _stepCount.value += 1
+                }
             }
             lastMagnitude = magnitude
         }
