@@ -27,7 +27,7 @@ class GeminiModelProvider @Inject constructor(
         if (apiKey.isBlank()) return null
         
         return GenerativeModel(
-            modelName = "gemini-2.0-flash",
+            modelName = "gemini-1.5-flash",
             apiKey = apiKey
         )
     }

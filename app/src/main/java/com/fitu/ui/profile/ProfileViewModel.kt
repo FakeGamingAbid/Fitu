@@ -110,7 +110,7 @@ class ProfileViewModel @Inject constructor(
 
     fun saveApiKey(apiKey: String) {
         viewModelScope.launch {
-            secureStorage.saveApiKey(apiKey)
+            secureStorage.saveApiKey(apiKey.trim())
             _showApiKeyDialog.value = false
         }
     }
