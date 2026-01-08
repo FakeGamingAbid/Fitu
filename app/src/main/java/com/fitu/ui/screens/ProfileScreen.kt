@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
@@ -27,7 +27,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -237,7 +237,7 @@ fun ProfileScreen(
                     }
                     
                     Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                    Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // BMI Section
@@ -317,7 +317,7 @@ fun ProfileScreen(
                     title = "Edit Profile",
                     onClick = { viewModel.toggleEdit() }
                 )
-                HorizontalDivider(
+                Divider(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                 )
@@ -327,7 +327,7 @@ fun ProfileScreen(
                     subtitle = if (apiKey.isNotBlank()) "Configured" else "Not set",
                     onClick = { viewModel.showApiKeyDialog() }
                 )
-                HorizontalDivider(
+                Divider(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                 )
@@ -337,7 +337,7 @@ fun ProfileScreen(
                     subtitle = "Start fresh",
                     onClick = { viewModel.resetOnboarding() }
                 )
-                HorizontalDivider(
+                Divider(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                 )
@@ -422,7 +422,7 @@ fun SettingsItem(
             }
         }
         Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            imageVector = Icons.Filled.KeyboardArrowRight,
             contentDescription = "Settings",
             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
         )
