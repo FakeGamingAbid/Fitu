@@ -53,9 +53,13 @@ jobs:
         ./gradlew clean assembleRelease --stacktrace
         # Outputs: app/build/outputs/apk/release/app-release.apk
 
+    - name: List APK Files
+      run: find app/build/outputs/apk -name "*.apk" -type f 2>/dev/null || echo "No APKs found"
+
     - name: Upload Fitu APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Fitu-APK-v${{ github.sha }}
-        path: app/build/outputs/apk/release/app-release.apk
+        path: app/build/outputs/apk/release/*.apk
         retention-days: 90  # Long-term access
+        if-no-files-found: error
