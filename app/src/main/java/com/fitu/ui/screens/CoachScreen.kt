@@ -629,8 +629,23 @@ fun PoseOverlay(
         val landmarks = pose.allPoseLandmarks
         if (landmarks.isEmpty()) return@Canvas
 
-        val scaleX = size.width / 480f
-        val scaleY = size.height / 640f
+        // Assumed image size from ImageAnalysis target resolution (rotated for portrait)
+        val imageWidth = 480f
+        val imageHeight = 640f
+
+        // Calculate scale to fill screen (CenterCrop behavior)
+        val viewAspectRatio = size.width / size.height
+        val imageAspectRatio = imageWidth / imageHeight
+        
+        val scale = if (viewAspectRatio > imageAspectRatio) {
+            size.width / imageWidth
+        } else {
+            size.height / imageHeight
+        }
+
+        // Calculate offsets to center the overlay
+        val offsetX = (size.width - imageWidth * scale) / 2f
+        val offsetY = (size.height - imageHeight * scale) / 2f
 
         // Draw skeleton connections
         val connections = listOf(
@@ -660,10 +675,11 @@ fun PoseOverlay(
             if (startLandmark != null && endLandmark != null &&
                 startLandmark.inFrameLikelihood > 0.5f && endLandmark.inFrameLikelihood > 0.5f) {
 
-                val startX = startLandmark.position.x * scaleX
-                val startY = startLandmark.position.y * scaleY
-                val endX = endLandmark.position.x * scaleX
-                val endY = endLandmark.position.y * scaleY
+                // Mirror X coordinate for front camera and apply scale/offset
+                val startX = (imageWidth - startLandmark.position.x) * scale + offsetX
+                val startY = startLandmark.position.y * scale + offsetY
+                val endX = (imageWidth - endLandmark.position.x) * scale + offsetX
+                val endY = endLandmark.position.y * scale + offsetY
 
                 // Check if this connection involves incorrect landmarks
                 val isIncorrect = incorrectLandmarks.contains(startType) || incorrectLandmarks.contains(endType)
@@ -682,8 +698,10 @@ fun PoseOverlay(
         // Draw joint points
         landmarks.forEach { landmark ->
             if (landmark.inFrameLikelihood > 0.5f) {
-                val x = landmark.position.x * scaleX
-                val y = landmark.position.y * scaleY
+                // Mirror X coordinate for front camera and apply scale/offset
+                val x = (imageWidth - landmark.position.x) * scale + offsetX
+                val y = landmark.position.y * scale + offsetY
+                
                 val isIncorrect = incorrectLandmarks.contains(landmark.landmarkType)
                 val pointColor = if (isIncorrect) Color.Red else OrangePrimary
 
