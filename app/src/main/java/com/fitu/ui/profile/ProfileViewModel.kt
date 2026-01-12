@@ -4,11 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.SecureStorage
 import com.fitu.data.local.UserPreferencesRepository
+import com.fitu.util.BirthdayUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -41,6 +43,26 @@ class ProfileViewModel @Inject constructor(
     val apiKey: StateFlow<String> = secureStorage.apiKeyFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
+    // Birth date fields
+    val birthDay: StateFlow<Int?> = userPreferencesRepository.birthDay
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val birthMonth: StateFlow<Int?> = userPreferencesRepository.birthMonth
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val birthYear: StateFlow<Int?> = userPreferencesRepository.birthYear
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Formatted birth date for display
+    val formattedBirthDate: StateFlow<String?> = combine(birthDay, birthMonth, birthYear) { day, month, year ->
+        BirthdayUtils.formatBirthDate(day, month, year)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Calculated age from birth date
+    val calculatedAge: StateFlow<Int?> = combine(birthDay, birthMonth, birthYear) { day, month, year ->
+        BirthdayUtils.calculateAge(day, month, year)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     // BMI Calculation
     val bmi: StateFlow<Float> = combine(userHeightCm, userWeightKg) { height, weight ->
         if (height > 0) {
@@ -49,7 +71,7 @@ class ProfileViewModel @Inject constructor(
         } else 0f
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
-    val bmiCategory: StateFlow<String> = bmi.combine(kotlinx.coroutines.flow.flowOf(Unit)) { bmiValue, _ ->
+    val bmiCategory: StateFlow<String> = bmi.combine(flowOf(Unit)) { bmiValue, _ ->
         when {
             bmiValue < 18.5f -> "Underweight"
             bmiValue < 25f -> "Normal"
@@ -66,6 +88,9 @@ class ProfileViewModel @Inject constructor(
 
     private val _showAboutDialog = MutableStateFlow(false)
     val showAboutDialog: StateFlow<Boolean> = _showAboutDialog
+
+    private val _showBirthDatePicker = MutableStateFlow(false)
+    val showBirthDatePicker: StateFlow<Boolean> = _showBirthDatePicker
 
     fun toggleEdit() {
         _isEditing.value = !_isEditing.value
@@ -87,6 +112,14 @@ class ProfileViewModel @Inject constructor(
         _showAboutDialog.value = false
     }
 
+    fun showBirthDatePicker() {
+        _showBirthDatePicker.value = true
+    }
+
+    fun hideBirthDatePicker() {
+        _showBirthDatePicker.value = false
+    }
+
     fun saveProfile(
         name: String,
         age: Int,
@@ -105,6 +138,30 @@ class ProfileViewModel @Inject constructor(
                 calorieGoal = calorieGoal
             )
             _isEditing.value = false
+        }
+    }
+
+    fun saveBirthDate(day: Int, month: Int, year: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.saveBirthDate(day, month, year)
+            // Also update the calculated age
+            val calculatedAge = BirthdayUtils.calculateAge(day, month, year) ?: 25
+            userPreferencesRepository.saveUserProfile(
+                name = userName.value,
+                age = calculatedAge,
+                heightCm = userHeightCm.value,
+                weightKg = userWeightKg.value,
+                stepGoal = dailyStepGoal.value,
+                calorieGoal = dailyCalorieGoal.value
+            )
+            _showBirthDatePicker.value = false
+        }
+    }
+
+    fun clearBirthDate() {
+        viewModelScope.launch {
+            userPreferencesRepository.saveBirthDate(null, null, null)
+            _showBirthDatePicker.value = false
         }
     }
 

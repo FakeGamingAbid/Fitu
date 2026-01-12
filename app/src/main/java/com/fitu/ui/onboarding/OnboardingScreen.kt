@@ -13,12 +13,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.ui.theme.OrangePrimary
+import java.time.LocalDate
+import java.util.Calendar
 
 private val DarkBackground = Color(0xFF0A0A0F)
 private val InputBackground = Color(0xFF1A1A1F)
@@ -84,12 +90,80 @@ private fun ProgressBar(currentPage: Int, pageCount: Int) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PersonalInfoPage(viewModel: OnboardingViewModel) {
     val name by viewModel.name.collectAsState()
     val heightCm by viewModel.heightCm.collectAsState()
     val weightKg by viewModel.weightKg.collectAsState()
     val stepGoal by viewModel.stepGoal.collectAsState()
+    val birthDay by viewModel.birthDay.collectAsState()
+    val birthMonth by viewModel.birthMonth.collectAsState()
+    val birthYear by viewModel.birthYear.collectAsState()
+    val showDatePicker by viewModel.showDatePicker.collectAsState()
+
+    // Date picker state
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = if (birthYear != null && birthMonth != null && birthDay != null) {
+            val calendar = Calendar.getInstance()
+            calendar.set(birthYear!!, birthMonth!! - 1, birthDay!!)
+            calendar.timeInMillis
+        } else null,
+        yearRange = 1940..2015
+    )
+
+    // Date picker dialog
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { viewModel.hideDatePicker() },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val calendar = Calendar.getInstance()
+                            calendar.timeInMillis = millis
+                            viewModel.updateBirthDate(
+                                day = calendar.get(Calendar.DAY_OF_MONTH),
+                                month = calendar.get(Calendar.MONTH) + 1,
+                                year = calendar.get(Calendar.YEAR)
+                            )
+                        }
+                        viewModel.hideDatePicker()
+                    }
+                ) {
+                    Text("OK", color = OrangePrimary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.hideDatePicker() }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                }
+            },
+            colors = DatePickerDefaults.colors(
+                containerColor = Color(0xFF1A1A1F)
+            )
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(
+                    containerColor = Color(0xFF1A1A1F),
+                    titleContentColor = Color.White,
+                    headlineContentColor = Color.White,
+                    weekdayContentColor = Color.White.copy(alpha = 0.5f),
+                    subheadContentColor = Color.White.copy(alpha = 0.7f),
+                    yearContentColor = Color.White,
+                    currentYearContentColor = OrangePrimary,
+                    selectedYearContainerColor = OrangePrimary,
+                    selectedYearContentColor = Color.White,
+                    dayContentColor = Color.White,
+                    selectedDayContainerColor = OrangePrimary,
+                    selectedDayContentColor = Color.White,
+                    todayContentColor = OrangePrimary,
+                    todayDateBorderColor = OrangePrimary
+                )
+            )
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -119,6 +193,61 @@ fun PersonalInfoPage(viewModel: OnboardingViewModel) {
             value = name,
             onValueChange = { viewModel.updateName(it) },
             placeholder = "Your name"
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Birthday (Optional)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            InputLabel("BIRTHDAY")
+            Text(
+                text = "(Optional)",
+                color = Color.White.copy(alpha = 0.3f),
+                fontSize = 11.sp
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Birthday picker button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(InputBackground)
+                .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
+                .clickable { viewModel.showDatePicker() }
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = viewModel.getFormattedBirthDate() ?: "Select your birthday",
+                    color = if (birthDay != null) Color.White else Color.White.copy(alpha = 0.3f),
+                    fontSize = 16.sp
+                )
+                Icon(
+                    Icons.Default.Cake,
+                    contentDescription = "Select birthday",
+                    tint = OrangePrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Used to personalize your fitness goals and wish you on your birthday 🎂",
+            color = Color.White.copy(alpha = 0.3f),
+            fontSize = 11.sp,
+            lineHeight = 14.sp
         )
 
         Spacer(modifier = Modifier.height(24.dp))

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.SecureStorage
 import com.fitu.data.local.UserPreferencesRepository
+import com.fitu.util.BirthdayUtils
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,9 +26,6 @@ class OnboardingViewModel @Inject constructor(
     private val _name = MutableStateFlow("")
     val name: StateFlow<String> = _name
 
-    private val _age = MutableStateFlow("25")
-    val age: StateFlow<String> = _age
-
     private val _heightCm = MutableStateFlow("170")
     val heightCm: StateFlow<String> = _heightCm
 
@@ -40,8 +38,18 @@ class OnboardingViewModel @Inject constructor(
     private val _calorieGoal = MutableStateFlow("2000")
     val calorieGoal: StateFlow<String> = _calorieGoal
 
-    private val _useImperial = MutableStateFlow(false)
-    val useImperial: StateFlow<Boolean> = _useImperial
+    // Birth date (optional)
+    private val _birthDay = MutableStateFlow<Int?>(null)
+    val birthDay: StateFlow<Int?> = _birthDay
+
+    private val _birthMonth = MutableStateFlow<Int?>(null)
+    val birthMonth: StateFlow<Int?> = _birthMonth
+
+    private val _birthYear = MutableStateFlow<Int?>(null)
+    val birthYear: StateFlow<Int?> = _birthYear
+
+    private val _showDatePicker = MutableStateFlow(false)
+    val showDatePicker: StateFlow<Boolean> = _showDatePicker
 
     // Page 2 - API Setup
     private val _apiKey = MutableStateFlow("")
@@ -60,17 +68,9 @@ class OnboardingViewModel @Inject constructor(
     private val _nameError = MutableStateFlow<String?>(null)
     val nameError: StateFlow<String?> = _nameError
 
-    private val _ageError = MutableStateFlow<String?>(null)
-    val ageError: StateFlow<String?> = _ageError
-
     fun updateName(value: String) {
         _name.value = value
         _nameError.value = null
-    }
-
-    fun updateAge(value: String) {
-        _age.value = value.filter { it.isDigit() }
-        _ageError.value = null
     }
 
     fun updateHeightCm(value: String) {
@@ -89,8 +89,24 @@ class OnboardingViewModel @Inject constructor(
         _calorieGoal.value = value.filter { it.isDigit() }
     }
 
-    fun toggleImperial() {
-        _useImperial.value = !_useImperial.value
+    fun updateBirthDate(day: Int, month: Int, year: Int) {
+        _birthDay.value = day
+        _birthMonth.value = month
+        _birthYear.value = year
+    }
+
+    fun clearBirthDate() {
+        _birthDay.value = null
+        _birthMonth.value = null
+        _birthYear.value = null
+    }
+
+    fun showDatePicker() {
+        _showDatePicker.value = true
+    }
+
+    fun hideDatePicker() {
+        _showDatePicker.value = false
     }
 
     fun updateApiKey(value: String) {
@@ -107,12 +123,6 @@ class OnboardingViewModel @Inject constructor(
 
         if (_name.value.length < 2) {
             _nameError.value = "Name must be at least 2 characters"
-            isValid = false
-        }
-
-        val ageInt = _age.value.toIntOrNull() ?: 0
-        if (ageInt < 13 || ageInt > 120) {
-            _ageError.value = "Age must be between 13 and 120"
             isValid = false
         }
 
@@ -156,16 +166,40 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Get formatted birth date for display.
+     */
+    fun getFormattedBirthDate(): String? {
+        return BirthdayUtils.formatBirthDate(_birthDay.value, _birthMonth.value, _birthYear.value)
+    }
+
+    /**
+     * Calculate user's age from birth date.
+     */
+    fun getCalculatedAge(): Int {
+        return BirthdayUtils.calculateAge(_birthDay.value, _birthMonth.value, _birthYear.value) ?: 25
+    }
+
     fun completeOnboarding(onComplete: () -> Unit) {
         viewModelScope.launch {
+            // Calculate age from birth date if available, otherwise use default
+            val calculatedAge = getCalculatedAge()
+
             // Save user profile
             userPreferencesRepository.saveUserProfile(
                 name = _name.value,
-                age = _age.value.toIntOrNull() ?: 25,
+                age = calculatedAge,
                 heightCm = _heightCm.value.toIntOrNull() ?: 170,
                 weightKg = _weightKg.value.toIntOrNull() ?: 70,
                 stepGoal = _stepGoal.value.toIntOrNull() ?: 10000,
                 calorieGoal = _calorieGoal.value.toIntOrNull() ?: 2000
+            )
+
+            // Save birth date (optional)
+            userPreferencesRepository.saveBirthDate(
+                day = _birthDay.value,
+                month = _birthMonth.value,
+                year = _birthYear.value
             )
 
             // Save API key to secure storage

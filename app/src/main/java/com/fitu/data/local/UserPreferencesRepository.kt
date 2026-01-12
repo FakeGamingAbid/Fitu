@@ -28,6 +28,14 @@ class UserPreferencesRepository @Inject constructor(
         val DAILY_STEP_GOAL = intPreferencesKey("daily_step_goal")
         val DAILY_CALORIE_GOAL = intPreferencesKey("daily_calorie_goal")
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
+        
+        // Birth date fields (stored separately for flexibility)
+        val BIRTH_DAY = intPreferencesKey("birth_day")
+        val BIRTH_MONTH = intPreferencesKey("birth_month")
+        val BIRTH_YEAR = intPreferencesKey("birth_year")
+        
+        // Birthday wish tracking (only show once per year)
+        val LAST_BIRTHDAY_WISH_YEAR = intPreferencesKey("last_birthday_wish_year")
     }
 
     val isOnboardingComplete: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -62,6 +70,23 @@ class UserPreferencesRepository @Inject constructor(
         preferences[PreferencesKeys.GEMINI_API_KEY] ?: ""
     }
 
+    // Birth date fields
+    val birthDay: Flow<Int?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.BIRTH_DAY]
+    }
+
+    val birthMonth: Flow<Int?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.BIRTH_MONTH]
+    }
+
+    val birthYear: Flow<Int?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.BIRTH_YEAR]
+    }
+
+    val lastBirthdayWishYear: Flow<Int?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.LAST_BIRTHDAY_WISH_YEAR]
+    }
+
     suspend fun saveUserProfile(
         name: String,
         age: Int,
@@ -77,6 +102,33 @@ class UserPreferencesRepository @Inject constructor(
             preferences[PreferencesKeys.USER_WEIGHT_KG] = weightKg
             preferences[PreferencesKeys.DAILY_STEP_GOAL] = stepGoal
             preferences[PreferencesKeys.DAILY_CALORIE_GOAL] = calorieGoal
+        }
+    }
+
+    /**
+     * Save birth date (day, month, year).
+     * Pass null values to clear the birth date.
+     */
+    suspend fun saveBirthDate(day: Int?, month: Int?, year: Int?) {
+        context.dataStore.edit { preferences ->
+            if (day != null && month != null && year != null) {
+                preferences[PreferencesKeys.BIRTH_DAY] = day
+                preferences[PreferencesKeys.BIRTH_MONTH] = month
+                preferences[PreferencesKeys.BIRTH_YEAR] = year
+            } else {
+                preferences.remove(PreferencesKeys.BIRTH_DAY)
+                preferences.remove(PreferencesKeys.BIRTH_MONTH)
+                preferences.remove(PreferencesKeys.BIRTH_YEAR)
+            }
+        }
+    }
+
+    /**
+     * Mark that the user has been wished for the given year.
+     */
+    suspend fun setLastBirthdayWishYear(year: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_BIRTHDAY_WISH_YEAR] = year
         }
     }
 

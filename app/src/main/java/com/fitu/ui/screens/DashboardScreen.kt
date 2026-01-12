@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.ui.components.AppleIcon
+import com.fitu.ui.components.BirthdayWishDialog
 import com.fitu.ui.components.DumbbellIcon
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
@@ -47,6 +48,10 @@ fun DashboardScreen(
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
+    
+    // Birthday feature
+    val showBirthdayDialog by viewModel.showBirthdayDialog.collectAsState()
+    val isBirthday by viewModel.isBirthday.collectAsState()
 
     val stepProgress = if (dailyStepGoal > 0) currentSteps.toFloat() / dailyStepGoal else 0f
     val animatedStepProgress by animateFloatAsState(
@@ -58,6 +63,14 @@ fun DashboardScreen(
 
     val dateFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
     val todayDate = dateFormat.format(Date())
+
+    // Birthday wish dialog
+    if (showBirthdayDialog) {
+        BirthdayWishDialog(
+            userName = userName,
+            onDismiss = { viewModel.dismissBirthdayDialog() }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -74,31 +87,55 @@ fun DashboardScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(
-                    text = "Hello, ${userName.ifBlank { "User" }}",
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                // Show special birthday greeting if it's user's birthday
+                if (isBirthday) {
+                    Text(
+                        text = "🎂 Happy Birthday, ${userName.ifBlank { "User" }}! 🎉",
+                        color = OrangePrimary,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    Text(
+                        text = "Hello, ${userName.ifBlank { "User" }}",
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 Text(
                     text = todayDate,
                     color = Color.White.copy(alpha = 0.5f),
                     fontSize = 14.sp
                 )
             }
-            // Avatar
+            // Avatar (with birthday decoration if it's birthday)
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .background(OrangePrimary, CircleShape),
+                    .size(if (isBirthday) 52.dp else 44.dp)
+                    .background(
+                        if (isBirthday) Brush.linearGradient(
+                            listOf(OrangePrimary, Color(0xFFFFD700))
+                        ) else Brush.linearGradient(
+                            listOf(OrangePrimary, OrangePrimary)
+                        ),
+                        CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = userName.take(1).uppercase().ifEmpty { "U" },
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                if (isBirthday) {
+                    Text(
+                        text = "🎂",
+                        fontSize = 24.sp
+                    )
+                } else {
+                    Text(
+                        text = userName.take(1).uppercase().ifEmpty { "U" },
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
 

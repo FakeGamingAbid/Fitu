@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
@@ -31,7 +32,9 @@ import com.fitu.ui.components.GlassCard
 import com.fitu.ui.profile.ProfileViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.text.DecimalFormat
+import java.util.Calendar
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel()
@@ -47,15 +50,92 @@ fun ProfileScreen(
     val bmiCategory by viewModel.bmiCategory.collectAsState()
     val showApiKeyDialog by viewModel.showApiKeyDialog.collectAsState()
     val showAboutDialog by viewModel.showAboutDialog.collectAsState()
+    
+    // Birth date
+    val birthDay by viewModel.birthDay.collectAsState()
+    val birthMonth by viewModel.birthMonth.collectAsState()
+    val birthYear by viewModel.birthYear.collectAsState()
+    val formattedBirthDate by viewModel.formattedBirthDate.collectAsState()
+    val calculatedAge by viewModel.calculatedAge.collectAsState()
+    val showBirthDatePicker by viewModel.showBirthDatePicker.collectAsState()
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var editApiKey by remember(apiKey) { mutableStateOf(apiKey) }
+
+    // Date picker state for birth date
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = if (birthYear != null && birthMonth != null && birthDay != null) {
+            val calendar = Calendar.getInstance()
+            calendar.set(birthYear!!, birthMonth!! - 1, birthDay!!)
+            calendar.timeInMillis
+        } else null,
+        yearRange = 1940..2015
+    )
+
+    // Birth Date Picker Dialog
+    if (showBirthDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { viewModel.hideBirthDatePicker() },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val calendar = Calendar.getInstance()
+                            calendar.timeInMillis = millis
+                            viewModel.saveBirthDate(
+                                day = calendar.get(Calendar.DAY_OF_MONTH),
+                                month = calendar.get(Calendar.MONTH) + 1,
+                                year = calendar.get(Calendar.YEAR)
+                            )
+                        }
+                    }
+                ) {
+                    Text("Save", color = OrangePrimary)
+                }
+            },
+            dismissButton = {
+                Row {
+                    if (birthDay != null) {
+                        TextButton(onClick = { viewModel.clearBirthDate() }) {
+                            Text("Clear", color = Color(0xFFF44336))
+                        }
+                    }
+                    TextButton(onClick = { viewModel.hideBirthDatePicker() }) {
+                        Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                    }
+                }
+            },
+            colors = DatePickerDefaults.colors(
+                containerColor = Color(0xFF1A1A1F)
+            )
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(
+                    containerColor = Color(0xFF1A1A1F),
+                    titleContentColor = Color.White,
+                    headlineContentColor = Color.White,
+                    weekdayContentColor = Color.White.copy(alpha = 0.5f),
+                    subheadContentColor = Color.White.copy(alpha = 0.7f),
+                    yearContentColor = Color.White,
+                    currentYearContentColor = OrangePrimary,
+                    selectedYearContainerColor = OrangePrimary,
+                    selectedYearContentColor = Color.White,
+                    dayContentColor = Color.White,
+                    selectedDayContainerColor = OrangePrimary,
+                    selectedDayContentColor = Color.White,
+                    todayContentColor = OrangePrimary,
+                    todayDateBorderColor = OrangePrimary
+                )
+            )
+        }
+    }
 
     // Edit Profile Dialog
     if (showEditProfileDialog) {
         EditProfileDialog(
             currentName = userName,
-            currentAge = userAge,
+            currentAge = calculatedAge ?: userAge,
             currentHeight = userHeightCm,
             currentWeight = userWeightKg,
             currentStepGoal = dailyStepGoal,
@@ -233,6 +313,62 @@ fun ProfileScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                
+                // Birth Date (clickable)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.showBirthDatePicker() },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Cake,
+                            contentDescription = null,
+                            tint = OrangePrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text("Birthday", color = Color.White, fontSize = 16.sp)
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = formattedBirthDate ?: "Not set",
+                            color = Color.White.copy(alpha = if (formattedBirthDate != null) 0.7f else 0.4f),
+                            fontSize = 14.sp
+                        )
+                        Icon(
+                            Icons.Default.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.3f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                
+                // Age (calculated from birth date if available)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Age", color = Color.White, fontSize = 16.sp)
+                    Text(
+                        text = "${calculatedAge ?: userAge} years",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 16.sp
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                
                 // Height
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -290,6 +426,14 @@ fun ProfileScreen(
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
+                SettingsItem(
+                    icon = Icons.Default.Cake,
+                    iconBgColor = Color(0xFFE91E63),
+                    title = "Update Birthday",
+                    subtitle = "Change your birth date",
+                    onClick = { viewModel.showBirthDatePicker() }
+                )
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
                 SettingsItem(
                     icon = Icons.Default.Key,
                     iconBgColor = OrangePrimary,

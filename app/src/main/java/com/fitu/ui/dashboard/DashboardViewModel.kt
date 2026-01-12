@@ -6,6 +6,7 @@ import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.data.service.StepCounterService
 import com.fitu.di.GeminiModelProvider
 import com.fitu.domain.repository.DashboardRepository
+import com.fitu.util.BirthdayUtils
 import com.google.ai.client.generativeai.type.content
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -13,9 +14,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -55,6 +58,13 @@ class DashboardViewModel @Inject constructor(
     // Workout summary
     private val _workoutsCompleted = MutableStateFlow(0)
     val workoutsCompleted: StateFlow<Int> = _workoutsCompleted
+
+    // Birthday feature
+    private val _showBirthdayDialog = MutableStateFlow(false)
+    val showBirthdayDialog: StateFlow<Boolean> = _showBirthdayDialog
+
+    private val _isBirthday = MutableStateFlow(false)
+    val isBirthday: StateFlow<Boolean> = _isBirthday
 
     // Helper to get start and end of today
     private fun getTodayRange(): Pair<Long, Long> {
@@ -98,6 +108,46 @@ class DashboardViewModel @Inject constructor(
                 updatedWeekly[6] = todaySteps
                 _weeklySteps.value = updatedWeekly
             }
+        }
+
+        // Check for birthday on init
+        checkBirthday()
+    }
+
+    /**
+     * Check if today is the user's birthday and show the wish dialog if:
+     * 1. It's the user's birthday (or within grace period)
+     * 2. User hasn't been wished this year
+     */
+    private fun checkBirthday() {
+        viewModelScope.launch {
+            val birthDay = userPreferencesRepository.birthDay.first()
+            val birthMonth = userPreferencesRepository.birthMonth.first()
+            val birthYear = userPreferencesRepository.birthYear.first()
+            val lastWishYear = userPreferencesRepository.lastBirthdayWishYear.first()
+
+            val currentYear = LocalDate.now().year
+            val isBirthdayToday = BirthdayUtils.isBirthdayWithinGracePeriod(
+                birthDay, birthMonth, birthYear, graceDays = 3
+            )
+
+            _isBirthday.value = BirthdayUtils.isBirthday(birthDay, birthMonth)
+
+            // Show dialog if it's birthday and user hasn't been wished this year
+            if (isBirthdayToday && lastWishYear != currentYear) {
+                _showBirthdayDialog.value = true
+            }
+        }
+    }
+
+    /**
+     * Dismiss the birthday dialog and mark as wished for this year.
+     */
+    fun dismissBirthdayDialog() {
+        viewModelScope.launch {
+            val currentYear = LocalDate.now().year
+            userPreferencesRepository.setLastBirthdayWishYear(currentYear)
+            _showBirthdayDialog.value = false
         }
     }
 
