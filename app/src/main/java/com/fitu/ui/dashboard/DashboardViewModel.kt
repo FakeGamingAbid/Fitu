@@ -44,6 +44,13 @@ class DashboardViewModel @Inject constructor(
     val dailyCalorieGoal: StateFlow<Int> = userPreferencesRepository.dailyCalorieGoal
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2000)
 
+    // ✅ User's physical stats for personalized calculations
+    val userHeightCm: StateFlow<Int> = userPreferencesRepository.userHeightCm
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 170)
+
+    val userWeightKg: StateFlow<Int> = userPreferencesRepository.userWeightKg
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 70)
+
     // Today's date formatted
     val todayDate: String = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
 
@@ -54,7 +61,7 @@ class DashboardViewModel @Inject constructor(
     // Steps - Read directly from StepCounterService (real-time data)
     val currentSteps: StateFlow<Int> = StepCounterService.stepCount
     
-    // ✅ NEW: Track if steps are initialized (to prevent showing 0)
+    // Track if steps are initialized (to prevent showing 0)
     val isStepsInitialized: StateFlow<Boolean> = StepCounterService.isInitialized
 
     // Weekly progress - Raw data from database
@@ -95,12 +102,32 @@ class DashboardViewModel @Inject constructor(
         return Pair(start, end)
     }
 
-    val caloriesBurned: StateFlow<Int> = repository.getCaloriesBurnedForDay(getTodayRange().first, getTodayRange().second)
-        .combine(MutableStateFlow(0)) { burned, _ -> burned ?: 0 }
+    /**
+     * ✅ FIX #6: Personalized calories burned from steps
+     * Uses user's weight for accurate calculation
+     */
+    val caloriesBurnedFromSteps: StateFlow<Int> = combine(currentSteps, userWeightKg) { steps, weightKg ->
+        val caloriesPerStep = calculateCaloriesPerStep(weightKg)
+        (steps * caloriesPerStep).toInt()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    // Calories burned from workouts (from database)
+    private val caloriesBurnedFromWorkouts: StateFlow<Int> = repository.getCaloriesBurnedForDay(
+        getTodayRange().first, getTodayRange().second
+    ).combine(MutableStateFlow(0)) { burned, _ -> burned ?: 0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val caloriesConsumed: StateFlow<Int> = repository.getCaloriesConsumedForDay(getTodayRange().first, getTodayRange().second)
-        .combine(MutableStateFlow(0)) { consumed, _ -> consumed ?: 0 }
+    // Total calories burned (steps + workouts)
+    val caloriesBurned: StateFlow<Int> = combine(
+        caloriesBurnedFromSteps,
+        caloriesBurnedFromWorkouts
+    ) { fromSteps, fromWorkouts ->
+        fromSteps + fromWorkouts
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val caloriesConsumed: StateFlow<Int> = repository.getCaloriesConsumedForDay(
+        getTodayRange().first, getTodayRange().second
+    ).combine(MutableStateFlow(0)) { consumed, _ -> consumed ?: 0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val netCalories: StateFlow<Int> = combine(caloriesConsumed, caloriesBurned) { consumed, burned ->
@@ -112,9 +139,44 @@ class DashboardViewModel @Inject constructor(
         if (goal > 0) (steps.toFloat() / goal.toFloat() * 100).coerceIn(0f, 100f) else 0f
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
+    /**
+     * ✅ FIX #7: Personalized distance calculation
+     * Uses user's height for accurate stride length
+     */
+    val distanceKm: StateFlow<Float> = combine(currentSteps, userHeightCm) { steps, heightCm ->
+        val strideLengthKm = calculateStrideLengthKm(heightCm)
+        steps * strideLengthKm
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+
     init {
         loadWeeklySteps()
         checkBirthday()
+    }
+
+    /**
+     * Calculate stride length in kilometers based on height
+     * 
+     * @param heightCm User's height in centimeters
+     * @return Stride length in kilometers
+     */
+    private fun calculateStrideLengthKm(heightCm: Int): Float {
+        // Stride length = height × 0.415 (walking average)
+        // Convert cm to km: divide by 100,000
+        val strideMultiplier = 0.415f
+        val strideLengthCm = heightCm * strideMultiplier
+        return strideLengthCm / 100_000f
+    }
+
+    /**
+     * Calculate calories burned per step based on weight
+     * 
+     * @param weightKg User's weight in kilograms
+     * @return Calories burned per step
+     */
+    private fun calculateCaloriesPerStep(weightKg: Int): Float {
+        // Base: 0.04 kcal per step for 70kg person
+        // Scale proportionally: weight × 0.00057
+        return weightKg * 0.00057f
     }
 
     private fun loadWeeklySteps() {
