@@ -5,15 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.SecureStorage
 import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.util.BirthdayUtils
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @HiltViewModel
@@ -58,8 +55,8 @@ class OnboardingViewModel @Inject constructor(
     private val _showApiKey = MutableStateFlow(false)
     val showApiKey: StateFlow<Boolean> = _showApiKey
 
-    private val _validationState = MutableStateFlow<ApiValidationState>(ApiValidationState.Idle)
-    val validationState: StateFlow<ApiValidationState> = _validationState
+    private val _apiKeyError = MutableStateFlow<String?>(null)
+    val apiKeyError: StateFlow<String?> = _apiKeyError
 
     private val _currentPage = MutableStateFlow(0)
     val currentPage: StateFlow<Int> = _currentPage
@@ -127,11 +124,7 @@ class OnboardingViewModel @Inject constructor(
 
     fun updateApiKey(value: String) {
         _apiKey.value = value
-        // Reset validation state when key changes
-        if (_validationState.value is ApiValidationState.Error || 
-            _validationState.value is ApiValidationState.Valid) {
-            _validationState.value = ApiValidationState.Idle
-        }
+        _apiKeyError.value = null
     }
 
     fun toggleShowApiKey() {
@@ -139,7 +132,7 @@ class OnboardingViewModel @Inject constructor(
     }
 
     /**
-     * ✅ Validate Page 1 inputs with realistic ranges
+     * Validate Page 1 inputs with realistic ranges
      */
     fun validatePage1(): Boolean {
         var isValid = true
@@ -219,6 +212,32 @@ class OnboardingViewModel @Inject constructor(
         return isValid
     }
 
+    /**
+     * ✅ Simple API key format validation - NO API call
+     * Just checks if key starts with "AIza" and is longer than 20 characters
+     */
+    fun validateApiKeyFormat(): Boolean {
+        val key = _apiKey.value.trim()
+
+        when {
+            key.isEmpty() -> {
+                _apiKeyError.value = "API key is required"
+                return false
+            }
+            key.length < 20 -> {
+                _apiKeyError.value = "API key is too short"
+                return false
+            }
+            !key.startsWith("AIza") -> {
+                _apiKeyError.value = "Invalid API key format. Google AI keys start with 'AIza'"
+                return false
+            }
+        }
+
+        _apiKeyError.value = null
+        return true
+    }
+
     fun nextPage() {
         if (_currentPage.value == 0 && validatePage1()) {
             _currentPage.value = 1
@@ -246,103 +265,16 @@ class OnboardingViewModel @Inject constructor(
     }
 
     /**
-     * ✅ Validate API key by making a simple test call to Gemini
-     * Uses minimal tokens to avoid wasting free tier quota
-     */
-    fun validateApiKey() {
-        val key = _apiKey.value.trim()
-        
-        // Basic format validation first
-        if (key.isEmpty()) {
-            _validationState.value = ApiValidationState.Error("API key is required")
-            return
-        }
-        
-        if (key.length < 20) {
-            _validationState.value = ApiValidationState.Error("API key seems too short")
-            return
-        }
-        
-        if (!key.startsWith("AIza")) {
-            _validationState.value = ApiValidationState.Error("Invalid API key format. Google AI keys start with 'AIza'")
-            return
-        }
-
-        _validationState.value = ApiValidationState.Validating
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val model = GenerativeModel(
-                    modelName = "gemini-2.0-flash",
-                    apiKey = key
-                )
-
-                // Simple test prompt - uses minimal tokens
-                val response = withTimeoutOrNull(15000L) {
-                    model.generateContent(content { text("Hi") })
-                }
-
-                withContext(Dispatchers.Main) {
-                    when {
-                        response == null -> {
-                            _validationState.value = ApiValidationState.Error(
-                                "Connection timeout. Please check your internet connection."
-                            )
-                        }
-                        response.text != null -> {
-                            _validationState.value = ApiValidationState.Valid
-                        }
-                        else -> {
-                            _validationState.value = ApiValidationState.Error(
-                                "API key validation failed. Please try again."
-                            )
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    val errorMessage = when {
-                        e.message?.contains("API_KEY_INVALID", ignoreCase = true) == true ||
-                        e.message?.contains("invalid", ignoreCase = true) == true -> 
-                            "Invalid API key. Please check and try again."
-                        
-                        e.message?.contains("PERMISSION_DENIED", ignoreCase = true) == true ->
-                            "API key doesn't have permission. Enable Generative Language API in Google Cloud Console."
-                        
-                        e.message?.contains("QUOTA_EXCEEDED", ignoreCase = true) == true ||
-                        e.message?.contains("quota", ignoreCase = true) == true ->
-                            "API quota exceeded. Wait a minute or check your Google AI Studio limits."
-                        
-                        e.message?.contains("RESOURCE_EXHAUSTED", ignoreCase = true) == true ->
-                            "Rate limit reached. Please wait a moment and try again."
-                        
-                        e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
-                        e.message?.contains("network", ignoreCase = true) == true ->
-                            "No internet connection. Please check your network."
-                        
-                        e.message?.contains("timeout", ignoreCase = true) == true ->
-                            "Connection timeout. Please try again."
-                        
-                        else -> "Validation failed: ${e.message?.take(100) ?: "Unknown error"}"
-                    }
-                    _validationState.value = ApiValidationState.Error(errorMessage)
-                }
-            }
-        }
-    }
-
-    /**
-     * Complete onboarding - only proceeds if API key is validated
+     * Complete onboarding - validates API key format and saves data
      */
     fun completeOnboarding(onComplete: () -> Unit) {
-        // If not validated yet, validate first
-        if (_validationState.value !is ApiValidationState.Valid) {
-            validateApiKey()
+        // Validate API key format
+        if (!validateApiKeyFormat()) {
             return
         }
 
         viewModelScope.launch {
-            // Calculate age from birth date if available, otherwise use default
+            // Calculate age from birth date if available
             val calculatedAge = getCalculatedAge()
 
             // Save user profile
@@ -362,7 +294,7 @@ class OnboardingViewModel @Inject constructor(
                 year = _birthYear.value
             )
 
-            // Save API key ONLY to SecureStorage (encrypted)
+            // Save API key to SecureStorage (encrypted)
             secureStorage.saveApiKey(_apiKey.value.trim())
 
             // Mark onboarding complete
@@ -373,11 +305,4 @@ class OnboardingViewModel @Inject constructor(
             }
         }
     }
-}
-
-sealed class ApiValidationState {
-    object Idle : ApiValidationState()
-    object Validating : ApiValidationState()
-    object Valid : ApiValidationState()
-    data class Error(val message: String) : ApiValidationState()
 } 
