@@ -5,10 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.SecureStorage
 import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.util.BirthdayUtils
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,8 +13,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import kotlin.math.pow
 
@@ -58,12 +53,10 @@ class ProfileViewModel @Inject constructor(
     val birthYear: StateFlow<Int?> = userPreferencesRepository.birthYear
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // Formatted birth date for display
     val formattedBirthDate: StateFlow<String?> = combine(birthDay, birthMonth, birthYear) { day, month, year ->
         BirthdayUtils.formatBirthDate(day, month, year)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // Calculated age from birth date
     val calculatedAge: StateFlow<Int?> = combine(birthDay, birthMonth, birthYear) { day, month, year ->
         BirthdayUtils.calculateAge(day, month, year)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -97,11 +90,11 @@ class ProfileViewModel @Inject constructor(
     private val _showBirthDatePicker = MutableStateFlow(false)
     val showBirthDatePicker: StateFlow<Boolean> = _showBirthDatePicker
 
-    // ✅ API Key validation state
-    private val _apiKeyValidationState = MutableStateFlow<ApiKeyValidationState>(ApiKeyValidationState.Idle)
-    val apiKeyValidationState: StateFlow<ApiKeyValidationState> = _apiKeyValidationState
+    // API Key error
+    private val _apiKeyError = MutableStateFlow<String?>(null)
+    val apiKeyError: StateFlow<String?> = _apiKeyError
 
-    // ✅ Profile validation errors
+    // Profile validation errors
     private val _profileValidationErrors = MutableStateFlow<ProfileValidationErrors>(ProfileValidationErrors())
     val profileValidationErrors: StateFlow<ProfileValidationErrors> = _profileValidationErrors
 
@@ -110,13 +103,13 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun showApiKeyDialog() {
-        _apiKeyValidationState.value = ApiKeyValidationState.Idle
+        _apiKeyError.value = null
         _showApiKeyDialog.value = true
     }
 
     fun hideApiKeyDialog() {
         _showApiKeyDialog.value = false
-        _apiKeyValidationState.value = ApiKeyValidationState.Idle
+        _apiKeyError.value = null
     }
 
     fun showAboutDialog() {
@@ -136,7 +129,7 @@ class ProfileViewModel @Inject constructor(
     }
 
     /**
-     * ✅ Validate profile inputs with realistic ranges
+     * Validate profile inputs with realistic ranges
      */
     fun validateProfile(
         name: String,
@@ -149,7 +142,6 @@ class ProfileViewModel @Inject constructor(
         val errors = ProfileValidationErrors()
         var isValid = true
 
-        // Name validation
         val trimmedName = name.trim()
         when {
             trimmedName.isEmpty() -> {
@@ -166,7 +158,6 @@ class ProfileViewModel @Inject constructor(
             }
         }
 
-        // Age validation (1-150)
         when {
             age < 1 -> {
                 errors.ageError = "Age must be at least 1"
@@ -178,7 +169,6 @@ class ProfileViewModel @Inject constructor(
             }
         }
 
-        // Height validation (50-300 cm)
         when {
             heightCm < 50 -> {
                 errors.heightError = "Height must be at least 50 cm"
@@ -190,7 +180,6 @@ class ProfileViewModel @Inject constructor(
             }
         }
 
-        // Weight validation (10-500 kg)
         when {
             weightKg < 10 -> {
                 errors.weightError = "Weight must be at least 10 kg"
@@ -202,7 +191,6 @@ class ProfileViewModel @Inject constructor(
             }
         }
 
-        // Step goal validation (1000-100000)
         when {
             stepGoal < 1000 -> {
                 errors.stepGoalError = "Step goal must be at least 1,000"
@@ -214,7 +202,6 @@ class ProfileViewModel @Inject constructor(
             }
         }
 
-        // Calorie goal validation (500-10000)
         when {
             calorieGoal < 500 -> {
                 errors.calorieGoalError = "Calorie goal must be at least 500"
@@ -242,7 +229,6 @@ class ProfileViewModel @Inject constructor(
         stepGoal: Int,
         calorieGoal: Int
     ) {
-        // Validate first
         if (!validateProfile(name, age, heightCm, weightKg, stepGoal, calorieGoal)) {
             return
         }
@@ -264,7 +250,6 @@ class ProfileViewModel @Inject constructor(
     fun saveBirthDate(day: Int, month: Int, year: Int) {
         viewModelScope.launch {
             userPreferencesRepository.saveBirthDate(day, month, year)
-            // Also update the calculated age
             val calculatedAge = BirthdayUtils.calculateAge(day, month, year) ?: 25
             userPreferencesRepository.saveUserProfile(
                 name = userName.value,
@@ -286,96 +271,31 @@ class ProfileViewModel @Inject constructor(
     }
 
     /**
-     * ✅ Validate API key before saving (for Google AI Studio free plan)
+     * ✅ Simple API key format validation - NO API call
+     * Just checks if key starts with "AIza" and is longer than 20 characters
      */
     fun validateAndSaveApiKey(newApiKey: String) {
         val key = newApiKey.trim()
 
-        // Basic format validation
-        if (key.isEmpty()) {
-            _apiKeyValidationState.value = ApiKeyValidationState.Error("API key is required")
-            return
-        }
-
-        if (key.length < 20) {
-            _apiKeyValidationState.value = ApiKeyValidationState.Error("API key seems too short")
-            return
-        }
-
-        if (!key.startsWith("AIza")) {
-            _apiKeyValidationState.value = ApiKeyValidationState.Error("Invalid format. Google AI keys start with 'AIza'")
-            return
-        }
-
-        _apiKeyValidationState.value = ApiKeyValidationState.Validating
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val model = GenerativeModel(
-                    modelName = "gemini-2.0-flash",
-                    apiKey = key
-                )
-
-                // Simple test - uses minimal tokens
-                val response = withTimeoutOrNull(15000L) {
-                    model.generateContent(content { text("Hi") })
-                }
-
-                withContext(Dispatchers.Main) {
-                    when {
-                        response == null -> {
-                            _apiKeyValidationState.value = ApiKeyValidationState.Error(
-                                "Connection timeout. Check your internet."
-                            )
-                        }
-                        response.text != null -> {
-                            // Valid! Save and close
-                            secureStorage.saveApiKey(key)
-                            _apiKeyValidationState.value = ApiKeyValidationState.Valid
-                            _showApiKeyDialog.value = false
-                        }
-                        else -> {
-                            _apiKeyValidationState.value = ApiKeyValidationState.Error(
-                                "Validation failed. Please try again."
-                            )
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    val errorMessage = when {
-                        e.message?.contains("API_KEY_INVALID", ignoreCase = true) == true ||
-                        e.message?.contains("invalid", ignoreCase = true) == true ->
-                            "Invalid API key. Please check and try again."
-
-                        e.message?.contains("PERMISSION_DENIED", ignoreCase = true) == true ->
-                            "API key doesn't have permission. Enable Generative Language API."
-
-                        e.message?.contains("QUOTA_EXCEEDED", ignoreCase = true) == true ||
-                        e.message?.contains("quota", ignoreCase = true) == true ->
-                            "API quota exceeded. Wait a minute and try again."
-
-                        e.message?.contains("RESOURCE_EXHAUSTED", ignoreCase = true) == true ->
-                            "Rate limit reached. Wait a moment and try again."
-
-                        e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
-                        e.message?.contains("network", ignoreCase = true) == true ->
-                            "No internet connection."
-
-                        else -> "Validation failed: ${e.message?.take(80) ?: "Unknown error"}"
-                    }
-                    _apiKeyValidationState.value = ApiKeyValidationState.Error(errorMessage)
-                }
+        when {
+            key.isEmpty() -> {
+                _apiKeyError.value = "API key is required"
+                return
+            }
+            key.length < 20 -> {
+                _apiKeyError.value = "API key is too short"
+                return
+            }
+            !key.startsWith("AIza") -> {
+                _apiKeyError.value = "Invalid format. Google AI keys start with 'AIza'"
+                return
             }
         }
-    }
 
-    /**
-     * Save API key without validation (for skip/later scenarios)
-     */
-    fun saveApiKeyWithoutValidation(apiKey: String) {
+        // Format is valid - save and close
         viewModelScope.launch {
-            secureStorage.saveApiKey(apiKey.trim())
+            secureStorage.saveApiKey(key)
+            _apiKeyError.value = null
             _showApiKeyDialog.value = false
         }
     }
@@ -390,16 +310,6 @@ class ProfileViewModel @Inject constructor(
             userPreferencesRepository.setOnboardingComplete(false)
         }
     }
-}
-
-/**
- * API Key validation states
- */
-sealed class ApiKeyValidationState {
-    object Idle : ApiKeyValidationState()
-    object Validating : ApiKeyValidationState()
-    object Valid : ApiKeyValidationState()
-    data class Error(val message: String) : ApiKeyValidationState()
 }
 
 /**
