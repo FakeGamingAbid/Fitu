@@ -1,4 +1,4 @@
-package com.fitu.ui.screens
+ package com.fitu.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -63,21 +63,11 @@ fun StepsScreen(
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                FootprintsIcon,
-                contentDescription = null,
-                tint = OrangePrimary,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "PRECISION ENGINE V2",
-                color = OrangePrimary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Text(
+            text = "Track your daily activity",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 14.sp
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -397,4 +387,4 @@ private val SneakerIcon: ImageVector
             arcTo(15.92f, 15.92f, 0f, false, false, 231.16f, 166.63f)
             close()
         }
-    }.build()
+    }.build() 
