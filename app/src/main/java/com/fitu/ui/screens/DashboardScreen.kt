@@ -49,8 +49,12 @@ fun DashboardScreen(
     val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
     
-    // ✅ NEW: Check if steps are initialized
+    // ✅ FIX #11: Check if steps are initialized
     val isStepsInitialized by viewModel.isStepsInitialized.collectAsState()
+    
+    // ✅ FIX #11: Check if weekly data is loading
+    val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
+    val weeklySteps by viewModel.weeklySteps.collectAsState()
     
     // Birthday feature
     val showBirthdayDialog by viewModel.showBirthdayDialog.collectAsState()
@@ -90,7 +94,6 @@ fun DashboardScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                // Show special birthday greeting if it's user's birthday
                 if (isBirthday) {
                     Text(
                         text = "🎂 Happy Birthday, ${userName.ifBlank { "User" }}! 🎉",
@@ -112,7 +115,6 @@ fun DashboardScreen(
                     fontSize = 14.sp
                 )
             }
-            // Avatar (with birthday decoration if it's birthday)
             Box(
                 modifier = Modifier
                     .size(if (isBirthday) 52.dp else 44.dp)
@@ -127,10 +129,7 @@ fun DashboardScreen(
                 contentAlignment = Alignment.Center
             ) {
                 if (isBirthday) {
-                    Text(
-                        text = "🎂",
-                        fontSize = 24.sp
-                    )
+                    Text(text = "🎂", fontSize = 24.sp)
                 } else {
                     Text(
                         text = userName.take(1).uppercase().ifEmpty { "U" },
@@ -172,9 +171,8 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    // ✅ FIX: Show loading indicator or actual steps
+                    // ✅ FIX #11: Show loading indicator or actual steps
                     if (!isStepsInitialized) {
-                        // Show loading placeholder
                         Text(
                             text = "Loading...",
                             color = Color.White.copy(alpha = 0.5f),
@@ -254,7 +252,6 @@ fun DashboardScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                // Progress bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -307,7 +304,6 @@ fun DashboardScreen(
                         fontSize = 13.sp
                     )
                 }
-                // Track pill
                 Box(
                     modifier = Modifier
                         .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
@@ -319,6 +315,42 @@ fun DashboardScreen(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ✅ FIX #11: Weekly Activity Card with Loading State
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Weekly Activity",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "STEPS",
+                        color = OrangePrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (isWeeklyDataLoading) {
+                    // ✅ FIX #11: Show loading skeleton
+                    DashboardWeeklyChartLoading()
+                } else {
+                    // Show actual chart
+                    DashboardWeeklyChartContent(weeklySteps = weeklySteps)
                 }
             }
         }
@@ -365,6 +397,117 @@ fun DashboardScreen(
                         fontSize = 13.sp
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * ✅ FIX #11: Loading skeleton for dashboard weekly chart
+ */
+@Composable
+private fun DashboardWeeklyChartLoading() {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            repeat(7) {
+                Box(
+                    modifier = Modifier
+                        .width(20.dp)
+                        .height((15 + (it * 6)).dp)
+                        .background(
+                            Color.White.copy(alpha = 0.1f),
+                            RoundedCornerShape(4.dp)
+                        )
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            listOf("M", "T", "W", "T", "F", "S", "S").forEach { day ->
+                Text(
+                    text = day,
+                    color = Color.White.copy(alpha = 0.3f),
+                    fontSize = 10.sp
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(12.dp),
+                color = OrangePrimary,
+                strokeWidth = 2.dp
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Loading...",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+
+/**
+ * ✅ FIX #11: Actual weekly chart content for dashboard
+ */
+@Composable
+private fun DashboardWeeklyChartContent(weeklySteps: List<Int>) {
+    val days = listOf("M", "T", "W", "T", "F", "S", "S")
+    val maxSteps = weeklySteps.maxOrNull()?.coerceAtLeast(1) ?: 1
+    
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            weeklySteps.forEachIndexed { index, steps ->
+                val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 50).dp else 4.dp
+                val isToday = index == 6
+                Box(
+                    modifier = Modifier
+                        .width(20.dp)
+                        .height(barHeight.coerceAtLeast(4.dp))
+                        .background(
+                            if (steps > 0) {
+                                if (isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
+                            } else {
+                                Color.White.copy(alpha = 0.1f)
+                            },
+                            RoundedCornerShape(4.dp)
+                        )
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            days.forEachIndexed { index, day ->
+                val isToday = index == 6
+                Text(
+                    text = day,
+                    color = if (isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
+                    fontSize = 10.sp,
+                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
+                )
             }
         }
     }
