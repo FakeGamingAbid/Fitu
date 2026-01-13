@@ -1,4 +1,4 @@
-package com.fitu.ui.screens
+ package com.fitu.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -40,6 +40,9 @@ fun StepsScreen(
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val distanceKm by viewModel.distanceKm.collectAsState()
     val weeklySteps by viewModel.weeklySteps.collectAsState()
+    
+    // ✅ FIX #11: Observe loading state
+    val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
 
     val progress = if (dailyGoal > 0) currentSteps.toFloat() / dailyGoal.toFloat() else 0f
     val animatedProgress by animateFloatAsState(
@@ -314,52 +317,132 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Weekly Bar Chart - Now using real data from database
+        // ✅ FIX #11: Weekly Bar Chart with Loading State
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                Row(
+            if (isWeeklyDataLoading) {
+                // Show loading shimmer/skeleton
+                WeeklyChartLoading()
+            } else {
+                // Show actual chart
+                WeeklyChartContent(
+                    weeklySteps = weeklySteps,
+                    currentSteps = currentSteps
+                )
+            }
+        }
+    }
+}
+
+/**
+ * ✅ FIX #11: Loading skeleton for weekly chart
+ */
+@Composable
+private fun WeeklyChartLoading() {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            repeat(7) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    val maxSteps = weeklySteps.maxOfOrNull { 
-                        if (it.isToday) currentSteps else it.steps 
-                    }?.coerceAtLeast(1) ?: 1
-                    
-                    weeklySteps.forEach { dayData ->
-                        val steps = if (dayData.isToday) currentSteps else dayData.steps
-                        val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 80).dp else 4.dp
-                        Box(
-                            modifier = Modifier
-                                .width(24.dp)
-                                .height(barHeight.coerceAtLeast(4.dp))
-                                .background(
-                                    if (steps > 0) {
-                                        if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
-                                    } else {
-                                        Color.White.copy(alpha = 0.1f)
-                                    },
-                                    RoundedCornerShape(4.dp)
-                                )
+                        .width(24.dp)
+                        .height((20 + (it * 10)).dp)
+                        .background(
+                            Color.White.copy(alpha = 0.1f),
+                            RoundedCornerShape(4.dp)
                         )
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    weeklySteps.forEach { dayData ->
-                        Text(
-                            text = dayData.day,
-                            color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
-                            fontSize = 11.sp,
-                            fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach { day ->
+                Text(
+                    text = day,
+                    color = Color.White.copy(alpha = 0.3f),
+                    fontSize = 11.sp
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        // Loading indicator
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = OrangePrimary,
+                strokeWidth = 2.dp
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Loading weekly data...",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+/**
+ * ✅ FIX #11: Actual weekly chart content
+ */
+@Composable
+private fun WeeklyChartContent(
+    weeklySteps: List<com.fitu.ui.steps.DaySteps>,
+    currentSteps: Int
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            val maxSteps = weeklySteps.maxOfOrNull { 
+                if (it.isToday) currentSteps else it.steps 
+            }?.coerceAtLeast(1) ?: 1
+            
+            weeklySteps.forEach { dayData ->
+                val steps = if (dayData.isToday) currentSteps else dayData.steps
+                val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 80).dp else 4.dp
+                Box(
+                    modifier = Modifier
+                        .width(24.dp)
+                        .height(barHeight.coerceAtLeast(4.dp))
+                        .background(
+                            if (steps > 0) {
+                                if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
+                            } else {
+                                Color.White.copy(alpha = 0.1f)
+                            },
+                            RoundedCornerShape(4.dp)
                         )
-                    }
-                }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            weeklySteps.forEach { dayData ->
+                Text(
+                    text = dayData.day,
+                    color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal
+                )
             }
         }
     }
