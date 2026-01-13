@@ -1,6 +1,9 @@
-package com.fitu.ui.nutrition
+ package com.fitu.ui.nutrition
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.UserPreferencesRepository
@@ -10,6 +13,7 @@ import com.fitu.di.GeminiModelProvider
 import com.fitu.domain.repository.DashboardRepository
 import com.google.ai.client.generativeai.type.content
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,6 +27,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class NutritionViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,  // ✅ NEW: For connectivity check
     private val geminiModelProvider: GeminiModelProvider,
     private val repository: DashboardRepository,
     private val mealDao: MealDao,
@@ -47,6 +52,13 @@ class NutritionViewModel @Inject constructor(
 
     private val _textSearch = MutableStateFlow("")
     val textSearch: StateFlow<String> = _textSearch
+
+    // ✅ FIX #9: Track meal pending deletion for confirmation
+    private val _mealToDelete = MutableStateFlow<MealEntity?>(null)
+    val mealToDelete: StateFlow<MealEntity?> = _mealToDelete
+
+    private val _showDeleteConfirmDialog = MutableStateFlow(false)
+    val showDeleteConfirmDialog: StateFlow<Boolean> = _showDeleteConfirmDialog
 
     val dailyCalorieGoal: StateFlow<Int> = userPreferencesRepository.dailyCalorieGoal
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2000)
@@ -94,6 +106,36 @@ class NutritionViewModel @Inject constructor(
         if (goal > 0) (consumed.toFloat() / goal.toFloat()).coerceIn(0f, 1f) else 0f
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
+    init {
+        // ✅ FIX #11: Clean old food cache on init (entries older than 7 days)
+        cleanOldFoodCache()
+    }
+
+    /**
+     * ✅ FIX #11: Clean food cache entries older than 7 days
+     */
+    private fun cleanOldFoodCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
+                foodCacheDao.clearOldCache(sevenDaysAgo)
+            } catch (e: Exception) {
+                // Ignore cache cleanup errors
+            }
+        }
+    }
+
+    /**
+     * ✅ FIX #13: Check if device has internet connection
+     */
+    private fun isOnline(): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+               capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
     fun selectMealType(type: String) {
         _selectedMealType.value = type
     }
@@ -119,6 +161,12 @@ class NutritionViewModel @Inject constructor(
     }
 
     fun analyzeFood(bitmap: Bitmap) {
+        // ✅ FIX #13: Check internet before making API call
+        if (!isOnline()) {
+            _uiState.value = NutritionUiState.Error("No internet connection. Please check your network and try again.")
+            return
+        }
+
         _uiState.value = NutritionUiState.Analyzing
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -134,7 +182,7 @@ class NutritionViewModel @Inject constructor(
 
                 val response = geminiModelProvider.generateContentWithRetry(
                     prompt = inputContent,
-                    modelName = "gemini-3-flash-preview"
+                    modelName = "gemini-1.5-flash"
                 )
                 
                 if (response != null && response.text != null) {
@@ -151,25 +199,38 @@ class NutritionViewModel @Inject constructor(
                         _analyzedFood.value = food
                         _uiState.value = NutritionUiState.Success(text)
                     } catch (e: Exception) {
-                        _uiState.value = NutritionUiState.Error("Failed to parse: $text")
+                        _uiState.value = NutritionUiState.Error("Failed to parse food data. Please try again.")
                     }
                 } else {
-                    _uiState.value = NutritionUiState.Error("Failed to analyze image. Please check your API key or internet connection.")
+                    _uiState.value = NutritionUiState.Error("Failed to analyze image. Please check your API key.")
                 }
             } catch (e: Exception) {
-                _uiState.value = NutritionUiState.Error(e.message ?: "Unknown error")
+                // ✅ FIX #13: Better error messages
+                val errorMessage = when {
+                    !isOnline() -> "Lost internet connection. Please try again."
+                    e.message?.contains("API key") == true -> "Invalid API key. Please check your settings."
+                    else -> "Failed to analyze food. Please try again."
+                }
+                _uiState.value = NutritionUiState.Error(errorMessage)
             }
         }
     }
 
     fun searchFood(query: String) {
         if (query.isBlank()) return
+
+        // ✅ FIX #13: Check internet before making API call
+        if (!isOnline()) {
+            _uiState.value = NutritionUiState.Error("No internet connection. Please check your network and try again.")
+            return
+        }
+
         _uiState.value = NutritionUiState.Analyzing
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // Check cache first
-                val cached = foodCacheDao.getCache(query)
-                if (cached != null && System.currentTimeMillis() - cached.timestamp < 24 * 60 * 60 * 1000) { // 24 hours cache
+                val cached = foodCacheDao.getCache(query.lowercase().trim())
+                if (cached != null && System.currentTimeMillis() - cached.timestamp < 7 * 24 * 60 * 60 * 1000) {
                     try {
                         val json = JSONObject(cached.resultJson)
                         val food = AnalyzedFood(
@@ -198,7 +259,7 @@ class NutritionViewModel @Inject constructor(
 
                 val response = geminiModelProvider.generateContentWithRetry(
                     prompt = inputContent,
-                    modelName = "gemini-3-flash-preview"
+                    modelName = "gemini-1.5-flash"
                 )
                 
                 if (response != null && response.text != null) {
@@ -219,19 +280,25 @@ class NutritionViewModel @Inject constructor(
                         // Cache the result
                         foodCacheDao.insertCache(
                             com.fitu.data.local.entity.FoodCacheEntity(
-                                query = query,
+                                query = query.lowercase().trim(),
                                 resultJson = cleanText,
                                 timestamp = System.currentTimeMillis()
                             )
                         )
                     } catch (e: Exception) {
-                        _uiState.value = NutritionUiState.Error("Failed to parse response")
+                        _uiState.value = NutritionUiState.Error("Failed to parse food data. Please try again.")
                     }
                 } else {
-                    _uiState.value = NutritionUiState.Error("Failed to search food. Please check your API key or internet connection.")
+                    _uiState.value = NutritionUiState.Error("Failed to search food. Please check your API key.")
                 }
             } catch (e: Exception) {
-                _uiState.value = NutritionUiState.Error(e.message ?: "Unknown error")
+                // ✅ FIX #13: Better error messages
+                val errorMessage = when {
+                    !isOnline() -> "Lost internet connection. Please try again."
+                    e.message?.contains("API key") == true -> "Invalid API key. Please check your settings."
+                    else -> "Failed to search food. Please try again."
+                }
+                _uiState.value = NutritionUiState.Error(errorMessage)
             }
         }
     }
@@ -256,9 +323,31 @@ class NutritionViewModel @Inject constructor(
         }
     }
 
-    fun deleteMeal(mealId: Int) {
+    /**
+     * ✅ FIX #9: Show delete confirmation dialog
+     */
+    fun requestDeleteMeal(meal: MealEntity) {
+        _mealToDelete.value = meal
+        _showDeleteConfirmDialog.value = true
+    }
+
+    /**
+     * ✅ FIX #9: Cancel delete operation
+     */
+    fun cancelDeleteMeal() {
+        _mealToDelete.value = null
+        _showDeleteConfirmDialog.value = false
+    }
+
+    /**
+     * ✅ FIX #9: Confirm and delete meal
+     */
+    fun confirmDeleteMeal() {
+        val meal = _mealToDelete.value ?: return
         viewModelScope.launch {
-            mealDao.deleteMeal(mealId)
+            mealDao.deleteMeal(meal.id)
+            _mealToDelete.value = null
+            _showDeleteConfirmDialog.value = false
         }
     }
 
@@ -281,4 +370,4 @@ sealed class NutritionUiState {
     object Analyzing : NutritionUiState()
     data class Success(val result: String) : NutritionUiState()
     data class Error(val message: String) : NutritionUiState()
-}
+} 
