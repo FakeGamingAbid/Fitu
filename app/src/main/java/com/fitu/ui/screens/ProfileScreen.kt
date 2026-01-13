@@ -10,10 +10,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cake
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,15 +29,20 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.ui.components.GlassCard
+import com.fitu.ui.profile.ApiKeyValidationState
 import com.fitu.ui.profile.ProfileViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.text.DecimalFormat
 import java.util.Calendar
+
+private val ErrorRed = Color(0xFFF44336)
+private val SuccessGreen = Color(0xFF4CAF50)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +60,8 @@ fun ProfileScreen(
     val bmiCategory by viewModel.bmiCategory.collectAsState()
     val showApiKeyDialog by viewModel.showApiKeyDialog.collectAsState()
     val showAboutDialog by viewModel.showAboutDialog.collectAsState()
+    val apiKeyValidationState by viewModel.apiKeyValidationState.collectAsState()
+    val profileValidationErrors by viewModel.profileValidationErrors.collectAsState()
     
     // Birth date
     val birthDay by viewModel.birthDay.collectAsState()
@@ -62,9 +73,8 @@ fun ProfileScreen(
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
-    var editApiKey by remember(apiKey) { mutableStateOf(apiKey) }
 
-    // ✅ FIX: Safe date picker with proper year range and error handling
+    // Safe date picker with proper year range
     val currentYear = Calendar.getInstance().get(Calendar.YEAR)
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = try {
@@ -74,9 +84,9 @@ fun ProfileScreen(
                 calendar.timeInMillis
             } else null
         } catch (e: Exception) {
-            null  // ✅ Return null if any error
+            null
         },
-        yearRange = 1920..currentYear  // ✅ FIX: Dynamic range up to current year
+        yearRange = 1920..currentYear
     )
 
     // Birth Date Picker Dialog
@@ -104,7 +114,7 @@ fun ProfileScreen(
                 Row {
                     if (birthDay != null) {
                         TextButton(onClick = { viewModel.clearBirthDate() }) {
-                            Text("Clear", color = Color(0xFFF44336))
+                            Text("Clear", color = ErrorRed)
                         }
                     }
                     TextButton(onClick = { viewModel.hideBirthDatePicker() }) {
@@ -112,9 +122,7 @@ fun ProfileScreen(
                     }
                 }
             },
-            colors = DatePickerDefaults.colors(
-                containerColor = Color(0xFF1A1A1F)
-            )
+            colors = DatePickerDefaults.colors(containerColor = Color(0xFF1A1A1F))
         ) {
             DatePicker(
                 state = datePickerState,
@@ -138,7 +146,7 @@ fun ProfileScreen(
         }
     }
 
-    // Edit Profile Dialog
+    // Edit Profile Dialog with validation
     if (showEditProfileDialog) {
         EditProfileDialog(
             currentName = userName,
@@ -147,20 +155,31 @@ fun ProfileScreen(
             currentWeight = userWeightKg,
             currentStepGoal = dailyStepGoal,
             currentCalorieGoal = dailyCalorieGoal,
+            validationErrors = profileValidationErrors,
             onSave = { name, age, height, weight, stepGoal, calorieGoal ->
                 viewModel.saveProfile(name, age, height, weight, stepGoal, calorieGoal)
-                showEditProfileDialog = false
+                if (profileValidationErrors.nameError == null &&
+                    profileValidationErrors.ageError == null &&
+                    profileValidationErrors.heightError == null &&
+                    profileValidationErrors.weightError == null &&
+                    profileValidationErrors.stepGoalError == null &&
+                    profileValidationErrors.calorieGoalError == null) {
+                    showEditProfileDialog = false
+                }
             },
-            onDismiss = { showEditProfileDialog = false }
+            onDismiss = {
+                showEditProfileDialog = false
+                viewModel.clearValidationErrors()
+            }
         )
     }
 
-    // API Key Dialog
+    // API Key Dialog with validation
     if (showApiKeyDialog) {
-        ApiKeyDialog(
-            currentKey = editApiKey,
-            onKeyChange = { editApiKey = it },
-            onSave = { viewModel.saveApiKey(editApiKey) },
+        ApiKeyDialogWithValidation(
+            currentKey = apiKey,
+            validationState = apiKeyValidationState,
+            onValidateAndSave = { viewModel.validateAndSaveApiKey(it) },
             onDismiss = { viewModel.hideApiKeyDialog() }
         )
     }
@@ -189,7 +208,7 @@ fun ProfileScreen(
             .padding(top = 32.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // --- Header ---
+        // Header
         Text(
             text = "Profile",
             color = Color.White,
@@ -197,7 +216,7 @@ fun ProfileScreen(
             fontWeight = FontWeight.Bold
         )
 
-        // --- User Info ---
+        // User Info
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -237,7 +256,6 @@ fun ProfileScreen(
                     )
                 }
             }
-            // Edit button
             IconButton(
                 onClick = { showEditProfileDialog = true },
                 modifier = Modifier
@@ -253,7 +271,7 @@ fun ProfileScreen(
             }
         }
 
-        // --- My Goals ---
+        // My Goals
         Text(
             text = "MY GOALS",
             color = Color.White.copy(alpha = 0.5f),
@@ -289,7 +307,7 @@ fun ProfileScreen(
             }
         }
 
-        // --- Body Stats ---
+        // Body Stats
         Text(
             text = "BODY STATS",
             color = Color.White.copy(alpha = 0.5f),
@@ -334,7 +352,7 @@ fun ProfileScreen(
                 }
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
-                // Birth Date (clickable)
+                // Birth Date
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -346,12 +364,7 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Cake,
-                            contentDescription = null,
-                            tint = OrangePrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Default.Cake, null, tint = OrangePrimary, modifier = Modifier.size(18.dp))
                         Text("Birthday", color = Color.White, fontSize = 16.sp)
                     }
                     Row(
@@ -363,51 +376,37 @@ fun ProfileScreen(
                             color = Color.White.copy(alpha = if (formattedBirthDate != null) 0.7f else 0.4f),
                             fontSize = 14.sp
                         )
-                        Icon(
-                            Icons.Default.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.3f),
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(20.dp))
                     }
                 }
                 
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
-                // Age (calculated from birth date if available)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                // Age
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Age", color = Color.White, fontSize = 16.sp)
-                    Text(
-                        text = "${calculatedAge ?: userAge} years",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp
-                    )
+                    Text("${calculatedAge ?: userAge} years", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
                 
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
                 // Height
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Height", color = Color.White, fontSize = 16.sp)
                     Text("$userHeightCm cm", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
+                
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                
                 // Weight
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Weight", color = Color.White, fontSize = 16.sp)
                     Text("$userWeightKg kg", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
+                
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
-                // API Key (clickable)
+                
+                // API Key
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -425,18 +424,13 @@ fun ProfileScreen(
                             color = Color.White.copy(alpha = 0.4f),
                             fontSize = 16.sp
                         )
-                        Icon(
-                            Icons.Default.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.3f),
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(20.dp))
                     }
                 }
             }
         }
 
-        // --- App Settings ---
+        // App Settings
         Text(
             text = "APP SETTINGS",
             color = Color.White.copy(alpha = 0.5f),
@@ -464,16 +458,16 @@ fun ProfileScreen(
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 SettingsItem(
                     icon = Icons.Default.Delete,
-                    iconBgColor = Color(0xFFF44336),
+                    iconBgColor = ErrorRed,
                     title = "Reset App",
                     subtitle = "Delete all local data",
-                    titleColor = Color(0xFFF44336),
+                    titleColor = ErrorRed,
                     onClick = { showResetConfirmDialog = true }
                 )
             }
         }
 
-        // --- Version ---
+        // Version
         Text(
             text = "Fitu v2.0.0",
             color = Color.White.copy(alpha = 0.3f),
@@ -483,145 +477,147 @@ fun ProfileScreen(
     }
 }
 
+/**
+ * ✅ API Key Dialog with validation
+ */
 @Composable
-private fun ResetConfirmDialog(
-    onConfirm: () -> Unit,
+private fun ApiKeyDialogWithValidation(
+    currentKey: String,
+    validationState: ApiKeyValidationState,
+    onValidateAndSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var editKey by remember { mutableStateOf(currentKey) }
+    var showKey by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF1A1A1F),
-        icon = {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .background(Color(0xFFF44336).copy(alpha = 0.1f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFF44336),
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        },
-        title = {
-            Text(
-                text = "Reset App?",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
+        title = { Text("Update API Key", color = Color.White, fontWeight = FontWeight.Bold) },
         text = {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Column {
                 Text(
-                    text = "This will permanently delete all your data including:",
+                    "Enter your Google AI Studio API key:",
                     color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center
+                    fontSize = 14.sp
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ResetDataItem("Profile information")
-                    ResetDataItem("Step history")
-                    ResetDataItem("Meal tracking data")
-                    ResetDataItem("Workout records")
-                    ResetDataItem("API key")
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                OutlinedTextField(
+                    value = editKey,
+                    onValueChange = { editKey = it },
+                    label = { Text("API Key", color = Color.White.copy(alpha = 0.5f)) },
+                    visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { showKey = !showKey }) {
+                                Icon(
+                                    if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            when (validationState) {
+                                is ApiKeyValidationState.Valid -> {
+                                    Icon(Icons.Default.CheckCircle, null, tint = SuccessGreen, modifier = Modifier.size(20.dp))
+                                }
+                                is ApiKeyValidationState.Error -> {
+                                    Icon(Icons.Default.Error, null, tint = ErrorRed, modifier = Modifier.size(20.dp))
+                                }
+                                else -> {}
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = when (validationState) {
+                            is ApiKeyValidationState.Valid -> SuccessGreen
+                            is ApiKeyValidationState.Error -> ErrorRed
+                            else -> OrangePrimary
+                        },
+                        unfocusedBorderColor = when (validationState) {
+                            is ApiKeyValidationState.Valid -> SuccessGreen
+                            is ApiKeyValidationState.Error -> ErrorRed
+                            else -> Color.White.copy(alpha = 0.2f)
+                        }
+                    )
+                )
+
+                // Validation status
+                Spacer(modifier = Modifier.height(8.dp))
+                when (validationState) {
+                    is ApiKeyValidationState.Validating -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = OrangePrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Validating...", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                        }
+                    }
+                    is ApiKeyValidationState.Valid -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, null, tint = SuccessGreen, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("API key is valid! ✓", color = SuccessGreen, fontSize = 13.sp)
+                        }
+                    }
+                    is ApiKeyValidationState.Error -> {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(Icons.Default.Error, null, tint = ErrorRed, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                (validationState as ApiKeyValidationState.Error).message,
+                                color = ErrorRed,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
+                    else -> {
+                        Text(
+                            "💡 Free tier: 15 requests/min, 1M tokens/month",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 12.sp
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "This action cannot be undone.",
-                    color = Color(0xFFF44336),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
             }
         },
         confirmButton = {
             Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
-                modifier = Modifier.fillMaxWidth()
+                onClick = { onValidateAndSave(editKey) },
+                enabled = editKey.isNotBlank() && validationState !is ApiKeyValidationState.Validating,
+                colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
             ) {
-                Text("Yes, Reset Everything", color = Color.White, fontWeight = FontWeight.Bold)
+                if (validationState is ApiKeyValidationState.Validating) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(
+                    if (validationState is ApiKeyValidationState.Validating) "Validating..." else "Validate & Save",
+                    color = Color.White
+                )
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            TextButton(onClick = onDismiss) {
                 Text("Cancel", color = Color.White.copy(alpha = 0.7f))
             }
         }
     )
 }
 
-@Composable
-private fun ResetDataItem(text: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .background(Color(0xFFF44336), CircleShape)
-        )
-        Text(
-            text = text,
-            color = Color.White.copy(alpha = 0.6f),
-            fontSize = 13.sp
-        )
-    }
-}
-
-@Composable
-private fun SettingsItem(
-    icon: ImageVector,
-    iconBgColor: Color,
-    title: String,
-    subtitle: String,
-    titleColor: Color = Color.White,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(iconBgColor.copy(alpha = 0.2f), RoundedCornerShape(10.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = iconBgColor, modifier = Modifier.size(20.dp))
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = titleColor, fontWeight = FontWeight.Medium, fontSize = 15.sp)
-            Text(subtitle, color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
-        }
-        Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.3f))
-    }
-}
-
+/**
+ * ✅ Edit Profile Dialog with validation
+ */
 @Composable
 private fun EditProfileDialog(
     currentName: String,
@@ -630,6 +626,7 @@ private fun EditProfileDialog(
     currentWeight: Int,
     currentStepGoal: Int,
     currentCalorieGoal: Int,
+    validationErrors: com.fitu.ui.profile.ProfileValidationErrors,
     onSave: (String, Int, Int, Int, Int, Int) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -646,22 +643,35 @@ private fun EditProfileDialog(
         title = { Text("Edit Profile", color = Color.White, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ProfileTextField(value = name, onValueChange = { name = it }, label = "Name")
-                ProfileTextField(value = age, onValueChange = { age = it.filter { c -> c.isDigit() } }, label = "Age", isNumber = true)
+                ProfileTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = "Name",
+                    error = validationErrors.nameError
+                )
+                ProfileTextField(
+                    value = age,
+                    onValueChange = { age = it.filter { c -> c.isDigit() } },
+                    label = "Age",
+                    isNumber = true,
+                    error = validationErrors.ageError
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ProfileTextField(
                         value = height,
                         onValueChange = { height = it.filter { c -> c.isDigit() } },
                         label = "Height (cm)",
                         isNumber = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        error = validationErrors.heightError
                     )
                     ProfileTextField(
                         value = weight,
                         onValueChange = { weight = it.filter { c -> c.isDigit() } },
                         label = "Weight (kg)",
                         isNumber = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        error = validationErrors.weightError
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -670,14 +680,16 @@ private fun EditProfileDialog(
                         onValueChange = { stepGoal = it.filter { c -> c.isDigit() } },
                         label = "Step Goal",
                         isNumber = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        error = validationErrors.stepGoalError
                     )
                     ProfileTextField(
                         value = calorieGoal,
                         onValueChange = { calorieGoal = it.filter { c -> c.isDigit() } },
                         label = "Calorie Goal",
                         isNumber = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        error = validationErrors.calorieGoalError
                     )
                 }
             }
@@ -713,71 +725,111 @@ private fun ProfileTextField(
     onValueChange: (String) -> Unit,
     label: String,
     isNumber: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    error: String? = null
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label, color = Color.White.copy(alpha = 0.5f)) },
-        keyboardOptions = KeyboardOptions(
-            keyboardType = if (isNumber) KeyboardType.Number else KeyboardType.Text
-        ),
-        singleLine = true,
-        modifier = modifier.fillMaxWidth(),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            focusedBorderColor = OrangePrimary,
-            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+    Column(modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label, color = Color.White.copy(alpha = 0.5f)) },
+            keyboardOptions = KeyboardOptions(keyboardType = if (isNumber) KeyboardType.Number else KeyboardType.Text),
+            singleLine = true,
+            isError = error != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = if (error != null) ErrorRed else OrangePrimary,
+                unfocusedBorderColor = if (error != null) ErrorRed else Color.White.copy(alpha = 0.2f),
+                errorBorderColor = ErrorRed
+            )
         )
-    )
+        if (error != null) {
+            Text(
+                text = error,
+                color = ErrorRed,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+            )
+        }
+    }
 }
 
 @Composable
-private fun ApiKeyDialog(
-    currentKey: String,
-    onKeyChange: (String) -> Unit,
-    onSave: () -> Unit,
-    onDismiss: () -> Unit
-) {
+private fun ResetConfirmDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF1A1A1F),
-        title = { Text("Update API Key", color = Color.White) },
+        icon = {
+            Box(
+                modifier = Modifier.size(56.dp).background(ErrorRed.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Warning, null, tint = ErrorRed, modifier = Modifier.size(28.dp))
+            }
+        },
+        title = {
+            Text("Reset App?", color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        },
         text = {
-            Column {
-                Text("Enter your Gemini API key:", color = Color.White.copy(alpha = 0.7f))
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = currentKey,
-                    onValueChange = onKeyChange,
-                    label = { Text("API Key", color = Color.White.copy(alpha = 0.5f)) },
-                    visualTransformation = PasswordVisualTransformation(),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = OrangePrimary,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-                    )
-                )
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text("This will permanently delete all your data including:", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(16.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp)).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("Profile information", "Step history", "Meal tracking data", "Workout records", "API key").forEach {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(modifier = Modifier.size(6.dp).background(ErrorRed, CircleShape))
+                            Text(it, color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("This action cannot be undone.", color = ErrorRed, fontSize = 12.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
         },
         confirmButton = {
-            Button(
-                onClick = onSave,
-                colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
-            ) {
-                Text("Save", color = Color.White)
+            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = ErrorRed), modifier = Modifier.fillMaxWidth()) {
+                Text("Yes, Reset Everything", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
                 Text("Cancel", color = Color.White.copy(alpha = 0.7f))
             }
         }
     )
+}
+
+@Composable
+private fun SettingsItem(
+    icon: ImageVector,
+    iconBgColor: Color,
+    title: String,
+    subtitle: String,
+    titleColor: Color = Color.White,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp).background(iconBgColor.copy(alpha = 0.2f), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = iconBgColor, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = titleColor, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+            Text(subtitle, color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+        }
+        Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.3f))
+    }
 }
 
 @Composable
@@ -788,12 +840,7 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         title = { Text("About Fitu", color = Color.White) },
         text = {
             Column {
-                Text(
-                    text = "Fitu",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = OrangePrimary
-                )
+                Text("Fitu", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = OrangePrimary)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Your AI-powered fitness companion", color = Color.White.copy(alpha = 0.7f))
                 Spacer(modifier = Modifier.height(16.dp))
@@ -802,22 +849,17 @@ private fun AboutDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close", color = OrangePrimary)
-            }
+            TextButton(onClick = onDismiss) { Text("Close", color = OrangePrimary) }
         }
     )
 }
 
-// ✅ FIX: Safe getInitials function
 private fun getInitials(name: String): String {
     if (name.isBlank()) return "U"
     val parts = name.trim().split(" ").filter { it.isNotEmpty() }
     return when {
-        parts.size >= 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty() -> 
-            "${parts[0].first()}${parts[1].first()}".uppercase()
-        parts.isNotEmpty() && parts[0].isNotEmpty() -> 
-            parts[0].take(2).uppercase()
+        parts.size >= 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty() -> "${parts[0].first()}${parts[1].first()}".uppercase()
+        parts.isNotEmpty() && parts[0].isNotEmpty() -> parts[0].take(2).uppercase()
         else -> "U"
     }
 }
