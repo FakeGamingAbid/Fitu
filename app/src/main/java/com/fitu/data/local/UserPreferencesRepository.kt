@@ -1,4 +1,4 @@
-package com.fitu.data.local
+ package com.fitu.data.local
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -27,7 +27,9 @@ class UserPreferencesRepository @Inject constructor(
         val USER_WEIGHT_KG = intPreferencesKey("user_weight_kg")
         val DAILY_STEP_GOAL = intPreferencesKey("daily_step_goal")
         val DAILY_CALORIE_GOAL = intPreferencesKey("daily_calorie_goal")
-        val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
+        
+        // ✅ FIX #2: REMOVED - geminiApiKey is now ONLY in SecureStorage
+        // val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         
         // Birth date fields (stored separately for flexibility)
         val BIRTH_DAY = intPreferencesKey("birth_day")
@@ -66,9 +68,8 @@ class UserPreferencesRepository @Inject constructor(
         preferences[PreferencesKeys.DAILY_CALORIE_GOAL] ?: 2000
     }
 
-    val geminiApiKey: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[PreferencesKeys.GEMINI_API_KEY] ?: ""
-    }
+    // ✅ FIX #2: REMOVED - geminiApiKey getter
+    // API key is now ONLY accessed via SecureStorage.getApiKey() and SecureStorage.apiKeyFlow
 
     // Birth date fields
     val birthDay: Flow<Int?> = context.dataStore.data.map { preferences ->
@@ -132,15 +133,22 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
-    suspend fun saveApiKey(apiKey: String) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferencesKeys.GEMINI_API_KEY] = apiKey
-        }
-    }
+    // ✅ FIX #2: REMOVED - saveApiKey function
+    // API key is now ONLY saved via SecureStorage.saveApiKey()
 
     suspend fun setOnboardingComplete(complete: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.ONBOARDING_COMPLETE] = complete
         }
     }
-}
+
+    /**
+     * ✅ NEW: Clear all user data (for app reset)
+     * Note: This does NOT clear the API key (that's in SecureStorage)
+     */
+    suspend fun clearAllData() {
+        context.dataStore.edit { preferences ->
+            preferences.clear()
+        }
+    }
+} 
