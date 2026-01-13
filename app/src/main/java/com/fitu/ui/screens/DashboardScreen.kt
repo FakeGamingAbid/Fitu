@@ -55,6 +55,10 @@ fun DashboardScreen(
     // ✅ FIX #11: Check if weekly data is loading
     val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
     val weeklySteps by viewModel.weeklySteps.collectAsState()
+
+    // ✅ FIX #24: Unit conversion
+    val formattedDistance by viewModel.formattedDistance.collectAsState()
+    val distanceUnit by viewModel.distanceUnit.collectAsState()
     
     // Birthday feature
     val showBirthdayDialog by viewModel.showBirthdayDialog.collectAsState()
@@ -226,45 +230,82 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Burned Card ---
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.LocalFireDepartment,
-                        contentDescription = null,
-                        tint = OrangePrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Burned",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+        // --- Distance & Burned Row ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // ✅ FIX #24: Distance Card with unit conversion
+            GlassCard(modifier = Modifier.weight(1f)) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            FootprintsIcon,
+                            contentDescription = null,
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Distance",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = formattedDistance,
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = distanceUnit,
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "$caloriesBurned",
-                    color = Color.White,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(2.dp))
-                ) {
-                    val burnProgress = if (dailyCalorieGoal > 0) caloriesBurned.toFloat() / dailyCalorieGoal else 0f
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(burnProgress.coerceIn(0f, 1f))
-                            .height(4.dp)
-                            .background(OrangePrimary, RoundedCornerShape(2.dp))
-                    )
+            }
+
+            // Burned Card
+            GlassCard(modifier = Modifier.weight(1f)) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.LocalFireDepartment,
+                            contentDescription = null,
+                            tint = OrangePrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Burned",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = "$caloriesBurned",
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "KCAL",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
                 }
             }
         }
@@ -299,7 +340,7 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Track your meals with AI vision.",
+                        text = "$caloriesConsumed / $dailyCalorieGoal kcal consumed",
                         color = Color.White.copy(alpha = 0.5f),
                         fontSize = 13.sp
                     )
