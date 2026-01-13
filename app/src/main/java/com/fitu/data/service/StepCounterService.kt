@@ -3,6 +3,7 @@ package com.fitu.data.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -13,7 +14,10 @@ import android.hardware.SensorManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.fitu.MainActivity
 import com.fitu.R
+import com.fitu.data.local.dao.StepDao
+import com.fitu.data.local.entity.StepEntity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +25,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -28,75 +35,145 @@ class StepCounterService : Service(), SensorEventListener {
 
     @Inject
     lateinit var sensorManager: SensorManager
+    
+    @Inject
+    lateinit var stepDao: StepDao
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    private var stepCounterSensor: Sensor? = null
     private var accelerometerSensor: Sensor? = null
+    
+    // Current date tracking
+    private var currentDate: String = ""
 
     companion object {
         private val _stepCount = MutableStateFlow(0)
         val stepCount: StateFlow<Int> = _stepCount
         
-        // For visualization
         private val _motionMagnitude = MutableStateFlow(0f)
         val motionMagnitude: StateFlow<Float> = _motionMagnitude
+        
+        private const val NOTIFICATION_ID = 1
+        private const val CHANNEL_ID = "step_counter_channel"
+        
+        fun getTodayDate(): String {
+            return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        }
     }
 
     override fun onCreate() {
         super.onCreate()
+        currentDate = getTodayDate()
+        loadTodaySteps()
         startForegroundService()
         registerSensors()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Check if date changed (past midnight)
+        val today = getTodayDate()
+        if (today != currentDate) {
+            currentDate = today
+            _stepCount.value = 0
+            loadTodaySteps()
+        }
+        
         registerSensors()
         return START_STICKY
     }
 
+    private fun loadTodaySteps() {
+        serviceScope.launch {
+            val todaySteps = stepDao.getStepsForDate(currentDate)
+            if (todaySteps != null) {
+                _stepCount.value = todaySteps.steps
+            } else {
+                _stepCount.value = 0
+            }
+        }
+    }
+
+    private fun saveSteps(steps: Int) {
+        serviceScope.launch {
+            val entity = StepEntity(
+                date = currentDate,
+                steps = steps,
+                lastUpdated = System.currentTimeMillis()
+            )
+            stepDao.insertOrUpdate(entity)
+            
+            // Update notification with current step count
+            updateNotification(steps)
+        }
+    }
+
     private fun startForegroundService() {
-        val channelId = "step_counter_channel"
         val channelName = "Step Counter"
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                channelName,
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Tracks your daily steps"
+                setShowBadge(false)
+            }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
         }
 
-        val notification: Notification = NotificationCompat.Builder(this, channelId)
+        val notification = buildNotification(_stepCount.value)
+        startForeground(NOTIFICATION_ID, notification)
+    }
+    
+    private fun buildNotification(steps: Int): Notification {
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Fitu Step Counter")
-            .setContentText("Tracking your steps...")
+            .setContentText("$steps steps today")
             .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setSilent(true)
             .build()
-
-        startForeground(1, notification)
+    }
+    
+    private fun updateNotification(steps: Int) {
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_ID, buildNotification(steps))
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // --- High Precision Algorithm Refs (Ported from React) ---
+    // --- High Precision Algorithm Refs ---
     private val gravity = FloatArray(3)
     private var smoothedMag = 0.0
     private var isBelowReset = true
     private var lastStepTime = 0L
+    private var lastSaveTime = 0L
 
-    // Tuning Constants for Accuracy (Exact matches from React)
+    // Tuning Constants for Accuracy
     private val ALPHA = 0.92f
     private val SMOOTH_FACTOR = 0.7f
     private val STEP_THRESHOLD = 2.4f
     private val RESET_THRESHOLD = 1.2f
     private val MIN_STEP_TIME = 420L
+    private val SAVE_INTERVAL = 5000L // Save every 5 seconds
 
     private fun registerSensors() {
-        // Prioritize Accelerometer as per user request
         if (accelerometerSensor == null) {
             accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         }
         
-        // Register Accelerometer
         accelerometerSensor?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) // Faster delay for better detection
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
         }
     }
 
@@ -104,6 +181,14 @@ class StepCounterService : Service(), SensorEventListener {
         event ?: return
 
         if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+            // Check for date change
+            val today = getTodayDate()
+            if (today != currentDate) {
+                currentDate = today
+                _stepCount.value = 0
+                loadTodaySteps()
+            }
+            
             val x = event.values[0]
             val y = event.values[1]
             val z = event.values[2]
@@ -133,6 +218,12 @@ class StepCounterService : Service(), SensorEventListener {
                     _stepCount.value += 1
                     lastStepTime = now
                     isBelowReset = false
+                    
+                    // Save periodically (not every step to reduce DB writes)
+                    if (now - lastSaveTime > SAVE_INTERVAL) {
+                        saveSteps(_stepCount.value)
+                        lastSaveTime = now
+                    }
                 }
             } else if (smoothedMag < RESET_THRESHOLD) {
                 isBelowReset = true
@@ -147,5 +238,8 @@ class StepCounterService : Service(), SensorEventListener {
     override fun onDestroy() {
         super.onDestroy()
         sensorManager.unregisterListener(this)
+        
+        // Save final step count when service is destroyed
+        saveSteps(_stepCount.value)
     }
-}
+} 
