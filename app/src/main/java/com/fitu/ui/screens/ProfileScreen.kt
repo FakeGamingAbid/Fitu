@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
@@ -68,6 +69,11 @@ fun ProfileScreen(
     val formattedBirthDate by viewModel.formattedBirthDate.collectAsState()
     val calculatedAge by viewModel.calculatedAge.collectAsState()
     val showBirthDatePicker by viewModel.showBirthDatePicker.collectAsState()
+
+    // ✅ FIX #24: Unit preference
+    val useImperialUnits by viewModel.useImperialUnits.collectAsState()
+    val formattedHeight by viewModel.formattedHeight.collectAsState()
+    val formattedWeight by viewModel.formattedWeight.collectAsState()
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
@@ -388,18 +394,18 @@ fun ProfileScreen(
                 
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
-                // Height
+                // ✅ FIX #24: Height with unit conversion
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Height", color = Color.White, fontSize = 16.sp)
-                    Text("$userHeightCm cm", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
+                    Text(formattedHeight, color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
                 
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
-                // Weight
+                // ✅ FIX #24: Weight with unit conversion
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Weight", color = Color.White, fontSize = 16.sp)
-                    Text("$userWeightKg kg", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
+                    Text(formattedWeight, color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
                 
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
@@ -438,6 +444,59 @@ fun ProfileScreen(
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
+                // ✅ FIX #24: Unit Toggle Setting
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0xFF2196F3).copy(alpha = 0.2f), RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Straighten,
+                                contentDescription = null,
+                                tint = Color(0xFF2196F3),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Use Imperial Units",
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = if (useImperialUnits) "ft/in, lbs, miles" else "cm, kg, km",
+                                color = Color.White.copy(alpha = 0.4f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = useImperialUnits,
+                        onCheckedChange = { viewModel.setUnitPreference(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = OrangePrimary,
+                            uncheckedThumbColor = Color.White,
+                            uncheckedTrackColor = Color.White.copy(alpha = 0.3f)
+                        )
+                    )
+                }
+                
+                Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                
                 SettingsItem(
                     icon = Icons.Default.Cake,
                     iconBgColor = Color(0xFFE91E63),
@@ -476,7 +535,7 @@ fun ProfileScreen(
 }
 
 /**
- * ✅ Simple API Key Dialog - format validation only (no API call)
+ * Simple API Key Dialog - format validation only (no API call)
  */
 @Composable
 private fun ApiKeyDialog(
@@ -488,7 +547,6 @@ private fun ApiKeyDialog(
     var editKey by remember { mutableStateOf(currentKey) }
     var showKey by remember { mutableStateOf(false) }
 
-    // Check if format is valid (starts with AIza and 20+ chars)
     val isFormatValid = editKey.trim().let { 
         it.length >= 20 && it.startsWith("AIza") 
     }
