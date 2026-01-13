@@ -18,6 +18,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,7 +27,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ContentCopy
@@ -64,6 +67,7 @@ import java.nio.ByteBuffer
 
 private val ErrorRed = Color(0xFFF44336)
 private val WarningOrange = Color(0xFFFF9800)
+private val SuccessGreen = Color(0xFF4CAF50)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -461,31 +465,13 @@ private fun AddFoodSheetContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Meal type selector
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("breakfast", "lunch", "dinner", "snacks").forEach { type ->
-                val isSelected = selectedMealType == type
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) OrangePrimary else Color.White.copy(alpha = 0.1f))
-                        .clickable { viewModel.selectMealType(type) }
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = type.replaceFirstChar { it.uppercase() },
-                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-        }
+        // ✅ FIX #14: Enhanced meal type selector with time-based suggestion
+        MealTypeSelector(
+            selectedMealType = selectedMealType,
+            onMealTypeSelected = { viewModel.selectMealType(it) },
+            isSuggestedMealType = { viewModel.isSuggestedMealType(it) },
+            getMealTypeTimeRange = { viewModel.getMealTypeTimeRange(it) }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -625,6 +611,170 @@ private fun AddFoodSheetContent(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+/**
+ * ✅ FIX #14: Enhanced Meal Type Selector with time-based suggestions
+ */
+@Composable
+private fun MealTypeSelector(
+    selectedMealType: String,
+    onMealTypeSelected: (String) -> Unit,
+    isSuggestedMealType: (String) -> Boolean,
+    getMealTypeTimeRange: (String) -> String
+) {
+    val mealTypes = listOf("breakfast", "lunch", "dinner", "snacks")
+    
+    Column {
+        // Header with current suggestion
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Meal Type",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    Icons.Default.AccessTime,
+                    contentDescription = null,
+                    tint = SuccessGreen,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = "Auto-detected",
+                    color = SuccessGreen,
+                    fontSize = 11.sp
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Meal type buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            mealTypes.forEach { type ->
+                val isSelected = selectedMealType == type
+                val isSuggested = isSuggestedMealType(type)
+                val timeRange = getMealTypeTimeRange(type)
+                
+                MealTypeButton(
+                    mealType = type,
+                    isSelected = isSelected,
+                    isSuggested = isSuggested,
+                    timeRange = timeRange,
+                    onClick = { onMealTypeSelected(type) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * ✅ FIX #14: Individual Meal Type Button
+ */
+@Composable
+private fun MealTypeButton(
+    mealType: String,
+    isSelected: Boolean,
+    isSuggested: Boolean,
+    timeRange: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = when {
+        isSelected -> OrangePrimary
+        else -> Color.White.copy(alpha = 0.1f)
+    }
+    
+    val borderColor = when {
+        isSelected -> OrangePrimary
+        isSuggested && !isSelected -> SuccessGreen.copy(alpha = 0.5f)
+        else -> Color.Transparent
+    }
+    
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(backgroundColor)
+            .then(
+                if (borderColor != Color.Transparent) {
+                    Modifier.border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
+                } else {
+                    Modifier
+                }
+            )
+            .clickable { onClick() }
+            .padding(vertical = 12.dp, horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Meal type icon
+            Text(
+                text = when (mealType) {
+                    "breakfast" -> "🌅"
+                    "lunch" -> "☀️"
+                    "dinner" -> "🌙"
+                    "snacks" -> "🍿"
+                    else -> "🍽️"
+                },
+                fontSize = 16.sp
+            )
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            // Meal type name
+            Text(
+                text = mealType.replaceFirstChar { it.uppercase() },
+                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                fontSize = 11.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+            )
+            
+            // Show suggested badge or time range
+            if (isSuggested && !isSelected) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = SuccessGreen,
+                        modifier = Modifier.size(10.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "Now",
+                        color = SuccessGreen,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            } else if (isSelected && isSuggested) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "✓ Now",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 9.sp
+                )
+            }
+        }
     }
 }
 
