@@ -49,14 +49,6 @@ class StepsViewModel @Inject constructor(
 
     /**
      * ✅ FIX #7: Personalized stride length based on user's height
-     * 
-     * Formula: Stride length ≈ Height × 0.415 (for walking)
-     * Source: Scientific studies on gait analysis
-     * 
-     * Examples:
-     * - Height 150cm → Stride 62.25cm → 0.0006225 km
-     * - Height 170cm → Stride 70.55cm → 0.0007055 km
-     * - Height 190cm → Stride 78.85cm → 0.0007885 km
      */
     val distanceKm: StateFlow<Float> = combine(stepCount, userHeightCm) { steps, heightCm ->
         val strideLengthKm = calculateStrideLengthKm(heightCm)
@@ -65,27 +57,15 @@ class StepsViewModel @Inject constructor(
 
     /**
      * ✅ FIX #6: Personalized calorie calculation based on user's weight
-     * 
-     * Formula: Calories per step ≈ 0.04 × (weight / 70)
-     * This scales the base rate (0.04 kcal for 70kg person) proportionally
-     * 
-     * More accurate formula considers MET (Metabolic Equivalent):
-     * Calories = MET × weight(kg) × time(hours)
-     * For walking: MET ≈ 3.5
-     * 
-     * Simplified per-step formula:
-     * Calories per step = (weight × 0.0005)
-     * 
-     * Examples:
-     * - Weight 50kg → 0.025 kcal/step
-     * - Weight 70kg → 0.035 kcal/step
-     * - Weight 90kg → 0.045 kcal/step
-     * - Weight 100kg → 0.050 kcal/step
      */
     val caloriesBurned: StateFlow<Int> = combine(stepCount, userWeightKg) { steps, weightKg ->
         val caloriesPerStep = calculateCaloriesPerStep(weightKg)
         (steps * caloriesPerStep).toInt()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    // ✅ FIX #11: Loading state for weekly steps chart
+    private val _isWeeklyDataLoading = MutableStateFlow(true)
+    val isWeeklyDataLoading: StateFlow<Boolean> = _isWeeklyDataLoading
 
     // Weekly steps data - Raw data from database
     private val _weeklyStepsFromDb = MutableStateFlow<List<StepEntity>>(emptyList())
@@ -112,13 +92,8 @@ class StepsViewModel @Inject constructor(
 
     /**
      * Calculate stride length in kilometers based on height
-     * 
-     * @param heightCm User's height in centimeters
-     * @return Stride length in kilometers
      */
     private fun calculateStrideLengthKm(heightCm: Int): Float {
-        // Stride length = height × 0.415 (walking average)
-        // Convert cm to km: divide by 100,000
         val strideMultiplier = 0.415f
         val strideLengthCm = heightCm * strideMultiplier
         return strideLengthCm / 100_000f
@@ -126,14 +101,8 @@ class StepsViewModel @Inject constructor(
 
     /**
      * Calculate calories burned per step based on weight
-     * 
-     * @param weightKg User's weight in kilograms
-     * @return Calories burned per step
      */
     private fun calculateCaloriesPerStep(weightKg: Int): Float {
-        // Base: 0.04 kcal per step for 70kg person
-        // Scale proportionally: weight × 0.00057
-        // This gives ~0.04 for 70kg
         return weightKg * 0.00057f
     }
 
@@ -163,6 +132,9 @@ class StepsViewModel @Inject constructor(
 
     private fun loadWeeklySteps() {
         viewModelScope.launch {
+            // ✅ FIX #11: Set loading to true before fetching
+            _isWeeklyDataLoading.value = true
+            
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val calendar = Calendar.getInstance()
             
@@ -172,6 +144,8 @@ class StepsViewModel @Inject constructor(
             
             stepDao.getStepsBetweenDates(startDate, endDate).collect { stepEntities ->
                 _weeklyStepsFromDb.value = stepEntities
+                // ✅ FIX #11: Set loading to false after data is loaded
+                _isWeeklyDataLoading.value = false
             }
         }
     }
