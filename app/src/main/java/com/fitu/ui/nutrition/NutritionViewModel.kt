@@ -27,7 +27,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class NutritionViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,  // ✅ NEW: For connectivity check
+    @ApplicationContext private val context: Context,
     private val geminiModelProvider: GeminiModelProvider,
     private val repository: DashboardRepository,
     private val mealDao: MealDao,
@@ -53,7 +53,6 @@ class NutritionViewModel @Inject constructor(
     private val _textSearch = MutableStateFlow("")
     val textSearch: StateFlow<String> = _textSearch
 
-    // ✅ FIX #9: Track meal pending deletion for confirmation
     private val _mealToDelete = MutableStateFlow<MealEntity?>(null)
     val mealToDelete: StateFlow<MealEntity?> = _mealToDelete
 
@@ -107,13 +106,9 @@ class NutritionViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
     init {
-        // ✅ FIX #11: Clean old food cache on init (entries older than 7 days)
         cleanOldFoodCache()
     }
 
-    /**
-     * ✅ FIX #11: Clean food cache entries older than 7 days
-     */
     private fun cleanOldFoodCache() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -125,9 +120,6 @@ class NutritionViewModel @Inject constructor(
         }
     }
 
-    /**
-     * ✅ FIX #13: Check if device has internet connection
-     */
     private fun isOnline(): Boolean {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
@@ -161,7 +153,6 @@ class NutritionViewModel @Inject constructor(
     }
 
     fun analyzeFood(bitmap: Bitmap) {
-        // ✅ FIX #13: Check internet before making API call
         if (!isOnline()) {
             _uiState.value = NutritionUiState.Error("No internet connection. Please check your network and try again.")
             return
@@ -182,7 +173,7 @@ class NutritionViewModel @Inject constructor(
 
                 val response = geminiModelProvider.generateContentWithRetry(
                     prompt = inputContent,
-                    modelName = "gemini-1.5-flash"
+                    modelName = "gemini-3-flash-preview"
                 )
                 
                 if (response != null && response.text != null) {
@@ -205,7 +196,6 @@ class NutritionViewModel @Inject constructor(
                     _uiState.value = NutritionUiState.Error("Failed to analyze image. Please check your API key.")
                 }
             } catch (e: Exception) {
-                // ✅ FIX #13: Better error messages
                 val errorMessage = when {
                     !isOnline() -> "Lost internet connection. Please try again."
                     e.message?.contains("API key") == true -> "Invalid API key. Please check your settings."
@@ -219,7 +209,6 @@ class NutritionViewModel @Inject constructor(
     fun searchFood(query: String) {
         if (query.isBlank()) return
 
-        // ✅ FIX #13: Check internet before making API call
         if (!isOnline()) {
             _uiState.value = NutritionUiState.Error("No internet connection. Please check your network and try again.")
             return
@@ -259,7 +248,7 @@ class NutritionViewModel @Inject constructor(
 
                 val response = geminiModelProvider.generateContentWithRetry(
                     prompt = inputContent,
-                    modelName = "gemini-1.5-flash"
+                    modelName = "gemini-3-flash-preview"
                 )
                 
                 if (response != null && response.text != null) {
@@ -292,7 +281,6 @@ class NutritionViewModel @Inject constructor(
                     _uiState.value = NutritionUiState.Error("Failed to search food. Please check your API key.")
                 }
             } catch (e: Exception) {
-                // ✅ FIX #13: Better error messages
                 val errorMessage = when {
                     !isOnline() -> "Lost internet connection. Please try again."
                     e.message?.contains("API key") == true -> "Invalid API key. Please check your settings."
@@ -323,25 +311,16 @@ class NutritionViewModel @Inject constructor(
         }
     }
 
-    /**
-     * ✅ FIX #9: Show delete confirmation dialog
-     */
     fun requestDeleteMeal(meal: MealEntity) {
         _mealToDelete.value = meal
         _showDeleteConfirmDialog.value = true
     }
 
-    /**
-     * ✅ FIX #9: Cancel delete operation
-     */
     fun cancelDeleteMeal() {
         _mealToDelete.value = null
         _showDeleteConfirmDialog.value = false
     }
 
-    /**
-     * ✅ FIX #9: Confirm and delete meal
-     */
     fun confirmDeleteMeal() {
         val meal = _mealToDelete.value ?: return
         viewModelScope.launch {
