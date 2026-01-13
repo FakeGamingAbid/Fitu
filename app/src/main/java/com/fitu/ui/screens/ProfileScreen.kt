@@ -10,10 +10,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cake
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Visibility
@@ -35,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.ui.components.GlassCard
-import com.fitu.ui.profile.ApiKeyValidationState
 import com.fitu.ui.profile.ProfileViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.text.DecimalFormat
@@ -60,7 +58,7 @@ fun ProfileScreen(
     val bmiCategory by viewModel.bmiCategory.collectAsState()
     val showApiKeyDialog by viewModel.showApiKeyDialog.collectAsState()
     val showAboutDialog by viewModel.showAboutDialog.collectAsState()
-    val apiKeyValidationState by viewModel.apiKeyValidationState.collectAsState()
+    val apiKeyError by viewModel.apiKeyError.collectAsState()
     val profileValidationErrors by viewModel.profileValidationErrors.collectAsState()
     
     // Birth date
@@ -174,12 +172,12 @@ fun ProfileScreen(
         )
     }
 
-    // API Key Dialog with validation
+    // API Key Dialog with simple format validation
     if (showApiKeyDialog) {
-        ApiKeyDialogWithValidation(
+        ApiKeyDialog(
             currentKey = apiKey,
-            validationState = apiKeyValidationState,
-            onValidateAndSave = { viewModel.validateAndSaveApiKey(it) },
+            apiKeyError = apiKeyError,
+            onSave = { viewModel.validateAndSaveApiKey(it) },
             onDismiss = { viewModel.hideApiKeyDialog() }
         )
     }
@@ -478,17 +476,22 @@ fun ProfileScreen(
 }
 
 /**
- * ✅ API Key Dialog with validation
+ * ✅ Simple API Key Dialog - format validation only (no API call)
  */
 @Composable
-private fun ApiKeyDialogWithValidation(
+private fun ApiKeyDialog(
     currentKey: String,
-    validationState: ApiKeyValidationState,
-    onValidateAndSave: (String) -> Unit,
+    apiKeyError: String?,
+    onSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var editKey by remember { mutableStateOf(currentKey) }
     var showKey by remember { mutableStateOf(false) }
+
+    // Check if format is valid (starts with AIza and 20+ chars)
+    val isFormatValid = editKey.trim().let { 
+        it.length >= 20 && it.startsWith("AIza") 
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -508,6 +511,7 @@ private fun ApiKeyDialogWithValidation(
                     onValueChange = { editKey = it },
                     label = { Text("API Key", color = Color.White.copy(alpha = 0.5f)) },
                     visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                    isError = apiKeyError != null,
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { showKey = !showKey }) {
@@ -518,16 +522,15 @@ private fun ApiKeyDialogWithValidation(
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
-                            when (validationState) {
-                                is ApiKeyValidationState.Valid -> {
-                                    Icon(Icons.Default.CheckCircle, null, tint = SuccessGreen, modifier = Modifier.size(20.dp))
-                                }
-                                is ApiKeyValidationState.Error -> {
-                                    Icon(Icons.Default.Error, null, tint = ErrorRed, modifier = Modifier.size(20.dp))
-                                }
-                                else -> {}
+                            if (isFormatValid && apiKeyError == null) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "Valid format",
+                                    tint = SuccessGreen,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
                         }
                     },
                     singleLine = true,
@@ -535,76 +538,41 @@ private fun ApiKeyDialogWithValidation(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        focusedBorderColor = when (validationState) {
-                            is ApiKeyValidationState.Valid -> SuccessGreen
-                            is ApiKeyValidationState.Error -> ErrorRed
+                        focusedBorderColor = when {
+                            apiKeyError != null -> ErrorRed
+                            isFormatValid -> SuccessGreen
                             else -> OrangePrimary
                         },
-                        unfocusedBorderColor = when (validationState) {
-                            is ApiKeyValidationState.Valid -> SuccessGreen
-                            is ApiKeyValidationState.Error -> ErrorRed
+                        unfocusedBorderColor = when {
+                            apiKeyError != null -> ErrorRed
+                            isFormatValid -> SuccessGreen
                             else -> Color.White.copy(alpha = 0.2f)
                         }
                     )
                 )
 
-                // Validation status
                 Spacer(modifier = Modifier.height(8.dp))
-                when (validationState) {
-                    is ApiKeyValidationState.Validating -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = OrangePrimary,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Validating...", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
-                        }
-                    }
-                    is ApiKeyValidationState.Valid -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.CheckCircle, null, tint = SuccessGreen, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("API key is valid! ✓", color = SuccessGreen, fontSize = 13.sp)
-                        }
-                    }
-                    is ApiKeyValidationState.Error -> {
-                        Row(verticalAlignment = Alignment.Top) {
-                            Icon(Icons.Default.Error, null, tint = ErrorRed, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                (validationState as ApiKeyValidationState.Error).message,
-                                color = ErrorRed,
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp
-                            )
-                        }
-                    }
-                    else -> {
-                        Text(
-                            "💡 Free tier: 15 requests/min, 1M tokens/month",
-                            color = Color.White.copy(alpha = 0.4f),
-                            fontSize = 12.sp
-                        )
-                    }
+                
+                if (apiKeyError != null) {
+                    Text(apiKeyError, color = ErrorRed, fontSize = 13.sp)
+                } else if (isFormatValid) {
+                    Text("✓ Format looks good!", color = SuccessGreen, fontSize = 13.sp)
+                } else {
+                    Text(
+                        "Key should start with 'AIza' and be 20+ characters",
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 12.sp
+                    )
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onValidateAndSave(editKey) },
-                enabled = editKey.isNotBlank() && validationState !is ApiKeyValidationState.Validating,
+                onClick = { onSave(editKey) },
+                enabled = editKey.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
             ) {
-                if (validationState is ApiKeyValidationState.Validating) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Text(
-                    if (validationState is ApiKeyValidationState.Validating) "Validating..." else "Validate & Save",
-                    color = Color.White
-                )
+                Text("Save", color = Color.White)
             }
         },
         dismissButton = {
@@ -616,7 +584,7 @@ private fun ApiKeyDialogWithValidation(
 }
 
 /**
- * ✅ Edit Profile Dialog with validation
+ * Edit Profile Dialog with validation
  */
 @Composable
 private fun EditProfileDialog(
