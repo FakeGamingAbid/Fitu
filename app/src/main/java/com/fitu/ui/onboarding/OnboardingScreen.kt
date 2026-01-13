@@ -1,8 +1,9 @@
-package com.fitu.ui.onboarding
+ package com.fitu.ui.onboarding
 
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,14 +16,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,16 +33,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.ui.theme.OrangePrimary
-import java.time.LocalDate
 import java.util.Calendar
 
 private val DarkBackground = Color(0xFF0A0A0F)
 private val InputBackground = Color(0xFF1A1A1F)
 private val BorderColor = Color(0xFF2A2A2F)
+private val ErrorRed = Color(0xFFF44336)
+private val SuccessGreen = Color(0xFF4CAF50)
 
 @Composable
 fun OnboardingScreen(
@@ -101,6 +105,12 @@ fun PersonalInfoPage(viewModel: OnboardingViewModel) {
     val birthMonth by viewModel.birthMonth.collectAsState()
     val birthYear by viewModel.birthYear.collectAsState()
     val showDatePicker by viewModel.showDatePicker.collectAsState()
+
+    // Validation errors
+    val nameError by viewModel.nameError.collectAsState()
+    val heightError by viewModel.heightError.collectAsState()
+    val weightError by viewModel.weightError.collectAsState()
+    val stepGoalError by viewModel.stepGoalError.collectAsState()
 
     // Date picker state
     val datePickerState = rememberDatePickerState(
@@ -192,7 +202,9 @@ fun PersonalInfoPage(viewModel: OnboardingViewModel) {
         DarkTextField(
             value = name,
             onValueChange = { viewModel.updateName(it) },
-            placeholder = "Your name"
+            placeholder = "Your name",
+            isError = nameError != null,
+            errorMessage = nameError
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -264,7 +276,9 @@ fun PersonalInfoPage(viewModel: OnboardingViewModel) {
                     value = heightCm,
                     onValueChange = { viewModel.updateHeightCm(it) },
                     placeholder = "170",
-                    keyboardType = KeyboardType.Number
+                    keyboardType = KeyboardType.Number,
+                    isError = heightError != null,
+                    errorMessage = heightError
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -274,7 +288,9 @@ fun PersonalInfoPage(viewModel: OnboardingViewModel) {
                     value = weightKg,
                     onValueChange = { viewModel.updateWeightKg(it) },
                     placeholder = "70",
-                    keyboardType = KeyboardType.Number
+                    keyboardType = KeyboardType.Number,
+                    isError = weightError != null,
+                    errorMessage = weightError
                 )
             }
         }
@@ -288,7 +304,9 @@ fun PersonalInfoPage(viewModel: OnboardingViewModel) {
             value = stepGoal,
             onValueChange = { viewModel.updateStepGoal(it) },
             placeholder = "10000",
-            keyboardType = KeyboardType.Number
+            keyboardType = KeyboardType.Number,
+            isError = stepGoalError != null,
+            errorMessage = stepGoalError
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -321,8 +339,19 @@ fun PersonalInfoPage(viewModel: OnboardingViewModel) {
 @Composable
 fun ApiSetupPage(viewModel: OnboardingViewModel, onComplete: () -> Unit) {
     val apiKey by viewModel.apiKey.collectAsState()
+    val showApiKey by viewModel.showApiKey.collectAsState()
     val validationState by viewModel.validationState.collectAsState()
     val context = LocalContext.current
+
+    // Determine border color based on validation state
+    val borderColor by animateColorAsState(
+        targetValue = when (validationState) {
+            is ApiValidationState.Valid -> SuccessGreen
+            is ApiValidationState.Error -> ErrorRed
+            else -> BorderColor
+        },
+        label = "borderColor"
+    )
 
     Column(
         modifier = Modifier
@@ -370,14 +399,14 @@ fun ApiSetupPage(viewModel: OnboardingViewModel, onComplete: () -> Unit) {
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Gemini API Required",
+                        text = "Google AI Studio (Free)",
                         color = OrangePrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Fitu runs entirely in your browser. Your key is stored securely on your device.",
+                        text = "Get a free API key from Google AI Studio. Your key is stored securely on your device.",
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 13.sp,
                         lineHeight = 18.sp
@@ -391,18 +420,143 @@ fun ApiSetupPage(viewModel: OnboardingViewModel, onComplete: () -> Unit) {
         // API Key Input
         InputLabel("API KEY")
         Spacer(modifier = Modifier.height(8.dp))
-        DarkTextField(
+        
+        OutlinedTextField(
             value = apiKey,
             onValueChange = { viewModel.updateApiKey(it) },
-            placeholder = "AIzaSy...",
-            isPassword = true
+            placeholder = {
+                Text(
+                    text = "AIzaSy...",
+                    color = Color.White.copy(alpha = 0.3f)
+                )
+            },
+            visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Show/Hide toggle
+                    IconButton(onClick = { viewModel.toggleShowApiKey() }) {
+                        Icon(
+                            if (showApiKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (showApiKey) "Hide" else "Show",
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    // Validation status icon
+                    when (validationState) {
+                        is ApiValidationState.Valid -> {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = "Valid",
+                                tint = SuccessGreen,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        is ApiValidationState.Error -> {
+                            Icon(
+                                Icons.Default.Error,
+                                contentDescription = "Invalid",
+                                tint = ErrorRed,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        else -> {}
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp)),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedContainerColor = InputBackground,
+                unfocusedContainerColor = InputBackground,
+                focusedBorderColor = borderColor,
+                unfocusedBorderColor = borderColor,
+                cursorColor = OrangePrimary
+            ),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        // Validation status message
+        Spacer(modifier = Modifier.height(8.dp))
+        when (validationState) {
+            is ApiValidationState.Valid -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = SuccessGreen,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "API key is valid! ✓",
+                        color = SuccessGreen,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            is ApiValidationState.Error -> {
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Error,
+                        contentDescription = null,
+                        tint = ErrorRed,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = (validationState as ApiValidationState.Error).message,
+                        color = ErrorRed,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+            is ApiValidationState.Validating -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = OrangePrimary,
+                        strokeWidth = 2.dp
+                    )
+                    Text(
+                        text = "Validating API key...",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 13.sp
+                    )
+                }
+            }
+            else -> {
+                Text(
+                    text = "We'll validate your key before continuing.",
+                    color = Color.White.copy(alpha = 0.4f),
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Get API Key Link
         Text(
-            text = "Get a free API key here",
+            text = "Get a free API key here →",
             color = OrangePrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
@@ -412,12 +566,56 @@ fun ApiSetupPage(viewModel: OnboardingViewModel, onComplete: () -> Unit) {
             }
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Free tier info
+        Text(
+            text = "💡 Free tier includes 15 requests/minute, 1 million tokens/month",
+            color = Color.White.copy(alpha = 0.4f),
+            fontSize = 12.sp,
+            lineHeight = 16.sp
+        )
+
         Spacer(modifier = Modifier.weight(1f))
 
-        // Start Journey Button
+        // Validate Button (shows when not validated)
+        if (validationState !is ApiValidationState.Valid) {
+            OutlinedButton(
+                onClick = { viewModel.validateApiKey() },
+                enabled = apiKey.isNotBlank() && validationState !is ApiValidationState.Validating,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                border = ButtonDefaults.outlinedButtonBorder.copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(OrangePrimary)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                if (validationState is ApiValidationState.Validating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = OrangePrimary,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Validating...", color = OrangePrimary)
+                } else {
+                    Text(
+                        text = "Validate API Key",
+                        color = OrangePrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // Start Journey Button (enabled only when validated)
         Button(
             onClick = { viewModel.completeOnboarding(onComplete) },
-            enabled = apiKey.isNotBlank(),
+            enabled = validationState is ApiValidationState.Valid,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
@@ -460,32 +658,48 @@ private fun DarkTextField(
     onValueChange: (String) -> Unit,
     placeholder: String,
     keyboardType: KeyboardType = KeyboardType.Text,
-    isPassword: Boolean = false
+    isPassword: Boolean = false,
+    isError: Boolean = false,
+    errorMessage: String? = null
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = {
+    Column {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    color = Color.White.copy(alpha = 0.3f)
+                )
+            },
+            visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            isError = isError,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp)),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedContainerColor = InputBackground,
+                unfocusedContainerColor = InputBackground,
+                focusedBorderColor = if (isError) ErrorRed else BorderColor,
+                unfocusedBorderColor = if (isError) ErrorRed else BorderColor,
+                errorBorderColor = ErrorRed,
+                cursorColor = OrangePrimary
+            ),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true
+        )
+        
+        // Error message
+        if (isError && errorMessage != null) {
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = placeholder,
-                color = Color.White.copy(alpha = 0.3f)
+                text = errorMessage,
+                color = ErrorRed,
+                fontSize = 12.sp
             )
-        },
-        visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp)),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            focusedContainerColor = InputBackground,
-            unfocusedContainerColor = InputBackground,
-            focusedBorderColor = BorderColor,
-            unfocusedBorderColor = BorderColor,
-            cursorColor = OrangePrimary
-        ),
-        shape = RoundedCornerShape(12.dp),
-        singleLine = true
-    )
-}
+        }
+    }
+} 
