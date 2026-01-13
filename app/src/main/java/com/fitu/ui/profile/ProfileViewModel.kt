@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.SecureStorage
 import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.util.BirthdayUtils
+import com.fitu.util.UnitConverter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -60,6 +61,20 @@ class ProfileViewModel @Inject constructor(
     val calculatedAge: StateFlow<Int?> = combine(birthDay, birthMonth, birthYear) { day, month, year ->
         BirthdayUtils.calculateAge(day, month, year)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // ✅ FIX #24: Unit preference
+    val useImperialUnits: StateFlow<Boolean> = userPreferencesRepository.useImperialUnits
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    // ✅ FIX #24: Formatted height based on unit preference
+    val formattedHeight: StateFlow<String> = combine(userHeightCm, useImperialUnits) { heightCm, useImperial ->
+        UnitConverter.formatHeight(heightCm, useImperial)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "170 cm")
+
+    // ✅ FIX #24: Formatted weight based on unit preference
+    val formattedWeight: StateFlow<String> = combine(userWeightKg, useImperialUnits) { weightKg, useImperial ->
+        UnitConverter.formatWeight(weightKg, useImperial)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "70 kg")
 
     // BMI Calculation
     val bmi: StateFlow<Float> = combine(userHeightCm, userWeightKg) { height, weight ->
@@ -126,6 +141,25 @@ class ProfileViewModel @Inject constructor(
 
     fun hideBirthDatePicker() {
         _showBirthDatePicker.value = false
+    }
+
+    /**
+     * ✅ FIX #24: Toggle unit preference
+     */
+    fun toggleUnitPreference() {
+        viewModelScope.launch {
+            val currentValue = useImperialUnits.value
+            userPreferencesRepository.setUseImperialUnits(!currentValue)
+        }
+    }
+
+    /**
+     * ✅ FIX #24: Set unit preference directly
+     */
+    fun setUnitPreference(useImperial: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setUseImperialUnits(useImperial)
+        }
     }
 
     /**
@@ -271,8 +305,7 @@ class ProfileViewModel @Inject constructor(
     }
 
     /**
-     * ✅ Simple API key format validation - NO API call
-     * Just checks if key starts with "AIza" and is longer than 20 characters
+     * Simple API key format validation - NO API call
      */
     fun validateAndSaveApiKey(newApiKey: String) {
         val key = newApiKey.trim()
@@ -292,7 +325,6 @@ class ProfileViewModel @Inject constructor(
             }
         }
 
-        // Format is valid - save and close
         viewModelScope.launch {
             secureStorage.saveApiKey(key)
             _apiKeyError.value = null
