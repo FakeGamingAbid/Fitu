@@ -1,4 +1,4 @@
- package com.fitu.ui.screens
+package com.fitu.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -59,6 +61,7 @@ fun ProfileScreen(
     val showBirthDatePicker by viewModel.showBirthDatePicker.collectAsState()
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
     var editApiKey by remember(apiKey) { mutableStateOf(apiKey) }
 
     // Date picker state for birth date
@@ -154,6 +157,17 @@ fun ProfileScreen(
             onKeyChange = { editApiKey = it },
             onSave = { viewModel.saveApiKey(editApiKey) },
             onDismiss = { viewModel.hideApiKeyDialog() }
+        )
+    }
+
+    // Reset Confirmation Dialog
+    if (showResetConfirmDialog) {
+        ResetConfirmDialog(
+            onConfirm = {
+                showResetConfirmDialog = false
+                viewModel.resetOnboarding()
+            },
+            onDismiss = { showResetConfirmDialog = false }
         )
     }
 
@@ -447,7 +461,7 @@ fun ProfileScreen(
                     title = "Reset App",
                     subtitle = "Delete all local data",
                     titleColor = Color(0xFFF44336),
-                    onClick = { viewModel.resetOnboarding() }
+                    onClick = { showResetConfirmDialog = true }
                 )
             }
         }
@@ -458,6 +472,112 @@ fun ProfileScreen(
             color = Color.White.copy(alpha = 0.3f),
             fontSize = 12.sp,
             modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+    }
+}
+
+@Composable
+private fun ResetConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1A1A1F),
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(Color(0xFFF44336).copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFF44336),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "Reset App?",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "This will permanently delete all your data including:",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ResetDataItem("Profile information")
+                    ResetDataItem("Step history")
+                    ResetDataItem("Meal tracking data")
+                    ResetDataItem("Workout records")
+                    ResetDataItem("API key")
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "This action cannot be undone.",
+                    color = Color(0xFFF44336),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Yes, Reset Everything", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+            }
+        }
+    )
+}
+
+@Composable
+private fun ResetDataItem(text: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .background(Color(0xFFF44336), CircleShape)
+        )
+        Text(
+            text = text,
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 13.sp
         )
     }
 }
