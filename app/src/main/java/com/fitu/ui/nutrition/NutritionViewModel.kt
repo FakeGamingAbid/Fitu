@@ -50,6 +50,9 @@ class NutritionViewModel @Inject constructor(
         
         // Rate limiting
         private const val MIN_REQUEST_INTERVAL_MS = 2000L
+        
+        // ✅ FIX #15: Duplicate detection settings
+        private const val DUPLICATE_DETECTION_WINDOW_MS = 5000L // 5 seconds
     }
 
     private val _uiState = MutableStateFlow<NutritionUiState>(NutritionUiState.Idle)
@@ -79,6 +82,18 @@ class NutritionViewModel @Inject constructor(
     // Rate limiting
     private var lastRequestTime = 0L
     private var currentAnalysisJob: Job? = null
+
+    // ✅ FIX #15: Track last added food to prevent duplicates
+    private var lastAddedFoodName: String? = null
+    private var lastAddedFoodTime: Long = 0L
+    private var lastAddedMealType: String? = null
+
+    // ✅ FIX #15: Duplicate warning state
+    private val _showDuplicateWarning = MutableStateFlow(false)
+    val showDuplicateWarning: StateFlow<Boolean> = _showDuplicateWarning
+
+    private val _duplicateWarningMessage = MutableStateFlow("")
+    val duplicateWarningMessage: StateFlow<String> = _duplicateWarningMessage
 
     val dailyCalorieGoal: StateFlow<Int> = userPreferencesRepository.dailyCalorieGoal
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2000)
@@ -168,11 +183,10 @@ class NutritionViewModel @Inject constructor(
         val width = bitmap.width
         val height = bitmap.height
         
-        // Calculate scale factor
         val scaleFactor = minOf(
             MAX_IMAGE_WIDTH.toFloat() / width,
             MAX_IMAGE_HEIGHT.toFloat() / height,
-            1f // Don't upscale
+            1f
         )
         
         if (scaleFactor >= 1f) {
@@ -210,6 +224,8 @@ class NutritionViewModel @Inject constructor(
         _portion.value = 1f
         _textSearch.value = ""
         _uiState.value = NutritionUiState.Idle
+        _showDuplicateWarning.value = false
+        _duplicateWarningMessage.value = ""
         currentAnalysisJob?.cancel()
     }
 
@@ -222,22 +238,68 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
+     * ✅ FIX #15: Check if the food is a duplicate
+     */
+    private fun isDuplicateFood(foodName: String, mealType: String): Boolean {
+        val now = System.currentTimeMillis()
+        val timeSinceLastAdd = now - lastAddedFoodTime
+        
+        // Check if same food was added within the detection window
+        if (lastAddedFoodName != null && 
+            timeSinceLastAdd < DUPLICATE_DETECTION_WINDOW_MS &&
+            lastAddedFoodName.equals(foodName, ignoreCase = true) &&
+            lastAddedMealType == mealType) {
+            return true
+        }
+        
+        return false
+    }
+
+    /**
+     * ✅ FIX #15: Check for similar food in today's meals
+     */
+    private fun findSimilarRecentMeal(foodName: String, mealType: String): MealEntity? {
+        val recentMeals = todayMeals.value
+        val fiveMinutesAgo = System.currentTimeMillis() - (5 * 60 * 1000L)
+        
+        return recentMeals.find { meal ->
+            meal.name.equals(foodName, ignoreCase = true) &&
+            meal.mealType == mealType &&
+            meal.timestamp > fiveMinutesAgo
+        }
+    }
+
+    /**
+     * Dismiss duplicate warning
+     */
+    fun dismissDuplicateWarning() {
+        _showDuplicateWarning.value = false
+        _duplicateWarningMessage.value = ""
+    }
+
+    /**
+     * ✅ FIX #15: Force add food (ignore duplicate warning)
+     */
+    fun forceAddFoodToMeal() {
+        _showDuplicateWarning.value = false
+        _duplicateWarningMessage.value = ""
+        addFoodToMealInternal(ignoreDuplicate = true)
+    }
+
+    /**
      * Analyze food from image with compression, retry, and detailed error handling
      */
     fun analyzeFood(bitmap: Bitmap) {
-        // Check rate limiting
         if (isRateLimited()) {
             Log.d(TAG, "Rate limited - ignoring request")
             return
         }
 
-        // Check if already analyzing
         if (_uiState.value is NutritionUiState.Analyzing) {
             Log.d(TAG, "Already analyzing - ignoring request")
             return
         }
 
-        // Check network
         if (!isOnline()) {
             _uiState.value = NutritionUiState.Error(
                 message = "No internet connection",
@@ -251,7 +313,6 @@ class NutritionViewModel @Inject constructor(
 
         currentAnalysisJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Compress image
                 val compressedBitmap = compressBitmap(bitmap)
                 val sizeKB = getBitmapSizeKB(compressedBitmap)
                 Log.d(TAG, "Sending image: ${compressedBitmap.width}x${compressedBitmap.height}, ~${sizeKB}KB")
@@ -286,7 +347,6 @@ class NutritionViewModel @Inject constructor(
 
                 Log.d(TAG, "Raw response: $text")
 
-                // Parse JSON response
                 val food = parseJsonResponse(text)
                 
                 _analyzedFood.value = food
@@ -314,19 +374,16 @@ class NutritionViewModel @Inject constructor(
     fun searchFood(query: String) {
         if (query.isBlank()) return
 
-        // Check rate limiting
         if (isRateLimited()) {
             Log.d(TAG, "Rate limited - ignoring request")
             return
         }
 
-        // Check if already analyzing
         if (_uiState.value is NutritionUiState.Analyzing) {
             Log.d(TAG, "Already analyzing - ignoring request")
             return
         }
 
-        // Check network
         if (!isOnline()) {
             _uiState.value = NutritionUiState.Error(
                 message = "No internet connection",
@@ -340,7 +397,6 @@ class NutritionViewModel @Inject constructor(
 
         currentAnalysisJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Check cache first
                 val cached = foodCacheDao.getCache(query.lowercase().trim())
                 if (cached != null && System.currentTimeMillis() - cached.timestamp < 7 * 24 * 60 * 60 * 1000) {
                     try {
@@ -384,10 +440,8 @@ class NutritionViewModel @Inject constructor(
 
                 Log.d(TAG, "Raw response: $text")
 
-                // Parse JSON response
                 val food = parseJsonResponse(text)
 
-                // Cache the result
                 val cleanJson = """{"name":"${food.name}","calories":${food.calories},"protein":${food.protein},"carbs":${food.carbs},"fats":${food.fats}}"""
                 foodCacheDao.insertCache(
                     com.fitu.data.local.entity.FoodCacheEntity(
@@ -417,10 +471,9 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
-     * Parse JSON response from Gemini, handling various formats
+     * Parse JSON response from Gemini
      */
     private fun parseJsonResponse(text: String): AnalyzedFood {
-        // Clean up the response - remove markdown code blocks if present
         val cleanText = text
             .removePrefix("```json")
             .removePrefix("```JSON")
@@ -447,7 +500,7 @@ class NutritionViewModel @Inject constructor(
             val fats = json.optInt("fats", 0).coerceAtLeast(0)
 
             return AnalyzedFood(
-                name = name.take(100), // Limit name length
+                name = name.take(100),
                 calories = calories.coerceIn(0, 10000),
                 protein = protein.coerceIn(0, 1000),
                 carbs = carbs.coerceIn(0, 1000),
@@ -521,9 +574,40 @@ class NutritionViewModel @Inject constructor(
         }
     }
 
+    /**
+     * ✅ FIX #15: Public method to add food - checks for duplicates first
+     */
     fun addFoodToMeal() {
+        addFoodToMealInternal(ignoreDuplicate = false)
+    }
+
+    /**
+     * ✅ FIX #15: Internal method to add food with duplicate check
+     */
+    private fun addFoodToMealInternal(ignoreDuplicate: Boolean) {
         val food = _analyzedFood.value ?: return
+        val mealType = _selectedMealType.value
         val portionMultiplier = _portion.value
+
+        // ✅ FIX #15: Check for duplicate if not ignoring
+        if (!ignoreDuplicate) {
+            // Check immediate duplicate (rapid clicks)
+            if (isDuplicateFood(food.name, mealType)) {
+                Log.d(TAG, "Duplicate detected (rapid click): ${food.name}")
+                _duplicateWarningMessage.value = "You just added \"${food.name}\" to ${mealType}. Add again?"
+                _showDuplicateWarning.value = true
+                return
+            }
+
+            // Check recent similar meal
+            val similarMeal = findSimilarRecentMeal(food.name, mealType)
+            if (similarMeal != null) {
+                Log.d(TAG, "Similar meal found recently: ${food.name}")
+                _duplicateWarningMessage.value = "\"${food.name}\" was already added to ${mealType} recently. Add another serving?"
+                _showDuplicateWarning.value = true
+                return
+            }
+        }
 
         viewModelScope.launch {
             val meal = MealEntity(
@@ -533,10 +617,17 @@ class NutritionViewModel @Inject constructor(
                 carbs = (food.carbs * portionMultiplier).toInt(),
                 fats = (food.fats * portionMultiplier).toInt(),
                 timestamp = System.currentTimeMillis(),
-                mealType = _selectedMealType.value,
+                mealType = mealType,
                 portion = portionMultiplier
             )
             mealDao.insertMeal(meal)
+            
+            // ✅ FIX #15: Track this addition
+            lastAddedFoodName = food.name
+            lastAddedFoodTime = System.currentTimeMillis()
+            lastAddedMealType = mealType
+            
+            Log.d(TAG, "Added meal: ${food.name} to $mealType")
             hideAddFood()
         }
     }
@@ -569,7 +660,6 @@ class NutritionViewModel @Inject constructor(
      * Retry last failed operation
      */
     fun retry() {
-        // Reset to idle so user can try again
         _uiState.value = NutritionUiState.Idle
     }
 }
