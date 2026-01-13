@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Key
@@ -42,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -83,6 +83,10 @@ fun NutritionScreen(
     val showDeleteConfirmDialog by viewModel.showDeleteConfirmDialog.collectAsState()
     val mealToDelete by viewModel.mealToDelete.collectAsState()
 
+    // ✅ FIX #15: Duplicate warning state
+    val showDuplicateWarning by viewModel.showDuplicateWarning.collectAsState()
+    val duplicateWarningMessage by viewModel.duplicateWarningMessage.collectAsState()
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Delete Confirmation Dialog
@@ -91,6 +95,15 @@ fun NutritionScreen(
             meal = mealToDelete!!,
             onConfirm = { viewModel.confirmDeleteMeal() },
             onDismiss = { viewModel.cancelDeleteMeal() }
+        )
+    }
+
+    // ✅ FIX #15: Duplicate Warning Dialog
+    if (showDuplicateWarning) {
+        DuplicateFoodWarningDialog(
+            message = duplicateWarningMessage,
+            onConfirm = { viewModel.forceAddFoodToMeal() },
+            onDismiss = { viewModel.dismissDuplicateWarning() }
         )
     }
 
@@ -227,6 +240,71 @@ fun NutritionScreen(
             }
         }
     }
+}
+
+/**
+ * ✅ FIX #15: Duplicate Food Warning Dialog
+ */
+@Composable
+private fun DuplicateFoodWarningDialog(
+    message: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1A1A1F),
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(WarningOrange.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.ContentCopy,
+                    contentDescription = null,
+                    tint = WarningOrange,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "Duplicate Food?",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Text(
+                text = message,
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Yes, Add Again", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+            }
+        }
+    )
 }
 
 @Composable
