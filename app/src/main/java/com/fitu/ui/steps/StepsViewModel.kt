@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -26,7 +27,7 @@ import javax.inject.Inject
 class StepsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val stepDao: StepDao,
-    userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     val stepCount: StateFlow<Int> = StepCounterService.stepCount
@@ -53,7 +54,7 @@ class StepsViewModel @Inject constructor(
     // Weekly steps data - Raw data from database
     private val _weeklyStepsFromDb = MutableStateFlow<List<StepEntity>>(emptyList())
     
-    // Weekly steps - FIXED: Combines DB data with live step count for reactive updates
+    // Weekly steps - Combines DB data with live step count for reactive updates
     val weeklySteps: StateFlow<List<DaySteps>> = combine(
         _weeklyStepsFromDb,
         stepCount
@@ -64,15 +65,38 @@ class StepsViewModel @Inject constructor(
     init {
         startService()
         loadWeeklySteps()
+        
+        // ✅ NEW: Pass step goal to service when it changes
+        viewModelScope.launch {
+            userPreferencesRepository.dailyStepGoal.collect { goal ->
+                updateServiceStepGoal(goal)
+            }
+        }
     }
 
     fun startService() {
-        val intent = Intent(context, StepCounterService::class.java)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            context.startForegroundService(intent)
-        } else {
-            context.startService(intent)
+        viewModelScope.launch {
+            val goal = userPreferencesRepository.dailyStepGoal.first()
+            
+            val intent = Intent(context, StepCounterService::class.java).apply {
+                putExtra("step_goal", goal)
+            }
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
+    }
+    
+    /**
+     * ✅ NEW: Update step goal in the service
+     */
+    private fun updateServiceStepGoal(goal: Int) {
+        // Save to shared preferences so service can read it
+        val prefs = context.getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putInt("daily_step_goal", goal).apply()
     }
 
     private fun loadWeeklySteps() {
@@ -93,7 +117,6 @@ class StepsViewModel @Inject constructor(
 
     /**
      * Build weekly DaySteps list combining DB data with live today's steps.
-     * This ensures the chart always shows the current step count for today.
      */
     private fun buildWeeklyDaySteps(stepEntities: List<StepEntity>, todaySteps: Int): List<DaySteps> {
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -111,7 +134,7 @@ class StepsViewModel @Inject constructor(
             val isToday = date == todayDate
             
             val steps = when {
-                isToday -> todaySteps  // Always use live value for today
+                isToday -> todaySteps
                 else -> stepMap[date]?.steps ?: 0
             }
             
