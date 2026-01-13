@@ -4,17 +4,21 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.data.local.dao.MealDao
 import com.fitu.data.local.entity.MealEntity
+import com.fitu.di.GeminiErrorType
+import com.fitu.di.GeminiException
 import com.fitu.di.GeminiModelProvider
 import com.fitu.domain.repository.DashboardRepository
 import com.google.ai.client.generativeai.type.content
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +26,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.util.Calendar
 import javax.inject.Inject
 
@@ -34,6 +39,18 @@ class NutritionViewModel @Inject constructor(
     private val foodCacheDao: com.fitu.data.local.dao.FoodCacheDao,
     userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "NutritionViewModel"
+        
+        // Image compression settings
+        private const val MAX_IMAGE_WIDTH = 1024
+        private const val MAX_IMAGE_HEIGHT = 1024
+        private const val JPEG_QUALITY = 85
+        
+        // Rate limiting
+        private const val MIN_REQUEST_INTERVAL_MS = 2000L
+    }
 
     private val _uiState = MutableStateFlow<NutritionUiState>(NutritionUiState.Idle)
     val uiState: StateFlow<NutritionUiState> = _uiState
@@ -58,6 +75,10 @@ class NutritionViewModel @Inject constructor(
 
     private val _showDeleteConfirmDialog = MutableStateFlow(false)
     val showDeleteConfirmDialog: StateFlow<Boolean> = _showDeleteConfirmDialog
+
+    // Rate limiting
+    private var lastRequestTime = 0L
+    private var currentAnalysisJob: Job? = null
 
     val dailyCalorieGoal: StateFlow<Int> = userPreferencesRepository.dailyCalorieGoal
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2000)
@@ -115,7 +136,7 @@ class NutritionViewModel @Inject constructor(
                 val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
                 foodCacheDao.clearOldCache(sevenDaysAgo)
             } catch (e: Exception) {
-                // Ignore cache cleanup errors
+                Log.w(TAG, "Failed to clean food cache", e)
             }
         }
     }
@@ -126,6 +147,53 @@ class NutritionViewModel @Inject constructor(
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    /**
+     * Check rate limiting - prevent spam clicking
+     */
+    private fun isRateLimited(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastRequestTime < MIN_REQUEST_INTERVAL_MS) {
+            return true
+        }
+        lastRequestTime = now
+        return false
+    }
+
+    /**
+     * Compress bitmap to reduce size before sending to API
+     */
+    private fun compressBitmap(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        
+        // Calculate scale factor
+        val scaleFactor = minOf(
+            MAX_IMAGE_WIDTH.toFloat() / width,
+            MAX_IMAGE_HEIGHT.toFloat() / height,
+            1f // Don't upscale
+        )
+        
+        if (scaleFactor >= 1f) {
+            Log.d(TAG, "Image size OK: ${width}x${height}")
+            return bitmap
+        }
+        
+        val newWidth = (width * scaleFactor).toInt()
+        val newHeight = (height * scaleFactor).toInt()
+        
+        Log.d(TAG, "Compressing image from ${width}x${height} to ${newWidth}x${newHeight}")
+        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+    }
+
+    /**
+     * Get bitmap size in KB (for logging)
+     */
+    private fun getBitmapSizeKB(bitmap: Bitmap): Int {
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)
+        return stream.size() / 1024
     }
 
     fun selectMealType(type: String) {
@@ -142,6 +210,7 @@ class NutritionViewModel @Inject constructor(
         _portion.value = 1f
         _textSearch.value = ""
         _uiState.value = NutritionUiState.Idle
+        currentAnalysisJob?.cancel()
     }
 
     fun updatePortion(value: Float) {
@@ -152,142 +221,303 @@ class NutritionViewModel @Inject constructor(
         _textSearch.value = value
     }
 
+    /**
+     * Analyze food from image with compression, retry, and detailed error handling
+     */
     fun analyzeFood(bitmap: Bitmap) {
+        // Check rate limiting
+        if (isRateLimited()) {
+            Log.d(TAG, "Rate limited - ignoring request")
+            return
+        }
+
+        // Check if already analyzing
+        if (_uiState.value is NutritionUiState.Analyzing) {
+            Log.d(TAG, "Already analyzing - ignoring request")
+            return
+        }
+
+        // Check network
         if (!isOnline()) {
-            _uiState.value = NutritionUiState.Error("No internet connection. Please check your network and try again.")
+            _uiState.value = NutritionUiState.Error(
+                message = "No internet connection",
+                errorType = NutritionErrorType.NETWORK,
+                canRetry = true
+            )
             return
         }
 
         _uiState.value = NutritionUiState.Analyzing
-        viewModelScope.launch(Dispatchers.IO) {
+
+        currentAnalysisJob = viewModelScope.launch(Dispatchers.IO) {
             try {
+                // Compress image
+                val compressedBitmap = compressBitmap(bitmap)
+                val sizeKB = getBitmapSizeKB(compressedBitmap)
+                Log.d(TAG, "Sending image: ${compressedBitmap.width}x${compressedBitmap.height}, ~${sizeKB}KB")
+
                 val inputContent = content {
-                    image(bitmap)
+                    image(compressedBitmap)
                     text("""
-                        Analyze this food image. Return ONLY a JSON object with these exact fields:
+                        Analyze this food image and estimate its nutritional content.
+                        
+                        Return ONLY a valid JSON object with these exact fields:
                         {"name": "food name", "calories": number, "protein": number, "carbs": number, "fats": number}
-                        All numbers should be integers representing grams or kcal.
-                        Do not include any markdown, code blocks, or explanation.
+                        
+                        Rules:
+                        - "name" should be a short, descriptive name (e.g., "Grilled Chicken Salad")
+                        - "calories" is in kcal (integer)
+                        - "protein", "carbs", "fats" are in grams (integers)
+                        - Estimate for a standard serving size
+                        - Do NOT include markdown, code blocks, or any explanation
+                        - Return ONLY the JSON object
                     """.trimIndent())
                 }
 
                 val response = geminiModelProvider.generateContentWithRetry(
                     prompt = inputContent,
-                    modelName = "gemini-3-flash-preview"
+                    useFallback = true
                 )
+
+                val text = response.text?.trim() ?: throw GeminiException(
+                    GeminiErrorType.EMPTY_RESPONSE,
+                    "No response from AI"
+                )
+
+                Log.d(TAG, "Raw response: $text")
+
+                // Parse JSON response
+                val food = parseJsonResponse(text)
                 
-                if (response != null && response.text != null) {
-                    val text = response.text!!.trim()
-                    try {
-                        val json = JSONObject(text.removePrefix("```json").removePrefix("```").removeSuffix("```").trim())
-                        val food = AnalyzedFood(
-                            name = json.getString("name"),
-                            calories = json.getInt("calories"),
-                            protein = json.getInt("protein"),
-                            carbs = json.getInt("carbs"),
-                            fats = json.getInt("fats")
-                        )
-                        _analyzedFood.value = food
-                        _uiState.value = NutritionUiState.Success(text)
-                    } catch (e: Exception) {
-                        _uiState.value = NutritionUiState.Error("Failed to parse food data. Please try again.")
-                    }
-                } else {
-                    _uiState.value = NutritionUiState.Error("Failed to analyze image. Please check your API key.")
-                }
+                _analyzedFood.value = food
+                _uiState.value = NutritionUiState.Success(food)
+                Log.d(TAG, "Successfully analyzed: ${food.name}")
+
+            } catch (e: GeminiException) {
+                Log.e(TAG, "Gemini error: ${e.errorType} - ${e.message}")
+                _uiState.value = mapGeminiExceptionToUiState(e)
+                
             } catch (e: Exception) {
-                val errorMessage = when {
-                    !isOnline() -> "Lost internet connection. Please try again."
-                    e.message?.contains("API key") == true -> "Invalid API key. Please check your settings."
-                    else -> "Failed to analyze food. Please try again."
-                }
-                _uiState.value = NutritionUiState.Error(errorMessage)
+                Log.e(TAG, "Unexpected error", e)
+                _uiState.value = NutritionUiState.Error(
+                    message = "Something went wrong. Please try again.",
+                    errorType = NutritionErrorType.UNKNOWN,
+                    canRetry = true
+                )
             }
         }
     }
 
+    /**
+     * Search food by text description
+     */
     fun searchFood(query: String) {
         if (query.isBlank()) return
 
+        // Check rate limiting
+        if (isRateLimited()) {
+            Log.d(TAG, "Rate limited - ignoring request")
+            return
+        }
+
+        // Check if already analyzing
+        if (_uiState.value is NutritionUiState.Analyzing) {
+            Log.d(TAG, "Already analyzing - ignoring request")
+            return
+        }
+
+        // Check network
         if (!isOnline()) {
-            _uiState.value = NutritionUiState.Error("No internet connection. Please check your network and try again.")
+            _uiState.value = NutritionUiState.Error(
+                message = "No internet connection",
+                errorType = NutritionErrorType.NETWORK,
+                canRetry = true
+            )
             return
         }
 
         _uiState.value = NutritionUiState.Analyzing
-        viewModelScope.launch(Dispatchers.IO) {
+
+        currentAnalysisJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 // Check cache first
                 val cached = foodCacheDao.getCache(query.lowercase().trim())
                 if (cached != null && System.currentTimeMillis() - cached.timestamp < 7 * 24 * 60 * 60 * 1000) {
                     try {
-                        val json = JSONObject(cached.resultJson)
-                        val food = AnalyzedFood(
-                            name = json.getString("name"),
-                            calories = json.getInt("calories"),
-                            protein = json.getInt("protein"),
-                            carbs = json.getInt("carbs"),
-                            fats = json.getInt("fats")
-                        )
+                        val food = parseJsonResponse(cached.resultJson)
                         _analyzedFood.value = food
-                        _uiState.value = NutritionUiState.Success(cached.resultJson)
+                        _uiState.value = NutritionUiState.Success(food)
+                        Log.d(TAG, "Loaded from cache: ${food.name}")
                         return@launch
                     } catch (e: Exception) {
-                        // Cache invalid, proceed to API
+                        Log.w(TAG, "Cache invalid, fetching fresh")
                     }
                 }
 
                 val inputContent = content {
                     text("""
-                        Estimate the nutritional info for: "$query" (standard serving).
-                        Return ONLY a JSON object:
+                        Estimate the nutritional information for: "$query"
+                        
+                        Assume a standard serving size.
+                        
+                        Return ONLY a valid JSON object with these exact fields:
                         {"name": "food name", "calories": number, "protein": number, "carbs": number, "fats": number}
-                        All numbers should be integers. No markdown or explanation.
+                        
+                        Rules:
+                        - "name" should be a clean, descriptive name
+                        - "calories" is in kcal (integer)
+                        - "protein", "carbs", "fats" are in grams (integers)
+                        - Do NOT include markdown, code blocks, or any explanation
+                        - Return ONLY the JSON object
                     """.trimIndent())
                 }
 
                 val response = geminiModelProvider.generateContentWithRetry(
                     prompt = inputContent,
-                    modelName = "gemini-3-flash-preview"
+                    useFallback = true
                 )
+
+                val text = response.text?.trim() ?: throw GeminiException(
+                    GeminiErrorType.EMPTY_RESPONSE,
+                    "No response from AI"
+                )
+
+                Log.d(TAG, "Raw response: $text")
+
+                // Parse JSON response
+                val food = parseJsonResponse(text)
+
+                // Cache the result
+                val cleanJson = """{"name":"${food.name}","calories":${food.calories},"protein":${food.protein},"carbs":${food.carbs},"fats":${food.fats}}"""
+                foodCacheDao.insertCache(
+                    com.fitu.data.local.entity.FoodCacheEntity(
+                        query = query.lowercase().trim(),
+                        resultJson = cleanJson,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+
+                _analyzedFood.value = food
+                _uiState.value = NutritionUiState.Success(food)
+                Log.d(TAG, "Successfully searched: ${food.name}")
+
+            } catch (e: GeminiException) {
+                Log.e(TAG, "Gemini error: ${e.errorType} - ${e.message}")
+                _uiState.value = mapGeminiExceptionToUiState(e)
                 
-                if (response != null && response.text != null) {
-                    val text = response.text!!.trim()
-                    try {
-                        val cleanText = text.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-                        val json = JSONObject(cleanText)
-                        val food = AnalyzedFood(
-                            name = json.getString("name"),
-                            calories = json.getInt("calories"),
-                            protein = json.getInt("protein"),
-                            carbs = json.getInt("carbs"),
-                            fats = json.getInt("fats")
-                        )
-                        _analyzedFood.value = food
-                        _uiState.value = NutritionUiState.Success(text)
-                        
-                        // Cache the result
-                        foodCacheDao.insertCache(
-                            com.fitu.data.local.entity.FoodCacheEntity(
-                                query = query.lowercase().trim(),
-                                resultJson = cleanText,
-                                timestamp = System.currentTimeMillis()
-                            )
-                        )
-                    } catch (e: Exception) {
-                        _uiState.value = NutritionUiState.Error("Failed to parse food data. Please try again.")
-                    }
-                } else {
-                    _uiState.value = NutritionUiState.Error("Failed to search food. Please check your API key.")
-                }
             } catch (e: Exception) {
-                val errorMessage = when {
-                    !isOnline() -> "Lost internet connection. Please try again."
-                    e.message?.contains("API key") == true -> "Invalid API key. Please check your settings."
-                    else -> "Failed to search food. Please try again."
-                }
-                _uiState.value = NutritionUiState.Error(errorMessage)
+                Log.e(TAG, "Unexpected error", e)
+                _uiState.value = NutritionUiState.Error(
+                    message = "Something went wrong. Please try again.",
+                    errorType = NutritionErrorType.UNKNOWN,
+                    canRetry = true
+                )
             }
+        }
+    }
+
+    /**
+     * Parse JSON response from Gemini, handling various formats
+     */
+    private fun parseJsonResponse(text: String): AnalyzedFood {
+        // Clean up the response - remove markdown code blocks if present
+        val cleanText = text
+            .removePrefix("```json")
+            .removePrefix("```JSON")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+
+        Log.d(TAG, "Parsing JSON: $cleanText")
+
+        try {
+            val json = JSONObject(cleanText)
+            
+            val name = json.optString("name", "").ifBlank { 
+                throw IllegalArgumentException("Missing food name") 
+            }
+            
+            val calories = json.optInt("calories", -1).let {
+                if (it < 0) throw IllegalArgumentException("Invalid calories")
+                it
+            }
+            
+            val protein = json.optInt("protein", 0).coerceAtLeast(0)
+            val carbs = json.optInt("carbs", 0).coerceAtLeast(0)
+            val fats = json.optInt("fats", 0).coerceAtLeast(0)
+
+            return AnalyzedFood(
+                name = name.take(100), // Limit name length
+                calories = calories.coerceIn(0, 10000),
+                protein = protein.coerceIn(0, 1000),
+                carbs = carbs.coerceIn(0, 1000),
+                fats = fats.coerceIn(0, 1000)
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "JSON parse error: ${e.message}")
+            throw GeminiException(
+                GeminiErrorType.INVALID_REQUEST,
+                "Could not understand the AI response. Please try again."
+            )
+        }
+    }
+
+    /**
+     * Map GeminiException to user-friendly UI state
+     */
+    private fun mapGeminiExceptionToUiState(e: GeminiException): NutritionUiState.Error {
+        return when (e.errorType) {
+            GeminiErrorType.API_KEY_MISSING -> NutritionUiState.Error(
+                message = "API key not set. Please add your Gemini API key in Profile settings.",
+                errorType = NutritionErrorType.API_KEY,
+                canRetry = false
+            )
+            GeminiErrorType.API_KEY_INVALID -> NutritionUiState.Error(
+                message = "Invalid API key. Please check your Gemini API key in Profile settings.",
+                errorType = NutritionErrorType.API_KEY,
+                canRetry = false
+            )
+            GeminiErrorType.PERMISSION_DENIED -> NutritionUiState.Error(
+                message = "API access denied. Please enable Generative Language API in Google Cloud Console.",
+                errorType = NutritionErrorType.API_KEY,
+                canRetry = false
+            )
+            GeminiErrorType.RATE_LIMITED -> NutritionUiState.Error(
+                message = "Too many requests. Please wait a moment and try again.",
+                errorType = NutritionErrorType.RATE_LIMIT,
+                canRetry = true
+            )
+            GeminiErrorType.NETWORK_ERROR -> NutritionUiState.Error(
+                message = "No internet connection. Please check your network.",
+                errorType = NutritionErrorType.NETWORK,
+                canRetry = true
+            )
+            GeminiErrorType.TIMEOUT -> NutritionUiState.Error(
+                message = "Request timed out. Please try again.",
+                errorType = NutritionErrorType.NETWORK,
+                canRetry = true
+            )
+            GeminiErrorType.CONTENT_BLOCKED -> NutritionUiState.Error(
+                message = "Image could not be processed. Please try a different photo.",
+                errorType = NutritionErrorType.CONTENT,
+                canRetry = false
+            )
+            GeminiErrorType.MODEL_NOT_FOUND -> NutritionUiState.Error(
+                message = "AI model unavailable. Please try again later.",
+                errorType = NutritionErrorType.SERVICE,
+                canRetry = true
+            )
+            GeminiErrorType.EMPTY_RESPONSE -> NutritionUiState.Error(
+                message = "Could not identify the food. Please try a clearer photo.",
+                errorType = NutritionErrorType.CONTENT,
+                canRetry = true
+            )
+            else -> NutritionUiState.Error(
+                message = e.message,
+                errorType = NutritionErrorType.UNKNOWN,
+                canRetry = true
+            )
         }
     }
 
@@ -334,6 +564,14 @@ class NutritionViewModel @Inject constructor(
         _uiState.value = NutritionUiState.Idle
         _analyzedFood.value = null
     }
+
+    /**
+     * Retry last failed operation
+     */
+    fun retry() {
+        // Reset to idle so user can try again
+        _uiState.value = NutritionUiState.Idle
+    }
 }
 
 data class AnalyzedFood(
@@ -344,9 +582,25 @@ data class AnalyzedFood(
     val fats: Int
 )
 
+/**
+ * Error types for better UI handling
+ */
+enum class NutritionErrorType {
+    NETWORK,
+    API_KEY,
+    RATE_LIMIT,
+    CONTENT,
+    SERVICE,
+    UNKNOWN
+}
+
 sealed class NutritionUiState {
     object Idle : NutritionUiState()
     object Analyzing : NutritionUiState()
-    data class Success(val result: String) : NutritionUiState()
-    data class Error(val message: String) : NutritionUiState()
+    data class Success(val food: AnalyzedFood) : NutritionUiState()
+    data class Error(
+        val message: String,
+        val errorType: NutritionErrorType = NutritionErrorType.UNKNOWN,
+        val canRetry: Boolean = true
+    ) : NutritionUiState()
 } 
