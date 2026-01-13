@@ -1,4 +1,4 @@
-package com.fitu.data.local
+ package com.fitu.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -12,8 +12,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Secure storage for sensitive data like API keys using Android's EncryptedSharedPreferences.
- * This provides AES-256 encryption for both keys and values.
+ * ✅ FIX #2: Secure storage for sensitive data like API keys.
+ * 
+ * This is the ONLY place where API keys should be stored.
+ * Uses Android's EncryptedSharedPreferences with AES-256 encryption.
  */
 @Singleton
 class SecureStorage @Inject constructor(
@@ -39,6 +41,10 @@ class SecureStorage @Inject constructor(
         private const val KEY_GEMINI_API_KEY = "gemini_api_key"
     }
 
+    /**
+     * Flow that emits API key changes.
+     * Use this to observe API key state reactively.
+     */
     val apiKeyFlow: Flow<String> = callbackFlow {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
             if (key == KEY_GEMINI_API_KEY) {
@@ -51,19 +57,31 @@ class SecureStorage @Inject constructor(
         emit(getApiKey())
     }
 
+    /**
+     * Save API key securely (encrypted).
+     */
     fun saveApiKey(apiKey: String) {
         encryptedPrefs.edit().putString(KEY_GEMINI_API_KEY, apiKey).apply()
     }
 
+    /**
+     * Get API key synchronously.
+     */
     fun getApiKey(): String {
         return encryptedPrefs.getString(KEY_GEMINI_API_KEY, "") ?: ""
     }
 
+    /**
+     * Clear API key (for logout/reset).
+     */
     fun clearApiKey() {
         encryptedPrefs.edit().remove(KEY_GEMINI_API_KEY).apply()
     }
 
+    /**
+     * Check if API key is set.
+     */
     fun hasApiKey(): Boolean {
         return getApiKey().isNotBlank()
     }
-}
+} 
