@@ -1,4 +1,4 @@
-package com.fitu.data.service
+ package com.fitu.data.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -22,9 +22,11 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -53,18 +55,36 @@ class StepCounterService : Service(), SensorEventListener {
         private val _motionMagnitude = MutableStateFlow(0f)
         val motionMagnitude: StateFlow<Float> = _motionMagnitude
         
+        // ✅ NEW: Track if steps have been loaded from database
+        private val _isInitialized = MutableStateFlow(false)
+        val isInitialized: StateFlow<Boolean> = _isInitialized
+        
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "step_counter_channel"
         
         fun getTodayDate(): String {
             return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         }
+        
+        /**
+         * ✅ NEW: Pre-load steps from database before service fully starts
+         * Call this from Application class or MainActivity
+         */
+        suspend fun preloadSteps(stepDao: StepDao) {
+            val today = getTodayDate()
+            val todaySteps = stepDao.getStepsForDate(today)
+            _stepCount.value = todaySteps?.steps ?: 0
+            _isInitialized.value = true
+        }
     }
 
     override fun onCreate() {
         super.onCreate()
         currentDate = getTodayDate()
-        loadTodaySteps()
+        
+        // ✅ FIX: Load steps synchronously to prevent showing 0
+        loadTodayStepsSync()
+        
         startForegroundService()
         registerSensors()
     }
@@ -75,21 +95,37 @@ class StepCounterService : Service(), SensorEventListener {
         if (today != currentDate) {
             currentDate = today
             _stepCount.value = 0
-            loadTodaySteps()
+            loadTodayStepsAsync()
         }
         
         registerSensors()
         return START_STICKY
     }
 
-    private fun loadTodaySteps() {
+    /**
+     * ✅ NEW: Load steps synchronously (blocks briefly but prevents 0 display)
+     */
+    private fun loadTodayStepsSync() {
+        try {
+            runBlocking(Dispatchers.IO) {
+                val todaySteps = stepDao.getStepsForDate(currentDate)
+                _stepCount.value = todaySteps?.steps ?: 0
+                _isInitialized.value = true
+            }
+        } catch (e: Exception) {
+            // Fallback to async if sync fails
+            loadTodayStepsAsync()
+        }
+    }
+
+    /**
+     * Load steps asynchronously (used for date changes)
+     */
+    private fun loadTodayStepsAsync() {
         serviceScope.launch {
             val todaySteps = stepDao.getStepsForDate(currentDate)
-            if (todaySteps != null) {
-                _stepCount.value = todaySteps.steps
-            } else {
-                _stepCount.value = 0
-            }
+            _stepCount.value = todaySteps?.steps ?: 0
+            _isInitialized.value = true
         }
     }
 
@@ -186,7 +222,7 @@ class StepCounterService : Service(), SensorEventListener {
             if (today != currentDate) {
                 currentDate = today
                 _stepCount.value = 0
-                loadTodaySteps()
+                loadTodayStepsAsync()
             }
             
             val x = event.values[0]
@@ -241,5 +277,8 @@ class StepCounterService : Service(), SensorEventListener {
         
         // Save final step count when service is destroyed
         saveSteps(_stepCount.value)
+        
+        // ✅ Cancel the coroutine scope to prevent memory leak
+        serviceScope.cancel()
     }
 } 
