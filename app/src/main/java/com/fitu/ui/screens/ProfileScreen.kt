@@ -1,4 +1,4 @@
-package com.fitu.ui.screens
+ package com.fitu.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -64,14 +64,19 @@ fun ProfileScreen(
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var editApiKey by remember(apiKey) { mutableStateOf(apiKey) }
 
-    // Date picker state for birth date
+    // ✅ FIX: Safe date picker with proper year range and error handling
+    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = if (birthYear != null && birthMonth != null && birthDay != null) {
-            val calendar = Calendar.getInstance()
-            calendar.set(birthYear!!, birthMonth!! - 1, birthDay!!)
-            calendar.timeInMillis
-        } else null,
-        yearRange = 1940..2015
+        initialSelectedDateMillis = try {
+            if (birthYear != null && birthMonth != null && birthDay != null) {
+                val calendar = Calendar.getInstance()
+                calendar.set(birthYear!!, birthMonth!! - 1, birthDay!!)
+                calendar.timeInMillis
+            } else null
+        } catch (e: Exception) {
+            null  // ✅ Return null if any error
+        },
+        yearRange = 1920..currentYear  // ✅ FIX: Dynamic range up to current year
     )
 
     // Birth Date Picker Dialog
@@ -306,26 +311,28 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = DecimalFormat("#.#").format(bmi),
+                            text = if (bmi.isNaN() || bmi == 0f) "--" else DecimalFormat("#.#").format(bmi),
                             color = getBmiColor(bmiCategory),
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Box(
-                            modifier = Modifier
-                                .background(getBmiColor(bmiCategory).copy(alpha = 0.2f), RoundedCornerShape(100))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = bmiCategory.uppercase(),
-                                color = getBmiColor(bmiCategory),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        if (bmiCategory.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .background(getBmiColor(bmiCategory).copy(alpha = 0.2f), RoundedCornerShape(100))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = bmiCategory.uppercase(),
+                                    color = getBmiColor(bmiCategory),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
                 // Birth Date (clickable)
                 Row(
@@ -365,7 +372,7 @@ fun ProfileScreen(
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
                 // Age (calculated from birth date if available)
                 Row(
@@ -380,7 +387,7 @@ fun ProfileScreen(
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
                 // Height
                 Row(
@@ -390,7 +397,7 @@ fun ProfileScreen(
                     Text("Height", color = Color.White, fontSize = 16.sp)
                     Text("$userHeightCm cm", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 // Weight
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -399,7 +406,7 @@ fun ProfileScreen(
                     Text("Weight", color = Color.White, fontSize = 16.sp)
                     Text("$userWeightKg kg", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
                 }
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 // API Key (clickable)
                 Row(
                     modifier = Modifier
@@ -446,7 +453,7 @@ fun ProfileScreen(
                     subtitle = "Change your birth date",
                     onClick = { viewModel.showBirthDatePicker() }
                 )
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 SettingsItem(
                     icon = Icons.Default.Key,
                     iconBgColor = OrangePrimary,
@@ -454,7 +461,7 @@ fun ProfileScreen(
                     subtitle = "Change your Gemini API key",
                     onClick = { viewModel.showApiKeyDialog() }
                 )
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
+                Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 SettingsItem(
                     icon = Icons.Default.Delete,
                     iconBgColor = Color(0xFFF44336),
@@ -802,12 +809,15 @@ private fun AboutDialog(onDismiss: () -> Unit) {
     )
 }
 
+// ✅ FIX: Safe getInitials function
 private fun getInitials(name: String): String {
     if (name.isBlank()) return "U"
-    val parts = name.trim().split(" ")
+    val parts = name.trim().split(" ").filter { it.isNotEmpty() }
     return when {
-        parts.size >= 2 -> "${parts[0].first()}${parts[1].first()}".uppercase()
-        parts.isNotEmpty() -> parts[0].take(2).uppercase()
+        parts.size >= 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty() -> 
+            "${parts[0].first()}${parts[1].first()}".uppercase()
+        parts.isNotEmpty() && parts[0].isNotEmpty() -> 
+            parts[0].take(2).uppercase()
         else -> "U"
     }
 }
