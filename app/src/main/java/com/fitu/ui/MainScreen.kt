@@ -2,6 +2,7 @@
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -65,21 +66,39 @@ fun MainScreen(
 
     val context = LocalContext.current
     
-    // Permission launcher ONLY for Activity Recognition (needed for step counting)
-    val activityRecognitionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
+    // ✅ Permission launcher for multiple permissions
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
     ) { _ -> }
 
-    // Only request Activity Recognition permission on app start (required for step counter)
+    // Request necessary permissions on app start
     LaunchedEffect(Unit) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        val permissionsToRequest = mutableListOf<String>()
+        
+        // Activity Recognition permission (required for step counting on Android 10+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (ContextCompat.checkSelfPermission(
                     context, 
                     Manifest.permission.ACTIVITY_RECOGNITION
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                permissionsToRequest.add(Manifest.permission.ACTIVITY_RECOGNITION)
             }
+        }
+        
+        // ✅ NEW: Notification permission (required for Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        
+        if (permissionsToRequest.isNotEmpty()) {
+            permissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
     }
 
