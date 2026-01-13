@@ -1,8 +1,9 @@
-package com.fitu.ui.dashboard
+ package com.fitu.ui.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.UserPreferencesRepository
+import com.fitu.data.local.dao.StepDao
 import com.fitu.data.service.StepCounterService
 import com.fitu.di.GeminiModelProvider
 import com.fitu.domain.repository.DashboardRepository
@@ -28,7 +29,8 @@ import javax.inject.Inject
 class DashboardViewModel @Inject constructor(
     private val repository: DashboardRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val geminiModelProvider: GeminiModelProvider
+    private val geminiModelProvider: GeminiModelProvider,
+    private val stepDao: StepDao
 ) : ViewModel() {
 
     // User info
@@ -48,10 +50,10 @@ class DashboardViewModel @Inject constructor(
     private val _dailyRecap = MutableStateFlow<String>("Loading daily recap...")
     val dailyRecap: StateFlow<String> = _dailyRecap
 
-    // Steps - Read directly from StepCounterService (real data)
+    // Steps - Read directly from StepCounterService (real-time data)
     val currentSteps: StateFlow<Int> = StepCounterService.stepCount
 
-    // Weekly progress (for display purposes - today's steps are real, past days would need persistence)
+    // Weekly progress
     private val _weeklySteps = MutableStateFlow<List<Int>>(listOf(0, 0, 0, 0, 0, 0, 0))
     val weeklySteps: StateFlow<List<Int>> = _weeklySteps
 
@@ -100,18 +102,37 @@ class DashboardViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
     init {
-        // Update weekly steps with today's real steps when they change
+        loadWeeklySteps()
+        checkBirthday()
+    }
+
+    private fun loadWeeklySteps() {
         viewModelScope.launch {
-            currentSteps.collect { todaySteps ->
-                // Put today's steps at the end of the week (index 6 = today)
-                val updatedWeekly = _weeklySteps.value.toMutableList()
-                updatedWeekly[6] = todaySteps
-                _weeklySteps.value = updatedWeekly
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val calendar = Calendar.getInstance()
+            
+            val endDate = dateFormat.format(calendar.time)
+            calendar.add(Calendar.DAY_OF_YEAR, -6)
+            val startDate = dateFormat.format(calendar.time)
+            
+            stepDao.getStepsBetweenDates(startDate, endDate).collect { stepEntities ->
+                val stepMap = stepEntities.associateBy { it.date }
+                
+                val weekData = mutableListOf<Int>()
+                val cal = Calendar.getInstance()
+                cal.add(Calendar.DAY_OF_YEAR, -6)
+                
+                for (i in 0..6) {
+                    val date = dateFormat.format(cal.time)
+                    val isToday = date == StepCounterService.getTodayDate()
+                    val steps = if (isToday) currentSteps.value else (stepMap[date]?.steps ?: 0)
+                    weekData.add(steps)
+                    cal.add(Calendar.DAY_OF_YEAR, 1)
+                }
+                
+                _weeklySteps.value = weekData
             }
         }
-
-        // Check for birthday on init
-        checkBirthday()
     }
 
     /**
@@ -174,4 +195,4 @@ class DashboardViewModel @Inject constructor(
             }
         }
     }
-}
+} 
