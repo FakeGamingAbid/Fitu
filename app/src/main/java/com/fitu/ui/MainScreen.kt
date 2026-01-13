@@ -1,10 +1,9 @@
-package com.fitu.ui
+ package com.fitu.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,7 +20,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,7 +35,6 @@ import com.fitu.ui.components.AppleIcon
 import com.fitu.ui.components.CircleUserIcon
 import com.fitu.ui.components.DumbbellIcon
 import com.fitu.ui.components.FootprintsIcon
-import com.fitu.ui.components.GlassCard
 import com.fitu.ui.components.HouseIcon
 import com.fitu.ui.theme.OrangePrimary
 
@@ -68,28 +65,21 @@ fun MainScreen(
 
     val context = LocalContext.current
     
-    // Permission launcher for multiple permissions (Camera and Activity Recognition)
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
+    // Permission launcher ONLY for Activity Recognition (needed for step counting)
+    val activityRecognitionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
     ) { _ -> }
 
+    // Only request Activity Recognition permission on app start (required for step counter)
     LaunchedEffect(Unit) {
-        val permissionsToRequest = mutableListOf<String>()
-        
-        // Camera permission
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.CAMERA)
-        }
-        
-        // Activity Recognition permission (required for step counting on Android 10+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.ACTIVITY_RECOGNITION)
+            if (ContextCompat.checkSelfPermission(
+                    context, 
+                    Manifest.permission.ACTIVITY_RECOGNITION
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
             }
-        }
-        
-        if (permissionsToRequest.isNotEmpty()) {
-            permissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
     }
 
@@ -213,4 +203,4 @@ fun MainScreen(
             }
         }
     }
-}
+} 
