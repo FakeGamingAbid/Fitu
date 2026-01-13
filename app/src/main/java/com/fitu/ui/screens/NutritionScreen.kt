@@ -1,9 +1,10 @@
-package com.fitu.ui.screens
+ package com.fitu.ui.screens
 
 import android.Manifest
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.net.Uri
 import android.util.Log
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -47,6 +49,7 @@ import com.fitu.ui.nutrition.AnalyzedFood
 import com.fitu.ui.nutrition.NutritionUiState
 import com.fitu.ui.nutrition.NutritionViewModel
 import com.fitu.ui.theme.OrangePrimary
+import java.io.InputStream
 import java.nio.ByteBuffer
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -274,11 +277,32 @@ private fun AddFoodSheetContent(
     var hasCameraPermission by remember { mutableStateOf(false) }
     var showCamera by remember { mutableStateOf(false) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
+    // Camera permission launcher
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasCameraPermission = granted
         if (granted) showCamera = true
+    }
+
+    // Gallery picker launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val inputStream: InputStream? = context.contentResolver.openInputStream(it)
+                inputStream?.let { stream ->
+                    val bitmap = BitmapFactory.decodeStream(stream)
+                    stream.close()
+                    if (bitmap != null) {
+                        viewModel.analyzeFood(bitmap)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("NutritionScreen", "Error loading image from gallery", e)
+            }
+        }
     }
 
     Column(
@@ -334,30 +358,59 @@ private fun AddFoodSheetContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (!showCamera) {
-            // Camera button
-            Button(
-                onClick = {
-                    if (hasCameraPermission) {
-                        showCamera = true
-                    } else {
-                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
-                shape = RoundedCornerShape(16.dp)
+            // Two buttons side by side: Camera and Gallery
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.CameraAlt,
-                        null,
-                        tint = OrangePrimary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Snap a Photo", color = Color.White)
+                // Snap a Photo button
+                Button(
+                    onClick = {
+                        if (hasCameraPermission) {
+                            showCamera = true
+                        } else {
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(120.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.CameraAlt,
+                            null,
+                            tint = OrangePrimary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Snap a Photo", color = Color.White, fontSize = 14.sp)
+                    }
+                }
+
+                // Select from Gallery button
+                Button(
+                    onClick = {
+                        galleryLauncher.launch("image/*")
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(120.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.PhotoLibrary,
+                            null,
+                            tint = OrangePrimary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Gallery", color = Color.White, fontSize = 14.sp)
+                    }
                 }
             }
 
@@ -395,7 +448,8 @@ private fun AddFoodSheetContent(
                     viewModel.analyzeFood(bitmap)
                     showCamera = false
                 },
-                onError = { Log.e("NutritionScreen", "Camera error", it) }
+                onError = { Log.e("NutritionScreen", "Camera error", it) },
+                onCancel = { showCamera = false }
             )
         }
 
@@ -413,6 +467,25 @@ private fun AddFoodSheetContent(
                         Text("F: ${(food.fats * portion).toInt()}g", color = Color.White.copy(alpha = 0.7f))
                     }
                     Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // Portion slider
+                    Text(
+                        text = "Portion: ${String.format("%.1f", portion)}x",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp
+                    )
+                    Slider(
+                        value = portion,
+                        onValueChange = { viewModel.updatePortion(it) },
+                        valueRange = 0.5f..3f,
+                        steps = 4,
+                        colors = SliderDefaults.colors(
+                            thumbColor = OrangePrimary,
+                            activeTrackColor = OrangePrimary
+                        )
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
                     Button(
                         onClick = { viewModel.addFoodToMeal() },
                         modifier = Modifier.fillMaxWidth(),
@@ -438,6 +511,16 @@ private fun AddFoodSheetContent(
             }
         }
 
+        // Error state
+        if (uiState is NutritionUiState.Error) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = (uiState as NutritionUiState.Error).message,
+                color = Color(0xFFF44336),
+                fontSize = 14.sp
+            )
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
     }
 }
@@ -445,86 +528,99 @@ private fun AddFoodSheetContent(
 @Composable
 private fun CameraPreviewSection(
     onImageCaptured: (Bitmap) -> Unit,
-    onError: (ImageCaptureException) -> Unit
+    onError: (ImageCaptureException) -> Unit,
+    onCancel: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
     val executor = ContextCompat.getMainExecutor(context)
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(300.dp)
-            .clip(RoundedCornerShape(16.dp))
-    ) {
-        AndroidView(
-            factory = { ctx ->
-                PreviewView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    scaleType = PreviewView.ScaleType.FILL_CENTER
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-            update = { previewView ->
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                    }
-                    imageCapture = ImageCapture.Builder().build()
-                    try {
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            CameraSelector.DEFAULT_BACK_CAMERA,
-                            preview,
-                            imageCapture
-                        )
-                    } catch (e: Exception) {
-                        Log.e("CameraPreview", "Use case binding failed", e)
-                    }
-                }, executor)
-            }
-        )
-
-        // Capture button
-        FloatingActionButton(
-            onClick = {
-                imageCapture?.takePicture(
-                    executor,
-                    object : ImageCapture.OnImageCapturedCallback() {
-                        override fun onCaptureSuccess(image: ImageProxy) {
-                            val bitmap = imageProxyToBitmap(image)
-                            image.close()
-                            onImageCaptured(bitmap)
-                        }
-                        override fun onError(exception: ImageCaptureException) {
-                            onError(exception)
-                        }
-                    }
-                )
-            },
+    Column {
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(16.dp)
-                .size(64.dp),
-            containerColor = OrangePrimary
+                .fillMaxWidth()
+                .height(300.dp)
+                .clip(RoundedCornerShape(16.dp))
         ) {
-            Icon(Icons.Default.CameraAlt, "Capture", tint = Color.White)
+            AndroidView(
+                factory = { ctx ->
+                    PreviewView(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        scaleType = PreviewView.ScaleType.FILL_CENTER
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                update = { previewView ->
+                    val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                    cameraProviderFuture.addListener({
+                        val cameraProvider = cameraProviderFuture.get()
+                        val preview = Preview.Builder().build().also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
+                        }
+                        imageCapture = ImageCapture.Builder().build()
+                        try {
+                            cameraProvider.unbindAll()
+                            cameraProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                CameraSelector.DEFAULT_BACK_CAMERA,
+                                preview,
+                                imageCapture
+                            )
+                        } catch (e: Exception) {
+                            Log.e("CameraPreview", "Use case binding failed", e)
+                        }
+                    }, executor)
+                }
+            )
+
+            // Capture button
+            FloatingActionButton(
+                onClick = {
+                    imageCapture?.takePicture(
+                        executor,
+                        object : ImageCapture.OnImageCapturedCallback() {
+                            override fun onCaptureSuccess(image: ImageProxy) {
+                                val bitmap = imageProxyToBitmap(image)
+                                image.close()
+                                bitmap?.let { onImageCaptured(it) }
+                            }
+                            override fun onError(exception: ImageCaptureException) {
+                                onError(exception)
+                            }
+                        }
+                    )
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+                    .size(64.dp),
+                containerColor = OrangePrimary
+            ) {
+                Icon(Icons.Default.CameraAlt, "Capture", tint = Color.White)
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Cancel button
+        TextButton(
+            onClick = onCancel,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Cancel", color = Color.White.copy(alpha = 0.7f))
         }
     }
 }
 
-private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
+private fun imageProxyToBitmap(image: ImageProxy): Bitmap? {
     val buffer: ByteBuffer = image.planes[0].buffer
     val bytes = ByteArray(buffer.remaining())
     buffer.get(bytes)
-    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
     val matrix = Matrix().apply { postRotate(image.imageInfo.rotationDegrees.toFloat()) }
     return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-}
+} 
