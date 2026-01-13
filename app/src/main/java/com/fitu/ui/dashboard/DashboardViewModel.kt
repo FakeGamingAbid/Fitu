@@ -64,6 +64,10 @@ class DashboardViewModel @Inject constructor(
     // Track if steps are initialized (to prevent showing 0)
     val isStepsInitialized: StateFlow<Boolean> = StepCounterService.isInitialized
 
+    // ✅ FIX #11: Loading state for weekly steps chart
+    private val _isWeeklyDataLoading = MutableStateFlow(true)
+    val isWeeklyDataLoading: StateFlow<Boolean> = _isWeeklyDataLoading
+
     // Weekly progress - Raw data from database
     private val _weeklyStepsFromDb = MutableStateFlow<List<StepEntity>>(emptyList())
     
@@ -155,13 +159,8 @@ class DashboardViewModel @Inject constructor(
 
     /**
      * Calculate stride length in kilometers based on height
-     * 
-     * @param heightCm User's height in centimeters
-     * @return Stride length in kilometers
      */
     private fun calculateStrideLengthKm(heightCm: Int): Float {
-        // Stride length = height × 0.415 (walking average)
-        // Convert cm to km: divide by 100,000
         val strideMultiplier = 0.415f
         val strideLengthCm = heightCm * strideMultiplier
         return strideLengthCm / 100_000f
@@ -169,18 +168,16 @@ class DashboardViewModel @Inject constructor(
 
     /**
      * Calculate calories burned per step based on weight
-     * 
-     * @param weightKg User's weight in kilograms
-     * @return Calories burned per step
      */
     private fun calculateCaloriesPerStep(weightKg: Int): Float {
-        // Base: 0.04 kcal per step for 70kg person
-        // Scale proportionally: weight × 0.00057
         return weightKg * 0.00057f
     }
 
     private fun loadWeeklySteps() {
         viewModelScope.launch {
+            // ✅ FIX #11: Set loading to true before fetching
+            _isWeeklyDataLoading.value = true
+            
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val calendar = Calendar.getInstance()
             
@@ -191,13 +188,14 @@ class DashboardViewModel @Inject constructor(
             // Collect database data only - processing happens in combine
             stepDao.getStepsBetweenDates(startDate, endDate).collect { stepEntities ->
                 _weeklyStepsFromDb.value = stepEntities
+                // ✅ FIX #11: Set loading to false after data is loaded
+                _isWeeklyDataLoading.value = false
             }
         }
     }
 
     /**
      * Build weekly data array combining DB data with live today's steps.
-     * This ensures the chart always shows the current step count for today.
      */
     private fun buildWeeklyData(stepEntities: List<StepEntity>, todaySteps: Int): List<Int> {
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -211,7 +209,7 @@ class DashboardViewModel @Inject constructor(
         for (i in 0..6) {
             val date = dateFormat.format(cal.time)
             val steps = when {
-                date == todayDate -> todaySteps  // Always use live value for today
+                date == todayDate -> todaySteps
                 else -> stepMap[date]?.steps ?: 0
             }
             weekData.add(steps)
@@ -222,9 +220,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     /**
-     * Check if today is the user's birthday and show the wish dialog if:
-     * 1. It's the user's birthday (or within grace period)
-     * 2. User hasn't been wished this year
+     * Check if today is the user's birthday
      */
     private fun checkBirthday() {
         viewModelScope.launch {
@@ -240,7 +236,6 @@ class DashboardViewModel @Inject constructor(
 
             _isBirthday.value = BirthdayUtils.isBirthday(birthDay, birthMonth)
 
-            // Show dialog if it's birthday and user hasn't been wished this year
             if (isBirthdayToday && lastWishYear != currentYear) {
                 _showBirthdayDialog.value = true
             }
@@ -248,7 +243,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     /**
-     * Dismiss the birthday dialog and mark as wished for this year.
+     * Dismiss the birthday dialog
      */
     fun dismissBirthdayDialog() {
         viewModelScope.launch {
