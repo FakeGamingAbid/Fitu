@@ -47,6 +47,12 @@ class StepCounterService : Service(), SensorEventListener {
     
     // Current date tracking
     private var currentDate: String = ""
+    
+    // ✅ NEW: Daily step goal (will be set from preferences)
+    private var dailyStepGoal: Int = 10000
+    
+    // ✅ NEW: Track which milestones have been notified today
+    private val notifiedMilestones = mutableSetOf<Int>()
 
     companion object {
         private val _stepCount = MutableStateFlow(0)
@@ -55,20 +61,24 @@ class StepCounterService : Service(), SensorEventListener {
         private val _motionMagnitude = MutableStateFlow(0f)
         val motionMagnitude: StateFlow<Float> = _motionMagnitude
         
-        // ✅ NEW: Track if steps have been loaded from database
+        // Track if steps have been loaded from database
         private val _isInitialized = MutableStateFlow(false)
         val isInitialized: StateFlow<Boolean> = _isInitialized
         
         private const val NOTIFICATION_ID = 1
+        private const val MILESTONE_NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "step_counter_channel"
+        private const val MILESTONE_CHANNEL_ID = "step_milestone_channel"
+        
+        // ✅ NEW: Milestone percentages
+        val MILESTONES = listOf(20, 40, 60, 80, 100)
         
         fun getTodayDate(): String {
             return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         }
         
         /**
-         * ✅ NEW: Pre-load steps from database before service fully starts
-         * Call this from Application class or MainActivity
+         * Pre-load steps from database before service fully starts
          */
         suspend fun preloadSteps(stepDao: StepDao) {
             val today = getTodayDate()
@@ -82,8 +92,14 @@ class StepCounterService : Service(), SensorEventListener {
         super.onCreate()
         currentDate = getTodayDate()
         
-        // ✅ FIX: Load steps synchronously to prevent showing 0
+        // Load steps synchronously to prevent showing 0
         loadTodayStepsSync()
+        
+        // Load step goal from shared preferences
+        loadStepGoal()
+        
+        // Load notified milestones for today
+        loadNotifiedMilestones()
         
         startForegroundService()
         registerSensors()
@@ -95,7 +111,16 @@ class StepCounterService : Service(), SensorEventListener {
         if (today != currentDate) {
             currentDate = today
             _stepCount.value = 0
+            notifiedMilestones.clear()  // ✅ Reset milestones for new day
+            clearNotifiedMilestones()
             loadTodayStepsAsync()
+        }
+        
+        // ✅ Update step goal if passed via intent
+        intent?.getIntExtra("step_goal", -1)?.let { goal ->
+            if (goal > 0) {
+                dailyStepGoal = goal
+            }
         }
         
         registerSensors()
@@ -103,7 +128,65 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     /**
-     * ✅ NEW: Load steps synchronously (blocks briefly but prevents 0 display)
+     * Load step goal from SharedPreferences
+     */
+    private fun loadStepGoal() {
+        val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
+        dailyStepGoal = prefs.getInt("daily_step_goal", 10000)
+    }
+    
+    /**
+     * ✅ NEW: Save step goal (called from outside)
+     */
+    fun updateStepGoal(goal: Int) {
+        dailyStepGoal = goal
+        val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putInt("daily_step_goal", goal).apply()
+    }
+
+    /**
+     * ✅ NEW: Load which milestones were already notified today
+     */
+    private fun loadNotifiedMilestones() {
+        val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
+        val savedDate = prefs.getString("milestone_date", "")
+        
+        if (savedDate == currentDate) {
+            // Same day, load saved milestones
+            val savedMilestones = prefs.getStringSet("notified_milestones", emptySet()) ?: emptySet()
+            notifiedMilestones.clear()
+            notifiedMilestones.addAll(savedMilestones.mapNotNull { it.toIntOrNull() })
+        } else {
+            // New day, clear milestones
+            notifiedMilestones.clear()
+            clearNotifiedMilestones()
+        }
+    }
+    
+    /**
+     * ✅ NEW: Save notified milestones
+     */
+    private fun saveNotifiedMilestones() {
+        val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("milestone_date", currentDate)
+            .putStringSet("notified_milestones", notifiedMilestones.map { it.toString() }.toSet())
+            .apply()
+    }
+    
+    /**
+     * ✅ NEW: Clear notified milestones (new day)
+     */
+    private fun clearNotifiedMilestones() {
+        val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("milestone_date", currentDate)
+            .putStringSet("notified_milestones", emptySet())
+            .apply()
+    }
+
+    /**
+     * Load steps synchronously (blocks briefly but prevents 0 display)
      */
     private fun loadTodayStepsSync() {
         try {
@@ -113,7 +196,6 @@ class StepCounterService : Service(), SensorEventListener {
                 _isInitialized.value = true
             }
         } catch (e: Exception) {
-            // Fallback to async if sync fails
             loadTodayStepsAsync()
         }
     }
@@ -144,19 +226,31 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun startForegroundService() {
-        val channelName = "Step Counter"
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            // ✅ Channel for ongoing step counter
+            val stepChannel = NotificationChannel(
                 CHANNEL_ID,
-                channelName,
+                "Step Counter",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Tracks your daily steps"
                 setShowBadge(false)
             }
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(stepChannel)
+            
+            // ✅ NEW: Channel for milestone notifications (higher importance)
+            val milestoneChannel = NotificationChannel(
+                MILESTONE_CHANNEL_ID,
+                "Step Milestones",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications for step goal progress"
+                setShowBadge(true)
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(milestoneChannel)
         }
 
         val notification = buildNotification(_stepCount.value)
@@ -171,9 +265,11 @@ class StepCounterService : Service(), SensorEventListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
+        val progress = if (dailyStepGoal > 0) ((steps.toFloat() / dailyStepGoal) * 100).toInt() else 0
+        
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Fitu Step Counter")
-            .setContentText("$steps steps today")
+            .setContentTitle("🏃 Fitu Step Counter")
+            .setContentText("$steps steps today ($progress%)")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -184,6 +280,84 @@ class StepCounterService : Service(), SensorEventListener {
     private fun updateNotification(steps: Int) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, buildNotification(steps))
+    }
+    
+    /**
+     * ✅ NEW: Check and send milestone notifications
+     */
+    private fun checkMilestones(steps: Int) {
+        if (dailyStepGoal <= 0) return
+        
+        val currentProgress = ((steps.toFloat() / dailyStepGoal) * 100).toInt()
+        
+        for (milestone in MILESTONES) {
+            if (currentProgress >= milestone && milestone !in notifiedMilestones) {
+                // Send milestone notification
+                sendMilestoneNotification(steps, milestone)
+                notifiedMilestones.add(milestone)
+                saveNotifiedMilestones()
+            }
+        }
+    }
+    
+    /**
+     * ✅ NEW: Send milestone notification
+     */
+    private fun sendMilestoneNotification(steps: Int, milestone: Int) {
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val (title, message, emoji) = when (milestone) {
+            20 -> Triple(
+                "🚶 20% Complete!",
+                "You've taken $steps steps. Keep moving!",
+                "🚶"
+            )
+            40 -> Triple(
+                "🏃 40% Complete!",
+                "You've taken $steps steps. Almost halfway there!",
+                "🏃"
+            )
+            60 -> Triple(
+                "💪 60% Complete!",
+                "You've taken $steps steps. Over halfway!",
+                "💪"
+            )
+            80 -> Triple(
+                "🔥 80% Complete!",
+                "You've taken $steps steps. Almost at your goal!",
+                "🔥"
+            )
+            100 -> Triple(
+                "🎉 GOAL REACHED!",
+                "Congratulations! You've completed $steps steps today!",
+                "🎉"
+            )
+            else -> Triple(
+                "Step Progress",
+                "You've taken $steps steps",
+                "👟"
+            )
+        }
+        
+        val notification = NotificationCompat.Builder(this, MILESTONE_CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_VIBRATE)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .build()
+        
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // Use different notification ID for each milestone so they don't replace each other
+        manager.notify(MILESTONE_NOTIFICATION_ID + milestone, notification)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -222,6 +396,8 @@ class StepCounterService : Service(), SensorEventListener {
             if (today != currentDate) {
                 currentDate = today
                 _stepCount.value = 0
+                notifiedMilestones.clear()
+                clearNotifiedMilestones()
                 loadTodayStepsAsync()
             }
             
@@ -255,6 +431,9 @@ class StepCounterService : Service(), SensorEventListener {
                     lastStepTime = now
                     isBelowReset = false
                     
+                    // ✅ NEW: Check for milestone notifications
+                    checkMilestones(_stepCount.value)
+                    
                     // Save periodically (not every step to reduce DB writes)
                     if (now - lastSaveTime > SAVE_INTERVAL) {
                         saveSteps(_stepCount.value)
@@ -278,7 +457,7 @@ class StepCounterService : Service(), SensorEventListener {
         // Save final step count when service is destroyed
         saveSteps(_stepCount.value)
         
-        // ✅ Cancel the coroutine scope to prevent memory leak
+        // Cancel the coroutine scope to prevent memory leak
         serviceScope.cancel()
     }
 } 
