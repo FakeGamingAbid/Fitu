@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -440,14 +439,6 @@ fun ProfileScreen(
                     title = "Update API Key",
                     subtitle = "Change your Gemini API key",
                     onClick = { viewModel.showApiKeyDialog() }
-                )
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
-                SettingsItem(
-                    icon = Icons.Default.Download,
-                    iconBgColor = Color(0xFF2196F3),
-                    title = "Export Data",
-                    subtitle = "Download JSON backup",
-                    onClick = { /* TODO */ }
                 )
                 Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.1f)))
                 SettingsItem(
