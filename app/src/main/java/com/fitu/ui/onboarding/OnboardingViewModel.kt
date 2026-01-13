@@ -1,17 +1,14 @@
-package com.fitu.ui.onboarding
+ package com.fitu.ui.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.SecureStorage
 import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.util.BirthdayUtils
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -19,7 +16,7 @@ import javax.inject.Inject
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val secureStorage: SecureStorage
+    private val secureStorage: SecureStorage  // ✅ FIX #2: Only use SecureStorage for API key
 ) : ViewModel() {
 
     // Page 1 - Personal Info
@@ -141,31 +138,6 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
-    fun validateApiKey() {
-        if (_apiKey.value.isBlank()) {
-            _validationState.value = ApiValidationState.Error("API key cannot be empty")
-            return
-        }
-
-        _validationState.value = ApiValidationState.Validating
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val testModel = GenerativeModel(
-                    modelName = "gemini-2.0-flash",
-                    apiKey = _apiKey.value
-                )
-                val response = testModel.generateContent(content { text("Say 'Hello'") })
-                if (response.text != null) {
-                    _validationState.value = ApiValidationState.Valid
-                } else {
-                    _validationState.value = ApiValidationState.Error("Invalid response from API")
-                }
-            } catch (e: Exception) {
-                _validationState.value = ApiValidationState.Error(e.message ?: "Validation failed")
-            }
-        }
-    }
-
     /**
      * Get formatted birth date for display.
      */
@@ -185,7 +157,7 @@ class OnboardingViewModel @Inject constructor(
             // Calculate age from birth date if available, otherwise use default
             val calculatedAge = getCalculatedAge()
 
-            // Save user profile
+            // Save user profile (NO API key here - that's separate)
             userPreferencesRepository.saveUserProfile(
                 name = _name.value,
                 age = calculatedAge,
@@ -202,7 +174,7 @@ class OnboardingViewModel @Inject constructor(
                 year = _birthYear.value
             )
 
-            // Save API key to secure storage
+            // ✅ FIX #2: Save API key ONLY to SecureStorage (encrypted)
             secureStorage.saveApiKey(_apiKey.value)
 
             // Mark onboarding complete
@@ -220,4 +192,4 @@ sealed class ApiValidationState {
     object Validating : ApiValidationState()
     object Valid : ApiValidationState()
     data class Error(val message: String) : ApiValidationState()
-}
+} 
