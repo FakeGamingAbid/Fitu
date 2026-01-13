@@ -28,8 +28,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -38,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -50,11 +55,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.data.local.entity.MealEntity
 import com.fitu.ui.components.GlassCard
 import com.fitu.ui.nutrition.AnalyzedFood
+import com.fitu.ui.nutrition.NutritionErrorType
 import com.fitu.ui.nutrition.NutritionUiState
 import com.fitu.ui.nutrition.NutritionViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.io.InputStream
 import java.nio.ByteBuffer
+
+private val ErrorRed = Color(0xFFF44336)
+private val WarningOrange = Color(0xFFFF9800)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,13 +80,12 @@ fun NutritionScreen(
     val textSearch by viewModel.textSearch.collectAsState()
     val selectedMealType by viewModel.selectedMealType.collectAsState()
 
-    // ✅ FIX #9: Delete confirmation state
     val showDeleteConfirmDialog by viewModel.showDeleteConfirmDialog.collectAsState()
     val mealToDelete by viewModel.mealToDelete.collectAsState()
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // ✅ FIX #9: Delete Confirmation Dialog
+    // Delete Confirmation Dialog
     if (showDeleteConfirmDialog && mealToDelete != null) {
         DeleteMealConfirmDialog(
             meal = mealToDelete!!,
@@ -111,7 +119,7 @@ fun NutritionScreen(
             .padding(horizontal = 24.dp)
             .padding(top = 32.dp, bottom = 120.dp)
     ) {
-        // --- Header ---
+        // Header
         Text(
             text = "Nutrition",
             color = Color.White,
@@ -126,7 +134,7 @@ fun NutritionScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- Today's Calories Card ---
+        // Today's Calories Card
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -157,24 +165,19 @@ fun NutritionScreen(
                         )
                     }
                 }
-                // Add button
                 FloatingActionButton(
                     onClick = { viewModel.showAddFood() },
                     containerColor = OrangePrimary,
                     modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = "Add Food",
-                        tint = Color.White
-                    )
+                    Icon(Icons.Default.Add, contentDescription = "Add Food", tint = Color.White)
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- Today's Meals ---
+        // Today's Meals
         Text(
             text = "Today's Meals",
             color = Color.White,
@@ -185,7 +188,6 @@ fun NutritionScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (todayMeals.isEmpty()) {
-            // Empty state
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -212,7 +214,6 @@ fun NutritionScreen(
                 )
             }
         } else {
-            // Meals list
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -220,7 +221,7 @@ fun NutritionScreen(
                 items(todayMeals) { meal ->
                     MealCard(
                         meal = meal,
-                        onDeleteClick = { viewModel.requestDeleteMeal(meal) }  // ✅ FIX #9
+                        onDeleteClick = { viewModel.requestDeleteMeal(meal) }
                     )
                 }
             }
@@ -228,14 +229,8 @@ fun NutritionScreen(
     }
 }
 
-/**
- * ✅ FIX #9: Meal card with delete button
- */
 @Composable
-private fun MealCard(
-    meal: MealEntity,
-    onDeleteClick: () -> Unit
-) {
+private fun MealCard(meal: MealEntity, onDeleteClick: () -> Unit) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -247,42 +242,28 @@ private fun MealCard(
                     .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Default.Restaurant,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.5f)
-                )
+                Icon(Icons.Default.Restaurant, null, tint = Color.White.copy(alpha = 0.5f))
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
+                Text(meal.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
-                    text = meal.name,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = "${meal.calories} kcal • ${meal.mealType.replaceFirstChar { it.uppercase() }}",
+                    "${meal.calories} kcal • ${meal.mealType.replaceFirstChar { it.uppercase() }}",
                     color = Color.White.copy(alpha = 0.5f),
                     fontSize = 12.sp
                 )
             }
-            // Macro pills
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 MacroPill("P: ${meal.protein}g", OrangePrimary)
                 MacroPill("C: ${meal.carbs}g", Color(0xFF4CAF50))
                 MacroPill("F: ${meal.fats}g", Color(0xFF2196F3))
             }
             Spacer(modifier = Modifier.width(8.dp))
-            // ✅ FIX #9: Delete button
-            IconButton(
-                onClick = onDeleteClick,
-                modifier = Modifier.size(36.dp)
-            ) {
+            IconButton(onClick = onDeleteClick, modifier = Modifier.size(36.dp)) {
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = "Delete meal",
-                    tint = Color(0xFFF44336).copy(alpha = 0.7f),
+                    tint = ErrorRed.copy(alpha = 0.7f),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -290,93 +271,48 @@ private fun MealCard(
     }
 }
 
-/**
- * ✅ FIX #9: Delete confirmation dialog
- */
 @Composable
-private fun DeleteMealConfirmDialog(
-    meal: MealEntity,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
+private fun DeleteMealConfirmDialog(meal: MealEntity, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF1A1A1F),
         icon = {
             Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .background(Color(0xFFF44336).copy(alpha = 0.1f), CircleShape),
+                modifier = Modifier.size(56.dp).background(ErrorRed.copy(alpha = 0.1f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFF44336),
-                    modifier = Modifier.size(28.dp)
-                )
+                Icon(Icons.Default.Warning, null, tint = ErrorRed, modifier = Modifier.size(28.dp))
             }
         },
         title = {
-            Text(
-                text = "Delete Meal?",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Text("Delete Meal?", color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         },
         text = {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Meal info card
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                        .padding(16.dp)
+                    modifier = Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp)).padding(16.dp)
                 ) {
                     Column {
-                        Text(
-                            text = meal.name,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
+                        Text(meal.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${meal.calories} kcal • P: ${meal.protein}g • C: ${meal.carbs}g • F: ${meal.fats}g",
+                            "${meal.calories} kcal • P: ${meal.protein}g • C: ${meal.carbs}g • F: ${meal.fats}g",
                             color = Color.White.copy(alpha = 0.6f),
                             fontSize = 13.sp
                         )
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "This action cannot be undone.",
-                    color = Color(0xFFF44336),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center
-                )
+                Text("This action cannot be undone.", color = ErrorRed, fontSize = 12.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
             }
         },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = ErrorRed), modifier = Modifier.fillMaxWidth()) {
                 Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
                 Text("Cancel", color = Color.White.copy(alpha = 0.7f))
             }
         }
@@ -386,16 +322,9 @@ private fun DeleteMealConfirmDialog(
 @Composable
 private fun MacroPill(text: String, color: Color) {
     Box(
-        modifier = Modifier
-            .background(color.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+        modifier = Modifier.background(color.copy(alpha = 0.2f), RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
-        Text(
-            text = text,
-            color = color,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Text(text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -412,38 +341,24 @@ private fun AddFoodSheetContent(
     val context = LocalContext.current
     var showCamera by remember { mutableStateOf(false) }
 
-    // Check if camera permission is already granted
     val hasCameraPermission = remember {
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     }
     var cameraPermissionGranted by remember { mutableStateOf(hasCameraPermission) }
 
-    // Camera permission launcher
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         cameraPermissionGranted = granted
-        if (granted) {
-            showCamera = true
-        }
+        if (granted) showCamera = true
     }
 
-    // Gallery picker launcher
-    val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             try {
                 val inputStream: InputStream? = context.contentResolver.openInputStream(it)
                 inputStream?.let { stream ->
                     val bitmap = BitmapFactory.decodeStream(stream)
                     stream.close()
-                    if (bitmap != null) {
-                        viewModel.analyzeFood(bitmap)
-                    }
+                    if (bitmap != null) viewModel.analyzeFood(bitmap)
                 }
             } catch (e: Exception) {
                 Log.e("NutritionScreen", "Error loading image from gallery", e)
@@ -452,9 +367,7 @@ private fun AddFoodSheetContent(
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(24.dp)
+        modifier = Modifier.fillMaxWidth().padding(24.dp)
     ) {
         // Header
         Row(
@@ -462,12 +375,7 @@ private fun AddFoodSheetContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Add Food",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Add Food", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             IconButton(onClick = onDismiss) {
                 Icon(Icons.Default.Close, null, tint = Color.White)
             }
@@ -504,56 +412,35 @@ private fun AddFoodSheetContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (!showCamera) {
-            // Two buttons side by side: Camera and Gallery
+            // Camera and Gallery buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Snap a Photo button
                 Button(
                     onClick = {
-                        if (cameraPermissionGranted) {
-                            showCamera = true
-                        } else {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
+                        if (cameraPermissionGranted) showCamera = true
+                        else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                     },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(120.dp),
+                    modifier = Modifier.weight(1f).height(120.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.CameraAlt,
-                            null,
-                            tint = OrangePrimary,
-                            modifier = Modifier.size(32.dp)
-                        )
+                        Icon(Icons.Default.CameraAlt, null, tint = OrangePrimary, modifier = Modifier.size(32.dp))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Snap a Photo", color = Color.White, fontSize = 14.sp)
                     }
                 }
 
-                // Select from Gallery button
                 Button(
-                    onClick = {
-                        galleryLauncher.launch("image/*")
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(120.dp),
+                    onClick = { galleryLauncher.launch("image/*") },
+                    modifier = Modifier.weight(1f).height(120.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.PhotoLibrary,
-                            null,
-                            tint = OrangePrimary,
-                            modifier = Modifier.size(32.dp)
-                        )
+                        Icon(Icons.Default.PhotoLibrary, null, tint = OrangePrimary, modifier = Modifier.size(32.dp))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Gallery", color = Color.White, fontSize = 14.sp)
                     }
@@ -582,7 +469,8 @@ private fun AddFoodSheetContent(
                 Button(
                     onClick = { viewModel.searchFood(textSearch) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
+                    enabled = uiState !is NutritionUiState.Analyzing
                 ) {
                     Text("Analyze", color = Color.White)
                 }
@@ -614,21 +502,13 @@ private fun AddFoodSheetContent(
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                    // Portion slider
-                    Text(
-                        text = "Portion: ${String.format("%.1f", portion)}x",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 12.sp
-                    )
+                    Text("Portion: ${String.format("%.1f", portion)}x", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                     Slider(
                         value = portion,
                         onValueChange = { viewModel.updatePortion(it) },
                         valueRange = 0.5f..3f,
                         steps = 4,
-                        colors = SliderDefaults.colors(
-                            thumbColor = OrangePrimary,
-                            activeTrackColor = OrangePrimary
-                        )
+                        colors = SliderDefaults.colors(thumbColor = OrangePrimary, activeTrackColor = OrangePrimary)
                     )
                     
                     Spacer(modifier = Modifier.height(8.dp))
@@ -653,37 +533,97 @@ private fun AddFoodSheetContent(
             ) {
                 CircularProgressIndicator(color = OrangePrimary, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("Analyzing...", color = Color.White)
+                Text("Analyzing your food...", color = Color.White)
             }
         }
 
-        // ✅ FIX #13: Better error display
+        // Error state with detailed message and retry
         if (uiState is NutritionUiState.Error) {
             Spacer(modifier = Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFF44336).copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                    .padding(16.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = Color(0xFFF44336),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = (uiState as NutritionUiState.Error).message,
-                        color = Color(0xFFF44336),
-                        fontSize = 14.sp
-                    )
-                }
-            }
+            ErrorCard(
+                error = uiState as NutritionUiState.Error,
+                onRetry = { viewModel.retry() }
+            )
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+/**
+ * Error card with icon, message, and retry button
+ */
+@Composable
+private fun ErrorCard(
+    error: NutritionUiState.Error,
+    onRetry: () -> Unit
+) {
+    val (icon, iconColor) = when (error.errorType) {
+        NutritionErrorType.NETWORK -> Icons.Default.CloudOff to WarningOrange
+        NutritionErrorType.API_KEY -> Icons.Default.Key to ErrorRed
+        NutritionErrorType.RATE_LIMIT -> Icons.Default.Refresh to WarningOrange
+        NutritionErrorType.CONTENT -> Icons.Default.CameraAlt to WarningOrange
+        NutritionErrorType.SERVICE -> Icons.Default.Error to WarningOrange
+        NutritionErrorType.UNKNOWN -> Icons.Default.Error to ErrorRed
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(iconColor.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = getErrorTitle(error.errorType),
+                        color = iconColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = error.message,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+            
+            if (error.canRetry) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onRetry,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = iconColor),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Try Again", fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    }
+}
+
+private fun getErrorTitle(errorType: NutritionErrorType): String {
+    return when (errorType) {
+        NutritionErrorType.NETWORK -> "Connection Problem"
+        NutritionErrorType.API_KEY -> "API Key Issue"
+        NutritionErrorType.RATE_LIMIT -> "Too Many Requests"
+        NutritionErrorType.CONTENT -> "Image Problem"
+        NutritionErrorType.SERVICE -> "Service Unavailable"
+        NutritionErrorType.UNKNOWN -> "Something Went Wrong"
     }
 }
 
@@ -697,6 +637,18 @@ private fun CameraPreviewSection(
     val lifecycleOwner = LocalLifecycleOwner.current
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
     val executor = ContextCompat.getMainExecutor(context)
+
+    // Clean up camera when leaving composition
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                val cameraProvider = ProcessCameraProvider.getInstance(context).get()
+                cameraProvider.unbindAll()
+            } catch (e: Exception) {
+                Log.w("CameraPreview", "Error unbinding camera", e)
+            }
+        }
+    }
 
     Column {
         Box(
@@ -723,7 +675,9 @@ private fun CameraPreviewSection(
                         val preview = Preview.Builder().build().also {
                             it.setSurfaceProvider(previewView.surfaceProvider)
                         }
-                        imageCapture = ImageCapture.Builder().build()
+                        imageCapture = ImageCapture.Builder()
+                            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                            .build()
                         try {
                             cameraProvider.unbindAll()
                             cameraProvider.bindToLifecycle(
@@ -768,11 +722,7 @@ private fun CameraPreviewSection(
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Cancel button
-        TextButton(
-            onClick = onCancel,
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
             Text("Cancel", color = Color.White.copy(alpha = 0.7f))
         }
     }
