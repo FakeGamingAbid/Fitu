@@ -1,4 +1,4 @@
-package com.fitu.ui.screens
+ package com.fitu.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -48,6 +48,9 @@ fun DashboardScreen(
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
+    
+    // ✅ NEW: Check if steps are initialized
+    val isStepsInitialized by viewModel.isStepsInitialized.collectAsState()
     
     // Birthday feature
     val showBirthdayDialog by viewModel.showBirthdayDialog.collectAsState()
@@ -168,12 +171,24 @@ fun DashboardScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = String.format("%,d", currentSteps),
-                        color = Color.White,
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    
+                    // ✅ FIX: Show loading indicator or actual steps
+                    if (!isStepsInitialized) {
+                        // Show loading placeholder
+                        Text(
+                            text = "Loading...",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Text(
+                            text = String.format("%,d", currentSteps),
+                            color = Color.White,
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     Text(
                         text = "Goal: ${String.format("%,d", dailyStepGoal)}",
                         color = Color.White.copy(alpha = 0.5f),
@@ -353,4 +368,4 @@ fun DashboardScreen(
             }
         }
     }
-}
+} 
