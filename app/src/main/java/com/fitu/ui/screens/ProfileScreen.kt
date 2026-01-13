@@ -1,4 +1,4 @@
-package com.fitu.ui.screens
+ package com.fitu.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -463,7 +463,7 @@ fun ProfileScreen(
 
         // --- Version ---
         Text(
-            text = "Version 2.0.0 • Fitu PWA",
+            text = "Fitu v2.0.0",
             color = Color.White.copy(alpha = 0.3f),
             fontSize = 12.sp,
             modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -709,4 +709,4 @@ private fun getBmiColor(category: String): Color {
         "Obese" -> Color(0xFFF44336)
         else -> Color.Gray
     }
-}
+} 
