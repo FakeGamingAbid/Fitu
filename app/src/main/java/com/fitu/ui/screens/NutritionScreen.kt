@@ -1,6 +1,7 @@
  package com.fitu.ui.screens
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -22,7 +23,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -189,7 +189,7 @@ fun NutritionScreen(
                     fontSize = 16.sp
                 )
                 Text(
-                    text = "Tap + to snap a photo",
+                    text = "Tap + to add your first meal",
                     color = Color.White.copy(alpha = 0.3f),
                     fontSize = 14.sp
                 )
@@ -273,19 +273,28 @@ private fun AddFoodSheetContent(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var hasCameraPermission by remember { mutableStateOf(false) }
     var showCamera by remember { mutableStateOf(false) }
 
-    // Camera permission launcher
+    // Check if camera permission is already granted
+    val hasCameraPermission = remember {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    var cameraPermissionGranted by remember { mutableStateOf(hasCameraPermission) }
+
+    // Camera permission launcher - only triggered when user taps "Snap a Photo"
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        hasCameraPermission = granted
-        if (granted) showCamera = true
+        cameraPermissionGranted = granted
+        if (granted) {
+            showCamera = true
+        }
     }
 
-    // Gallery picker launcher
+    // Gallery picker launcher - NO permission needed on Android 10+
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -366,7 +375,8 @@ private fun AddFoodSheetContent(
                 // Snap a Photo button
                 Button(
                     onClick = {
-                        if (hasCameraPermission) {
+                        // Request camera permission only when user taps this button
+                        if (cameraPermissionGranted) {
                             showCamera = true
                         } else {
                             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -390,7 +400,7 @@ private fun AddFoodSheetContent(
                     }
                 }
 
-                // Select from Gallery button
+                // Select from Gallery button - NO permission needed
                 Button(
                     onClick = {
                         galleryLauncher.launch("image/*")
