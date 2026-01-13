@@ -9,6 +9,7 @@ import com.fitu.data.service.StepCounterService
 import com.fitu.di.GeminiModelProvider
 import com.fitu.domain.repository.DashboardRepository
 import com.fitu.util.BirthdayUtils
+import com.fitu.util.UnitConverter
 import com.google.ai.client.generativeai.type.content
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,10 @@ class DashboardViewModel @Inject constructor(
 
     val userWeightKg: StateFlow<Int> = userPreferencesRepository.userWeightKg
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 70)
+
+    // ✅ FIX #24: Unit preference
+    val useImperialUnits: StateFlow<Boolean> = userPreferencesRepository.useImperialUnits
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // Today's date formatted
     val todayDate: String = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
@@ -151,6 +156,25 @@ class DashboardViewModel @Inject constructor(
         val strideLengthKm = calculateStrideLengthKm(heightCm)
         steps * strideLengthKm
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+
+    /**
+     * ✅ FIX #24: Formatted distance based on unit preference
+     */
+    val formattedDistance: StateFlow<String> = combine(distanceKm, useImperialUnits) { km, useImperial ->
+        if (useImperial) {
+            val miles = UnitConverter.kmToMiles(km)
+            String.format("%.2f", miles)
+        } else {
+            String.format("%.2f", km)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "0.00")
+
+    /**
+     * ✅ FIX #24: Distance unit label
+     */
+    val distanceUnit: StateFlow<String> = useImperialUnits.combine(currentSteps) { useImperial, _ ->
+        UnitConverter.getDistanceUnit(useImperial)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "KM")
 
     init {
         loadWeeklySteps()
