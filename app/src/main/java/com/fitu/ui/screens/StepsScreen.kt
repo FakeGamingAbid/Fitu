@@ -1,4 +1,4 @@
- package com.fitu.ui.screens
+package com.fitu.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -39,6 +39,7 @@ fun StepsScreen(
     val dailyGoal by viewModel.dailyStepGoal.collectAsState()
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val distanceKm by viewModel.distanceKm.collectAsState()
+    val weeklySteps by viewModel.weeklySteps.collectAsState()
 
     val progress = if (dailyGoal > 0) currentSteps.toFloat() / dailyGoal.toFloat() else 0f
     val animatedProgress by animateFloatAsState(
@@ -313,7 +314,7 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Weekly Bar Chart (placeholder data)
+        // Weekly Bar Chart - Now using real data from database
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
                 Row(
@@ -323,19 +324,23 @@ fun StepsScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    val days = listOf("Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri")
-                    // Placeholder weekly data - in a real app this would come from repository
-                    val weeklyData = listOf(0, 0, 0, 0, 0, 0, currentSteps)
-                    val maxSteps = weeklyData.maxOrNull()?.coerceAtLeast(1) ?: 1
+                    val maxSteps = weeklySteps.maxOfOrNull { 
+                        if (it.isToday) currentSteps else it.steps 
+                    }?.coerceAtLeast(1) ?: 1
                     
-                    weeklyData.forEach { steps ->
+                    weeklySteps.forEach { dayData ->
+                        val steps = if (dayData.isToday) currentSteps else dayData.steps
                         val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 80).dp else 4.dp
                         Box(
                             modifier = Modifier
                                 .width(24.dp)
                                 .height(barHeight.coerceAtLeast(4.dp))
                                 .background(
-                                    if (steps > 0) OrangePrimary else Color.White.copy(alpha = 0.1f),
+                                    if (steps > 0) {
+                                        if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
+                                    } else {
+                                        Color.White.copy(alpha = 0.1f)
+                                    },
                                     RoundedCornerShape(4.dp)
                                 )
                         )
@@ -346,11 +351,12 @@ fun StepsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    listOf("Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri").forEach { day ->
+                    weeklySteps.forEach { dayData ->
                         Text(
-                            text = day,
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 11.sp
+                            text = dayData.day,
+                            color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
+                            fontSize = 11.sp,
+                            fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal
                         )
                     }
                 }
