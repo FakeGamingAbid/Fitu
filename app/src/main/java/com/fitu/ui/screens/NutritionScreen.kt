@@ -18,18 +18,20 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,11 +41,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fitu.data.local.entity.MealEntity
 import com.fitu.ui.components.GlassCard
 import com.fitu.ui.nutrition.AnalyzedFood
 import com.fitu.ui.nutrition.NutritionUiState
@@ -67,7 +71,20 @@ fun NutritionScreen(
     val textSearch by viewModel.textSearch.collectAsState()
     val selectedMealType by viewModel.selectedMealType.collectAsState()
 
+    // ✅ FIX #9: Delete confirmation state
+    val showDeleteConfirmDialog by viewModel.showDeleteConfirmDialog.collectAsState()
+    val mealToDelete by viewModel.mealToDelete.collectAsState()
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // ✅ FIX #9: Delete Confirmation Dialog
+    if (showDeleteConfirmDialog && mealToDelete != null) {
+        DeleteMealConfirmDialog(
+            meal = mealToDelete!!,
+            onConfirm = { viewModel.confirmDeleteMeal() },
+            onDismiss = { viewModel.cancelDeleteMeal() }
+        )
+    }
 
     if (showAddFoodSheet) {
         ModalBottomSheet(
@@ -201,49 +218,169 @@ fun NutritionScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(todayMeals) { meal ->
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Restaurant,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.5f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = meal.name,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    text = "${meal.calories} kcal",
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    fontSize = 12.sp
-                                )
-                            }
-                            // Macro pills
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                MacroPill("P: ${meal.protein}g", OrangePrimary)
-                                MacroPill("C: ${meal.carbs}g", Color(0xFF4CAF50))
-                                MacroPill("F: ${meal.fats}g", Color(0xFF2196F3))
-                            }
-                        }
-                    }
+                    MealCard(
+                        meal = meal,
+                        onDeleteClick = { viewModel.requestDeleteMeal(meal) }  // ✅ FIX #9
+                    )
                 }
             }
         }
     }
+}
+
+/**
+ * ✅ FIX #9: Meal card with delete button
+ */
+@Composable
+private fun MealCard(
+    meal: MealEntity,
+    onDeleteClick: () -> Unit
+) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Restaurant,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.5f)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = meal.name,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "${meal.calories} kcal • ${meal.mealType.replaceFirstChar { it.uppercase() }}",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp
+                )
+            }
+            // Macro pills
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                MacroPill("P: ${meal.protein}g", OrangePrimary)
+                MacroPill("C: ${meal.carbs}g", Color(0xFF4CAF50))
+                MacroPill("F: ${meal.fats}g", Color(0xFF2196F3))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            // ✅ FIX #9: Delete button
+            IconButton(
+                onClick = onDeleteClick,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete meal",
+                    tint = Color(0xFFF44336).copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * ✅ FIX #9: Delete confirmation dialog
+ */
+@Composable
+private fun DeleteMealConfirmDialog(
+    meal: MealEntity,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1A1A1F),
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(Color(0xFFF44336).copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFF44336),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "Delete Meal?",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Meal info card
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                        .padding(16.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = meal.name,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${meal.calories} kcal • P: ${meal.protein}g • C: ${meal.carbs}g • F: ${meal.fats}g",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "This action cannot be undone.",
+                    color = Color(0xFFF44336),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+            }
+        }
+    )
 }
 
 @Composable
@@ -284,7 +421,7 @@ private fun AddFoodSheetContent(
     }
     var cameraPermissionGranted by remember { mutableStateOf(hasCameraPermission) }
 
-    // Camera permission launcher - only triggered when user taps "Snap a Photo"
+    // Camera permission launcher
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -294,7 +431,7 @@ private fun AddFoodSheetContent(
         }
     }
 
-    // Gallery picker launcher - NO permission needed on Android 10+
+    // Gallery picker launcher
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -375,7 +512,6 @@ private fun AddFoodSheetContent(
                 // Snap a Photo button
                 Button(
                     onClick = {
-                        // Request camera permission only when user taps this button
                         if (cameraPermissionGranted) {
                             showCamera = true
                         } else {
@@ -400,7 +536,7 @@ private fun AddFoodSheetContent(
                     }
                 }
 
-                // Select from Gallery button - NO permission needed
+                // Select from Gallery button
                 Button(
                     onClick = {
                         galleryLauncher.launch("image/*")
@@ -521,14 +657,30 @@ private fun AddFoodSheetContent(
             }
         }
 
-        // Error state
+        // ✅ FIX #13: Better error display
         if (uiState is NutritionUiState.Error) {
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = (uiState as NutritionUiState.Error).message,
-                color = Color(0xFFF44336),
-                fontSize = 14.sp
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF44336).copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                    .padding(16.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFF44336),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = (uiState as NutritionUiState.Error).message,
+                        color = Color(0xFFF44336),
+                        fontSize = 14.sp
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
