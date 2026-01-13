@@ -1,4 +1,4 @@
-package com.fitu.ui.profile
+ package com.fitu.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -19,7 +19,7 @@ import kotlin.math.pow
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val secureStorage: SecureStorage
+    private val secureStorage: SecureStorage  // ✅ FIX #2: Use SecureStorage for API key
 ) : ViewModel() {
 
     val userName: StateFlow<String> = userPreferencesRepository.userName
@@ -40,6 +40,7 @@ class ProfileViewModel @Inject constructor(
     val dailyCalorieGoal: StateFlow<Int> = userPreferencesRepository.dailyCalorieGoal
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2000)
 
+    // ✅ FIX #2: Get API key from SecureStorage (encrypted)
     val apiKey: StateFlow<String> = secureStorage.apiKeyFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
@@ -165,6 +166,7 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    // ✅ FIX #2: Save API key ONLY to SecureStorage (encrypted)
     fun saveApiKey(apiKey: String) {
         viewModelScope.launch {
             secureStorage.saveApiKey(apiKey.trim())
@@ -172,9 +174,19 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Reset app - clears all user data
+     */
     fun resetOnboarding() {
         viewModelScope.launch {
+            // Clear preferences
+            userPreferencesRepository.clearAllData()
+            
+            // Clear API key from secure storage
+            secureStorage.clearApiKey()
+            
+            // Mark onboarding as incomplete
             userPreferencesRepository.setOnboardingComplete(false)
         }
     }
-}
+} 
