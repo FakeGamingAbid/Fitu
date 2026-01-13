@@ -1,4 +1,4 @@
- package com.fitu.data.service
+package com.fitu.data.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -48,10 +48,10 @@ class StepCounterService : Service(), SensorEventListener {
     // Current date tracking
     private var currentDate: String = ""
     
-    // ✅ NEW: Daily step goal (will be set from preferences)
+    // Daily step goal (will be set from preferences)
     private var dailyStepGoal: Int = 10000
     
-    // ✅ NEW: Track which milestones have been notified today
+    // Track which milestones have been notified today
     private val notifiedMilestones = mutableSetOf<Int>()
 
     companion object {
@@ -70,7 +70,7 @@ class StepCounterService : Service(), SensorEventListener {
         private const val CHANNEL_ID = "step_counter_channel"
         private const val MILESTONE_CHANNEL_ID = "step_milestone_channel"
         
-        // ✅ NEW: Milestone percentages
+        // Milestone percentages
         val MILESTONES = listOf(20, 40, 60, 80, 100)
         
         fun getTodayDate(): String {
@@ -111,12 +111,12 @@ class StepCounterService : Service(), SensorEventListener {
         if (today != currentDate) {
             currentDate = today
             _stepCount.value = 0
-            notifiedMilestones.clear()  // ✅ Reset milestones for new day
+            notifiedMilestones.clear()
             clearNotifiedMilestones()
             loadTodayStepsAsync()
         }
         
-        // ✅ Update step goal if passed via intent
+        // Update step goal if passed via intent
         intent?.getIntExtra("step_goal", -1)?.let { goal ->
             if (goal > 0) {
                 dailyStepGoal = goal
@@ -136,7 +136,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
     
     /**
-     * ✅ NEW: Save step goal (called from outside)
+     * Save step goal (called from outside)
      */
     fun updateStepGoal(goal: Int) {
         dailyStepGoal = goal
@@ -145,7 +145,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     /**
-     * ✅ NEW: Load which milestones were already notified today
+     * Load which milestones were already notified today
      */
     private fun loadNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
@@ -164,7 +164,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
     
     /**
-     * ✅ NEW: Save notified milestones
+     * Save notified milestones
      */
     private fun saveNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
@@ -175,7 +175,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
     
     /**
-     * ✅ NEW: Clear notified milestones (new day)
+     * Clear notified milestones (new day)
      */
     private fun clearNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
@@ -229,7 +229,7 @@ class StepCounterService : Service(), SensorEventListener {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // ✅ Channel for ongoing step counter
+            // Channel for ongoing step counter
             val stepChannel = NotificationChannel(
                 CHANNEL_ID,
                 "Step Counter",
@@ -240,7 +240,7 @@ class StepCounterService : Service(), SensorEventListener {
             }
             notificationManager.createNotificationChannel(stepChannel)
             
-            // ✅ NEW: Channel for milestone notifications (higher importance)
+            // Channel for milestone notifications (higher importance)
             val milestoneChannel = NotificationChannel(
                 MILESTONE_CHANNEL_ID,
                 "Step Milestones",
@@ -283,7 +283,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
     
     /**
-     * ✅ NEW: Check and send milestone notifications
+     * Check and send milestone notifications
      */
     private fun checkMilestones(steps: Int) {
         if (dailyStepGoal <= 0) return
@@ -301,7 +301,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
     
     /**
-     * ✅ NEW: Send milestone notification
+     * Send milestone notification
      */
     private fun sendMilestoneNotification(steps: Int, milestone: Int) {
         val pendingIntent = PendingIntent.getActivity(
@@ -311,36 +311,30 @@ class StepCounterService : Service(), SensorEventListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        val (title, message, emoji) = when (milestone) {
-            20 -> Triple(
+        val (title, message) = when (milestone) {
+            20 -> Pair(
                 "🚶 20% Complete!",
-                "You've taken $steps steps. Keep moving!",
-                "🚶"
+                "You've taken $steps steps. Keep moving!"
             )
-            40 -> Triple(
+            40 -> Pair(
                 "🏃 40% Complete!",
-                "You've taken $steps steps. Almost halfway there!",
-                "🏃"
+                "You've taken $steps steps. Almost halfway there!"
             )
-            60 -> Triple(
+            60 -> Pair(
                 "💪 60% Complete!",
-                "You've taken $steps steps. Over halfway!",
-                "💪"
+                "You've taken $steps steps. Over halfway!"
             )
-            80 -> Triple(
+            80 -> Pair(
                 "🔥 80% Complete!",
-                "You've taken $steps steps. Almost at your goal!",
-                "🔥"
+                "You've taken $steps steps. Almost at your goal!"
             )
-            100 -> Triple(
+            100 -> Pair(
                 "🎉 GOAL REACHED!",
-                "Congratulations! You've completed $steps steps today!",
-                "🎉"
+                "Congratulations! You've completed $steps steps today!"
             )
-            else -> Triple(
+            else -> Pair(
                 "Step Progress",
-                "You've taken $steps steps",
-                "👟"
+                "You've taken $steps steps"
             )
         }
         
@@ -356,7 +350,6 @@ class StepCounterService : Service(), SensorEventListener {
             .build()
         
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        // Use different notification ID for each milestone so they don't replace each other
         manager.notify(MILESTONE_NOTIFICATION_ID + milestone, notification)
     }
 
@@ -431,7 +424,7 @@ class StepCounterService : Service(), SensorEventListener {
                     lastStepTime = now
                     isBelowReset = false
                     
-                    // ✅ NEW: Check for milestone notifications
+                    // Check for milestone notifications
                     checkMilestones(_stepCount.value)
                     
                     // Save periodically (not every step to reduce DB writes)
@@ -457,7 +450,7 @@ class StepCounterService : Service(), SensorEventListener {
         // Save final step count when service is destroyed
         saveSteps(_stepCount.value)
         
-        // Cancel the coroutine scope to prevent memory leak
+        // ✅ FIX #3: Cancel the coroutine scope to prevent memory leak
         serviceScope.cancel()
     }
 } 
