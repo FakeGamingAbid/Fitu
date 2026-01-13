@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.data.local.dao.StepDao
+import com.fitu.data.local.entity.StepEntity
 import com.fitu.data.service.StepCounterService
 import com.fitu.di.GeminiModelProvider
 import com.fitu.domain.repository.DashboardRepository
@@ -53,9 +54,16 @@ class DashboardViewModel @Inject constructor(
     // Steps - Read directly from StepCounterService (real-time data)
     val currentSteps: StateFlow<Int> = StepCounterService.stepCount
 
-    // Weekly progress
-    private val _weeklySteps = MutableStateFlow<List<Int>>(listOf(0, 0, 0, 0, 0, 0, 0))
-    val weeklySteps: StateFlow<List<Int>> = _weeklySteps
+    // Weekly progress - Raw data from database
+    private val _weeklyStepsFromDb = MutableStateFlow<List<StepEntity>>(emptyList())
+    
+    // Weekly steps - FIXED: Combines DB data with live step count for reactive updates
+    val weeklySteps: StateFlow<List<Int>> = combine(
+        _weeklyStepsFromDb,
+        currentSteps
+    ) { stepEntities, todaySteps ->
+        buildWeeklyData(stepEntities, todaySteps)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf(0, 0, 0, 0, 0, 0, 0))
 
     // Workout summary
     private val _workoutsCompleted = MutableStateFlow(0)
@@ -115,24 +123,37 @@ class DashboardViewModel @Inject constructor(
             calendar.add(Calendar.DAY_OF_YEAR, -6)
             val startDate = dateFormat.format(calendar.time)
             
+            // Collect database data only - processing happens in combine
             stepDao.getStepsBetweenDates(startDate, endDate).collect { stepEntities ->
-                val stepMap = stepEntities.associateBy { it.date }
-                
-                val weekData = mutableListOf<Int>()
-                val cal = Calendar.getInstance()
-                cal.add(Calendar.DAY_OF_YEAR, -6)
-                
-                for (i in 0..6) {
-                    val date = dateFormat.format(cal.time)
-                    val isToday = date == StepCounterService.getTodayDate()
-                    val steps = if (isToday) currentSteps.value else (stepMap[date]?.steps ?: 0)
-                    weekData.add(steps)
-                    cal.add(Calendar.DAY_OF_YEAR, 1)
-                }
-                
-                _weeklySteps.value = weekData
+                _weeklyStepsFromDb.value = stepEntities
             }
         }
+    }
+
+    /**
+     * Build weekly data array combining DB data with live today's steps.
+     * This ensures the chart always shows the current step count for today.
+     */
+    private fun buildWeeklyData(stepEntities: List<StepEntity>, todaySteps: Int): List<Int> {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val stepMap = stepEntities.associateBy { it.date }
+        val todayDate = StepCounterService.getTodayDate()
+        
+        val weekData = mutableListOf<Int>()
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DAY_OF_YEAR, -6)
+        
+        for (i in 0..6) {
+            val date = dateFormat.format(cal.time)
+            val steps = when {
+                date == todayDate -> todaySteps  // Always use live value for today
+                else -> stepMap[date]?.steps ?: 0
+            }
+            weekData.add(steps)
+            cal.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        
+        return weekData
     }
 
     /**
