@@ -1,4 +1,4 @@
-package com.fitu.di
+ package com.fitu.di
 
 import com.fitu.data.local.SecureStorage
 import com.google.ai.client.generativeai.GenerativeModel
@@ -22,7 +22,7 @@ import javax.inject.Singleton
 class GeminiModelProvider @Inject constructor(
     private val secureStorage: SecureStorage
 ) {
-    fun getModel(modelName: String = "gemini-1.5-flash"): GenerativeModel? {
+    fun getModel(modelName: String = "gemini-3-flash-preview"): GenerativeModel? {
         val apiKey = secureStorage.getApiKey()
         if (apiKey.isBlank()) return null
         
@@ -34,7 +34,7 @@ class GeminiModelProvider @Inject constructor(
 
     suspend fun generateContentWithRetry(
         prompt: Content,
-        modelName: String = "gemini-1.5-flash",
+        modelName: String = "gemini-3-flash-preview",
         maxRetries: Int = 3,
         initialDelay: Long = 1000
     ): GenerateContentResponse? {
@@ -69,4 +69,4 @@ object GeminiModule {
     ): GeminiModelProvider {
         return GeminiModelProvider(secureStorage)
     }
-}
+} 
