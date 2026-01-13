@@ -53,11 +53,14 @@ class DashboardViewModel @Inject constructor(
 
     // Steps - Read directly from StepCounterService (real-time data)
     val currentSteps: StateFlow<Int> = StepCounterService.stepCount
+    
+    // ✅ NEW: Track if steps are initialized (to prevent showing 0)
+    val isStepsInitialized: StateFlow<Boolean> = StepCounterService.isInitialized
 
     // Weekly progress - Raw data from database
     private val _weeklyStepsFromDb = MutableStateFlow<List<StepEntity>>(emptyList())
     
-    // Weekly steps - FIXED: Combines DB data with live step count for reactive updates
+    // Weekly steps - Combines DB data with live step count for reactive updates
     val weeklySteps: StateFlow<List<Int>> = combine(
         _weeklyStepsFromDb,
         currentSteps
