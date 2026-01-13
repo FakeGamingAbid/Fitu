@@ -38,11 +38,14 @@ fun StepsScreen(
     val currentSteps by viewModel.stepCount.collectAsState()
     val dailyGoal by viewModel.dailyStepGoal.collectAsState()
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
-    val distanceKm by viewModel.distanceKm.collectAsState()
     val weeklySteps by viewModel.weeklySteps.collectAsState()
     
     // ✅ FIX #11: Observe loading state
     val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
+
+    // ✅ FIX #24: Unit conversion
+    val formattedDistance by viewModel.formattedDistance.collectAsState()
+    val distanceUnit by viewModel.distanceUnit.collectAsState()
 
     val progress = if (dailyGoal > 0) currentSteps.toFloat() / dailyGoal.toFloat() else 0f
     val animatedProgress by animateFloatAsState(
@@ -164,12 +167,12 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- Stats Row (KM and KCAL) ---
+        // --- Stats Row (Distance and KCAL) ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // KM Card
+            // ✅ FIX #24: Distance Card with unit conversion
             GlassCard(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -183,13 +186,13 @@ fun StepsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = String.format("%.2f", distanceKm),
+                        text = formattedDistance,
                         color = Color.White,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "KM",
+                        text = distanceUnit,
                         color = Color.White.copy(alpha = 0.5f),
                         fontSize = 12.sp
                     )
