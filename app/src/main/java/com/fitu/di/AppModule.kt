@@ -1,4 +1,4 @@
-package com.fitu.di
+ package com.fitu.di
 
 import android.app.Application
 import android.content.Context
@@ -7,6 +7,7 @@ import androidx.room.Room
 import com.fitu.data.local.FituDatabase
 import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.data.local.dao.MealDao
+import com.fitu.data.local.dao.StepDao
 import com.fitu.data.local.dao.WorkoutDao
 import com.fitu.data.local.dao.WorkoutPlanDao
 import dagger.Module
@@ -72,4 +73,10 @@ object AppModule {
     fun provideFoodCacheDao(db: FituDatabase): com.fitu.data.local.dao.FoodCacheDao {
         return db.foodCacheDao()
     }
-}
+
+    @Provides
+    @Singleton
+    fun provideStepDao(db: FituDatabase): StepDao {
+        return db.stepDao()
+    }
+} 
