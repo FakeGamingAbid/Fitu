@@ -58,7 +58,8 @@ class NutritionViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<NutritionUiState>(NutritionUiState.Idle)
     val uiState: StateFlow<NutritionUiState> = _uiState
 
-    private val _selectedMealType = MutableStateFlow("breakfast")
+    // ✅ FIX #14: Initialize with time-based meal type
+    private val _selectedMealType = MutableStateFlow(getMealTypeByTime())
     val selectedMealType: StateFlow<String> = _selectedMealType
 
     private val _showAddFoodSheet = MutableStateFlow(false)
@@ -145,6 +146,62 @@ class NutritionViewModel @Inject constructor(
         cleanOldFoodCache()
     }
 
+    /**
+     * ✅ FIX #14: Get meal type based on current local time
+     * 
+     * Breakfast: 5:00 AM - 11:59 AM
+     * Lunch: 12:00 PM - 4:00 PM
+     * Dinner: 7:00 PM - 10:00 PM
+     * Snacks: 4:01 PM - 6:59 PM and 10:01 PM - 4:59 AM
+     */
+    private fun getMealTypeByTime(): String {
+        val calendar = Calendar.getInstance()
+        val hour = calendar.get(Calendar.HOUR_OF_DAY)
+        val minute = calendar.get(Calendar.MINUTE)
+        
+        // Convert to minutes since midnight for easier comparison
+        val currentMinutes = hour * 60 + minute
+        
+        // Breakfast: 5:00 AM (300) - 11:59 AM (719)
+        val breakfastStart = 5 * 60      // 300
+        val breakfastEnd = 11 * 60 + 59  // 719
+        
+        // Lunch: 12:00 PM (720) - 4:00 PM (960)
+        val lunchStart = 12 * 60         // 720
+        val lunchEnd = 16 * 60           // 960
+        
+        // Dinner: 7:00 PM (1140) - 10:00 PM (1320)
+        val dinnerStart = 19 * 60        // 1140
+        val dinnerEnd = 22 * 60          // 1320
+        
+        return when {
+            currentMinutes in breakfastStart..breakfastEnd -> "breakfast"
+            currentMinutes in lunchStart..lunchEnd -> "lunch"
+            currentMinutes in dinnerStart..dinnerEnd -> "dinner"
+            else -> "snacks" // 4:01 PM - 6:59 PM, 10:01 PM - 4:59 AM
+        }
+    }
+
+    /**
+     * ✅ FIX #14: Get suggested meal type label with time range
+     */
+    fun getMealTypeTimeRange(mealType: String): String {
+        return when (mealType) {
+            "breakfast" -> "5:00 AM - 12:00 PM"
+            "lunch" -> "12:00 PM - 4:00 PM"
+            "dinner" -> "7:00 PM - 10:00 PM"
+            "snacks" -> "Anytime"
+            else -> ""
+        }
+    }
+
+    /**
+     * ✅ FIX #14: Check if current meal type matches the time-based suggestion
+     */
+    fun isSuggestedMealType(mealType: String): Boolean {
+        return mealType == getMealTypeByTime()
+    }
+
     private fun cleanOldFoodCache() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -210,11 +267,19 @@ class NutritionViewModel @Inject constructor(
         return stream.size() / 1024
     }
 
+    /**
+     * ✅ FIX #14: User can still manually select meal type
+     */
     fun selectMealType(type: String) {
         _selectedMealType.value = type
     }
 
+    /**
+     * ✅ FIX #14: Show add food sheet with time-based meal type
+     */
     fun showAddFood() {
+        // Reset to time-based suggestion when opening the sheet
+        _selectedMealType.value = getMealTypeByTime()
         _showAddFoodSheet.value = true
     }
 
