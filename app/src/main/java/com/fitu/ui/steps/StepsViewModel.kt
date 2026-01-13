@@ -8,6 +8,7 @@ import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.data.local.dao.StepDao
 import com.fitu.data.local.entity.StepEntity
 import com.fitu.data.service.StepCounterService
+import com.fitu.util.UnitConverter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +43,10 @@ class StepsViewModel @Inject constructor(
     val userWeightKg: StateFlow<Int> = userPreferencesRepository.userWeightKg
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 70)
 
+    // ✅ FIX #24: Unit preference
+    val useImperialUnits: StateFlow<Boolean> = userPreferencesRepository.useImperialUnits
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     // Progress (0.0 to 1.0)
     val progress: StateFlow<Float> = combine(stepCount, dailyStepGoal) { steps, goal ->
         if (goal > 0) (steps.toFloat() / goal.toFloat()).coerceIn(0f, 1f) else 0f
@@ -54,6 +59,25 @@ class StepsViewModel @Inject constructor(
         val strideLengthKm = calculateStrideLengthKm(heightCm)
         steps * strideLengthKm
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+
+    /**
+     * ✅ FIX #24: Formatted distance based on unit preference
+     */
+    val formattedDistance: StateFlow<String> = combine(distanceKm, useImperialUnits) { km, useImperial ->
+        if (useImperial) {
+            val miles = UnitConverter.kmToMiles(km)
+            String.format("%.2f", miles)
+        } else {
+            String.format("%.2f", km)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "0.00")
+
+    /**
+     * ✅ FIX #24: Distance unit label
+     */
+    val distanceUnit: StateFlow<String> = useImperialUnits.combine(stepCount) { useImperial, _ ->
+        UnitConverter.getDistanceUnit(useImperial)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "KM")
 
     /**
      * ✅ FIX #6: Personalized calorie calculation based on user's weight
