@@ -1,4 +1,4 @@
-package com.fitu.data.local
+ package com.fitu.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
@@ -21,8 +21,8 @@ import com.fitu.data.local.entity.FoodCacheEntity
         FoodCacheEntity::class,
         StepEntity::class
     ],
-    version = 5,
-    exportSchema = false
+    version = 6,  // ✅ Incremented version for migration support
+    exportSchema = true  // ✅ Changed to true for migration tracking
 )
 abstract class FituDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
