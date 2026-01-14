@@ -1,4 +1,4 @@
- package com.fitu.ui.screens
+package com.fitu.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -10,8 +10,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,10 +42,14 @@ fun StepsScreen(
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val weeklySteps by viewModel.weeklySteps.collectAsState()
     
-    // ✅ FIX #11: Observe loading state
+    // ✅ FIX #88: Observe service running state
+    val isServiceRunning by viewModel.isServiceRunning.collectAsState()
+    val usesHardwareCounter by viewModel.usesHardwareCounter.collectAsState()
+    
+    // Loading state for weekly data
     val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
 
-    // ✅ FIX #24: Unit conversion
+    // Unit conversion
     val formattedDistance by viewModel.formattedDistance.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
 
@@ -141,29 +147,13 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Start Tracking Button ---
-        Button(
-            onClick = { viewModel.startService() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Icon(
-                Icons.Filled.PlayArrow,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Start Tracking",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        // ✅ FIX #88: Show different UI based on service state
+        TrackingStatusSection(
+            isServiceRunning = isServiceRunning,
+            usesHardwareCounter = usesHardwareCounter,
+            onStartTracking = { viewModel.startService() },
+            onStopTracking = { viewModel.stopService() }
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -172,7 +162,7 @@ fun StepsScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ✅ FIX #24: Distance Card with unit conversion
+            // Distance Card with unit conversion
             GlassCard(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -320,13 +310,11 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ✅ FIX #11: Weekly Bar Chart with Loading State
+        // Weekly Bar Chart with Loading State
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             if (isWeeklyDataLoading) {
-                // Show loading shimmer/skeleton
                 WeeklyChartLoading()
             } else {
-                // Show actual chart
                 WeeklyChartContent(
                     weeklySteps = weeklySteps,
                     currentSteps = currentSteps
@@ -337,7 +325,99 @@ fun StepsScreen(
 }
 
 /**
- * ✅ FIX #11: Loading skeleton for weekly chart
+ * ✅ FIX #88: Tracking Status Section
+ * Shows different UI based on whether the service is running
+ */
+@Composable
+private fun TrackingStatusSection(
+    isServiceRunning: Boolean,
+    usesHardwareCounter: Boolean,
+    onStartTracking: () -> Unit,
+    onStopTracking: () -> Unit
+) {
+    if (isServiceRunning) {
+        // Service is running - show status card
+        GlassCard(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Animated pulsing dot to indicate active tracking
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(Color(0xFF4CAF50), CircleShape)
+                    )
+                    Column {
+                        Text(
+                            text = "Tracking Active",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (usesHardwareCounter) "Using hardware sensor" else "Using accelerometer",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                
+                // Stop button (optional - some users may want to pause)
+                IconButton(
+                    onClick = onStopTracking,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            Color.White.copy(alpha = 0.1f),
+                            RoundedCornerShape(10.dp)
+                        )
+                ) {
+                    Icon(
+                        Icons.Default.Stop,
+                        contentDescription = "Stop Tracking",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    } else {
+        // Service not running - show start button
+        Button(
+            onClick = onStartTracking,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Icon(
+                Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Start Tracking",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+/**
+ * Loading skeleton for weekly chart
  */
 @Composable
 private fun WeeklyChartLoading() {
@@ -375,7 +455,6 @@ private fun WeeklyChartLoading() {
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        // Loading indicator
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
@@ -397,13 +476,20 @@ private fun WeeklyChartLoading() {
 }
 
 /**
- * ✅ FIX #11: Actual weekly chart content
+ * Actual weekly chart content
  */
 @Composable
 private fun WeeklyChartContent(
     weeklySteps: List<com.fitu.ui.steps.DaySteps>,
     currentSteps: Int
 ) {
+    // Memoize max calculation
+    val maxSteps = remember(weeklySteps, currentSteps) {
+        weeklySteps.maxOfOrNull { 
+            if (it.isToday) currentSteps else it.steps 
+        }?.coerceAtLeast(1) ?: 1
+    }
+    
     Column {
         Row(
             modifier = Modifier
@@ -412,10 +498,6 @@ private fun WeeklyChartContent(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom
         ) {
-            val maxSteps = weeklySteps.maxOfOrNull { 
-                if (it.isToday) currentSteps else it.steps 
-            }?.coerceAtLeast(1) ?: 1
-            
             weeklySteps.forEach { dayData ->
                 val steps = if (dayData.isToday) currentSteps else dayData.steps
                 val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 80).dp else 4.dp
@@ -479,4 +561,4 @@ private val SneakerIcon: ImageVector
             arcTo(15.92f, 15.92f, 0f, false, false, 231.16f, 166.63f)
             close()
         }
-    }.build() 
+    }.build()
