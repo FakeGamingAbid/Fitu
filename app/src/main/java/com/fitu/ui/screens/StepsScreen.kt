@@ -61,7 +61,6 @@ fun StepsScreen(
     val formattedDistance by viewModel.formattedDistance.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
 
-    // Permission states
     var isBatteryOptimized by remember {
         mutableStateOf(!BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context))
     }
@@ -70,7 +69,6 @@ fun StepsScreen(
     }
     val manufacturerName = AutoStartManager.getManufacturerName()
 
-    // Refresh permission state when returning from settings
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -79,9 +77,7 @@ fun StepsScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val progress = if (dailyGoal > 0) currentSteps.toFloat() / dailyGoal.toFloat() else 0f
@@ -100,30 +96,17 @@ fun StepsScreen(
             .padding(horizontal = 24.dp)
             .padding(top = 32.dp, bottom = 120.dp)
     ) {
-        // --- Header ---
-        Text(
-            text = "Steps",
-            color = Color.White,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "Track your daily activity",
-            color = Color.White.copy(alpha = 0.5f),
-            fontSize = 14.sp
-        )
+        Text(text = "Steps", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text(text = "Track your daily activity", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Permission Warning Card ---
         if (isBatteryOptimized || showAutoStartWarning) {
             PermissionWarningCard(
                 isBatteryOptimized = isBatteryOptimized,
                 needsAutoStart = showAutoStartWarning,
                 manufacturerName = manufacturerName,
-                onBatteryClick = {
-                    BatteryOptimizationHelper.requestIgnoreBatteryOptimization(context)
-                },
+                onBatteryClick = { BatteryOptimizationHelper.requestIgnoreBatteryOptimization(context) },
                 onAutoStartClick = {
                     AutoStartManager.openAutoStartSettings(context)
                     showAutoStartWarning = false
@@ -132,85 +115,34 @@ fun StepsScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // --- Main Step Ring ---
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .padding(32.dp),
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f).padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                drawArc(
-                    color = Color.White.copy(alpha = 0.1f),
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
-                )
+                drawArc(color = Color.White.copy(alpha = 0.1f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round))
             }
             Canvas(modifier = Modifier.fillMaxSize()) {
-                drawArc(
-                    color = OrangePrimary,
-                    startAngle = -90f,
-                    sweepAngle = 360f * animatedProgress,
-                    useCenter = false,
-                    style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
-                )
+                drawArc(color = OrangePrimary, startAngle = -90f, sweepAngle = 360f * animatedProgress, useCenter = false, style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round))
             }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-8).dp)
-                    .size(48.dp)
-                    .background(Color(0xFF1A1A1F), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    SneakerIcon,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.size(28.dp)
-                )
+            Box(modifier = Modifier.align(Alignment.TopCenter).offset(y = (-8).dp).size(48.dp).background(Color(0xFF1A1A1F), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(SneakerIcon, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(28.dp))
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = String.format("%,d", currentSteps),
-                    color = Color.White,
-                    fontSize = 56.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "STEPS TAKEN",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Text(text = String.format("%,d", currentSteps), color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.Bold)
+                Text(text = "STEPS TAKEN", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Tracking Status ---
-        TrackingStatusSection(
-            isServiceRunning = isServiceRunning,
-            usesHardwareCounter = usesHardwareCounter,
-            onStartTracking = { viewModel.startService() },
-            onStopTracking = { viewModel.stopService() }
-        )
+        TrackingStatusSection(isServiceRunning, usesHardwareCounter, { viewModel.startService() }, { viewModel.stopService() })
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- Stats Row ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             GlassCard(modifier = Modifier.weight(1f)) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(FootprintsIcon, null, tint = OrangePrimary, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(formattedDistance, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -218,10 +150,7 @@ fun StepsScreen(
                 }
             }
             GlassCard(modifier = Modifier.weight(1f)) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.LocalFireDepartment, null, tint = OrangePrimary, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("$caloriesBurned", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -232,13 +161,8 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- Today's Goal ---
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("📅", fontSize = 14.sp)
@@ -253,20 +177,8 @@ fun StepsScreen(
                 }
                 Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawArc(
-                            color = Color.White.copy(alpha = 0.1f),
-                            startAngle = -90f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            style = Stroke(width = 4.dp.toPx())
-                        )
-                        drawArc(
-                            color = OrangePrimary,
-                            startAngle = -90f,
-                            sweepAngle = 360f * animatedProgress,
-                            useCenter = false,
-                            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-                        )
+                        drawArc(color = Color.White.copy(alpha = 0.1f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 4.dp.toPx()))
+                        drawArc(color = OrangePrimary, startAngle = -90f, sweepAngle = 360f * animatedProgress, useCenter = false, style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round))
                     }
                     Text("${goalProgress}%", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
@@ -275,12 +187,7 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- Weekly Activity ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("📅", fontSize = 14.sp)
                 Spacer(modifier = Modifier.width(6.dp))
@@ -292,16 +199,11 @@ fun StepsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            if (isWeeklyDataLoading) {
-                WeeklyChartLoading()
-            } else {
-                WeeklyChartContent(weeklySteps = weeklySteps, currentSteps = currentSteps)
-            }
+            if (isWeeklyDataLoading) WeeklyChartLoading() else WeeklyChartContent(weeklySteps, currentSteps)
         }
     }
 }
 
-// --- Permission Warning Card with Device-Specific Text ---
 @Composable
 private fun PermissionWarningCard(
     isBatteryOptimized: Boolean,
@@ -310,7 +212,6 @@ private fun PermissionWarningCard(
     onBatteryClick: () -> Unit,
     onAutoStartClick: () -> Unit
 ) {
-    // Device-specific helper texts for battery
     val batteryHelperText = when (AutoStartManager.getManufacturer()) {
         AutoStartManager.Manufacturer.XIAOMI -> "📋 Find Fitu → Battery saver → Select 'No restrictions'"
         AutoStartManager.Manufacturer.SAMSUNG -> "📋 Find Fitu → Battery → Select 'Unrestricted'"
@@ -321,7 +222,6 @@ private fun PermissionWarningCard(
         else -> "📋 Set Fitu to 'Unrestricted' in battery settings"
     }
 
-    // Device-specific helper texts for auto-start
     val autoStartHelperText = when (AutoStartManager.getManufacturer()) {
         AutoStartManager.Manufacturer.XIAOMI -> "📋 Find 'Fitu' and turn ON the autostart toggle"
         AutoStartManager.Manufacturer.HUAWEI -> "📋 Find 'Fitu' → Manage manually → Turn on all toggles"
@@ -338,74 +238,45 @@ private fun PermissionWarningCard(
         colors = CardDefaults.cardColors(containerColor = WarningOrange.copy(alpha = 0.1f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Warning, null, tint = WarningOrange, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(
-                        "Background permissions needed",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "Step counting may stop when screen is off",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp
-                    )
+                    Text("Background permissions needed", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Step counting may stop when screen is off", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Battery Optimization Section
             if (isBatteryOptimized) {
-                Text(
-                    text = batteryHelperText,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp
-                )
+                Text(text = batteryHelperText, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, lineHeight = 16.sp)
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedButton(
                     onClick = onBatteryClick,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningOrange),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = SolidColor(WarningOrange)
-                    )
+                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = SolidColor(WarningOrange))
                 ) {
                     Icon(Icons.Default.BatteryAlert, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Disable Battery Restrictions")
                 }
-
                 if (needsAutoStart) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
-            // Auto-Start Section
             if (needsAutoStart) {
-                Text(
-                    text = autoStartHelperText,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp
-                )
+                Text(text = autoStartHelperText, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, lineHeight = 16.sp)
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedButton(
                     onClick = onAutoStartClick,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningOrange),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = SolidColor(WarningOrange)
-                    )
+                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = SolidColor(WarningOrange))
                 ) {
                     Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
@@ -416,199 +287,71 @@ private fun PermissionWarningCard(
     }
 }
 
-// --- Tracking Status Section ---
 @Composable
-private fun TrackingStatusSection(
-    isServiceRunning: Boolean,
-    usesHardwareCounter: Boolean,
-    onStartTracking: () -> Unit,
-    onStopTracking: () -> Unit
-) {
+private fun TrackingStatusSection(isServiceRunning: Boolean, usesHardwareCounter: Boolean, onStartTracking: () -> Unit, onStopTracking: () -> Unit) {
     if (isServiceRunning) {
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(SuccessGreen, CircleShape)
-                    )
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(modifier = Modifier.size(12.dp).background(SuccessGreen, CircleShape))
                     Column {
-                        Text(
-                            "Tracking Active",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            if (usesHardwareCounter) "Using hardware sensor" else "Using accelerometer",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 12.sp
-                        )
+                        Text("Tracking Active", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(if (usesHardwareCounter) "Using hardware sensor" else "Using accelerometer", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
                     }
                 }
-                IconButton(
-                    onClick = onStopTracking,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                ) {
-                    Icon(
-                        Icons.Default.Stop,
-                        contentDescription = "Stop Tracking",
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(20.dp)
-                    )
+                IconButton(onClick = onStopTracking, modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
+                    Icon(Icons.Default.Stop, "Stop Tracking", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
                 }
             }
         }
     } else {
-        Button(
-            onClick = onStartTracking,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Icon(
-                Icons.Filled.PlayArrow,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
+        Button(onClick = onStartTracking, modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary), shape = RoundedCornerShape(16.dp)) {
+            Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(28.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                "Start Tracking",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Start Tracking", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
 
-// --- Weekly Chart Loading ---
 @Composable
 private fun WeeklyChartLoading() {
     Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            repeat(7) {
-                Box(
-                    modifier = Modifier
-                        .width(24.dp)
-                        .height((20 + (it * 10)).dp)
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                )
-            }
+        Row(modifier = Modifier.fillMaxWidth().height(100.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+            repeat(7) { Box(modifier = Modifier.width(24.dp).height((20 + (it * 10)).dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))) }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach {
-                Text(it, color = Color.White.copy(alpha = 0.3f), fontSize = 11.sp)
-            }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach { Text(it, color = Color.White.copy(alpha = 0.3f), fontSize = 11.sp) }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                color = OrangePrimary,
-                strokeWidth = 2.dp
-            )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = OrangePrimary, strokeWidth = 2.dp)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                "Loading weekly data...",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp
-            )
+            Text("Loading weekly data...", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
         }
     }
 }
 
-// --- Weekly Chart Content ---
 @Composable
-private fun WeeklyChartContent(
-    weeklySteps: List<com.fitu.ui.steps.DaySteps>,
-    currentSteps: Int
-) {
-    val maxSteps = remember(weeklySteps, currentSteps) {
-        weeklySteps.maxOfOrNull {
-            if (it.isToday) currentSteps else it.steps
-        }?.coerceAtLeast(1) ?: 1
-    }
-
+private fun WeeklyChartContent(weeklySteps: List<com.fitu.ui.steps.DaySteps>, currentSteps: Int) {
+    val maxSteps = remember(weeklySteps, currentSteps) { weeklySteps.maxOfOrNull { if (it.isToday) currentSteps else it.steps }?.coerceAtLeast(1) ?: 1 }
     Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.Bottom
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().height(100.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
             weeklySteps.forEach { dayData ->
                 val steps = if (dayData.isToday) currentSteps else dayData.steps
                 val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 80).dp else 4.dp
-                Box(
-                    modifier = Modifier
-                        .width(24.dp)
-                        .height(barHeight.coerceAtLeast(4.dp))
-                        .background(
-                            if (steps > 0) {
-                                if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
-                            } else {
-                                Color.White.copy(alpha = 0.1f)
-                            },
-                            RoundedCornerShape(4.dp)
-                        )
-                )
+                Box(modifier = Modifier.width(24.dp).height(barHeight.coerceAtLeast(4.dp)).background(if (steps > 0) { if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f) } else Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            weeklySteps.forEach { dayData ->
-                Text(
-                    text = dayData.day,
-                    color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
-                    fontSize = 11.sp,
-                    fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal
-                )
-            }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            weeklySteps.forEach { dayData -> Text(dayData.day, color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal) }
         }
     }
 }
 
-// --- Sneaker Icon ---
 private val SneakerIcon: ImageVector
-    get() = ImageVector.Builder(
-        name = "Sneaker",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 256f,
-        viewportHeight = 256f
-    ).apply {
+    get() = ImageVector.Builder(name = "Sneaker", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 256f, viewportHeight = 256f).apply {
         path(fill = SolidColor(Color.White)) {
             moveTo(231.16f, 166.63f)
             lineTo(202.53f, 152.32f)
