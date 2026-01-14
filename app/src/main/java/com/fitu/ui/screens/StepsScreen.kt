@@ -11,7 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -254,8 +253,20 @@ fun StepsScreen(
                 }
                 Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawArc(color = Color.White.copy(alpha = 0.1f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 4.dp.toPx()))
-                        drawArc(color = OrangePrimary, startAngle = -90f, sweepAngle = 360f * animatedProgress, useCenter = false, style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round))
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.1f),
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = Stroke(width = 4.dp.toPx())
+                        )
+                        drawArc(
+                            color = OrangePrimary,
+                            startAngle = -90f,
+                            sweepAngle = 360f * animatedProgress,
+                            useCenter = false,
+                            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                        )
                     }
                     Text("${goalProgress}%", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
@@ -420,10 +431,22 @@ private fun TrackingStatusSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(modifier = Modifier.size(12.dp).background(SuccessGreen, CircleShape))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(SuccessGreen, CircleShape)
+                    )
                     Column {
-                        Text("Tracking Active", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Tracking Active",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         Text(
                             if (usesHardwareCounter) "Using hardware sensor" else "Using accelerometer",
                             color = Color.White.copy(alpha = 0.5f),
@@ -433,22 +456,41 @@ private fun TrackingStatusSection(
                 }
                 IconButton(
                     onClick = onStopTracking,
-                    modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
                 ) {
-                    Icon(Icons.Default.Stop, "Stop Tracking", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                    Icon(
+                        Icons.Default.Stop,
+                        contentDescription = "Stop Tracking",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
     } else {
         Button(
             onClick = onStartTracking,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(28.dp))
+            Icon(
+                Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Start Tracking", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Start Tracking",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -458,7 +500,9 @@ private fun TrackingStatusSection(
 private fun WeeklyChartLoading() {
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().height(100.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom
         ) {
@@ -472,16 +516,31 @@ private fun WeeklyChartLoading() {
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
             listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach {
                 Text(it, color = Color.White.copy(alpha = 0.3f), fontSize = 11.sp)
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = OrangePrimary, strokeWidth = 2.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = OrangePrimary,
+                strokeWidth = 2.dp
+            )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Loading weekly data...", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+            Text(
+                "Loading weekly data...",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp
+            )
         }
     }
 }
@@ -493,12 +552,16 @@ private fun WeeklyChartContent(
     currentSteps: Int
 ) {
     val maxSteps = remember(weeklySteps, currentSteps) {
-        weeklySteps.maxOfOrNull { if (it.isToday) currentSteps else it.steps }?.coerceAtLeast(1) ?: 1
+        weeklySteps.maxOfOrNull {
+            if (it.isToday) currentSteps else it.steps
+        }?.coerceAtLeast(1) ?: 1
     }
 
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().height(100.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom
         ) {
@@ -512,17 +575,22 @@ private fun WeeklyChartContent(
                         .background(
                             if (steps > 0) {
                                 if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
-                            } else Color.White.copy(alpha = 0.1f),
+                            } else {
+                                Color.White.copy(alpha = 0.1f)
+                            },
                             RoundedCornerShape(4.dp)
                         )
                 )
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
             weeklySteps.forEach { dayData ->
                 Text(
-                    dayData.day,
+                    text = dayData.day,
                     color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
                     fontSize = 11.sp,
                     fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal
