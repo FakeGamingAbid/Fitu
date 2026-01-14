@@ -10,6 +10,8 @@ import android.util.Log
 object AutoStartManager {
 
     private const val TAG = "AutoStartManager"
+    private const val PREFS_NAME = "auto_start_prefs"
+    private const val KEY_AUTO_START_CONFIGURED = "auto_start_configured"
 
     enum class Manufacturer {
         XIAOMI, HUAWEI, OPPO, VIVO, SAMSUNG, ONEPLUS, LETV, ASUS, NOKIA, MEIZU, OTHER
@@ -50,40 +52,45 @@ object AutoStartManager {
         }
     }
 
+    fun isAutoStartConfigured(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_AUTO_START_CONFIGURED, false)
+    }
+
+    fun setAutoStartConfigured(context: Context, configured: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_AUTO_START_CONFIGURED, configured).apply()
+    }
+
+    fun shouldShowAutoStartWarning(context: Context): Boolean {
+        return hasAutoStartFeature() && !isAutoStartConfigured(context)
+    }
+
     fun getAutoStartInstructions(): String {
         return when (getManufacturer()) {
-            Manufacturer.XIAOMI -> "1. Find 'Fitu' in the app list\n2. Enable 'Autostart' toggle\n3. Enable 'Start in background'"
-            Manufacturer.HUAWEI -> "1. Find 'Fitu' and tap on it\n2. Enable 'Manage manually'\n3. Enable all three toggles"
-            Manufacturer.OPPO -> "1. Find 'Fitu' in the app list\n2. Enable 'Allow Auto-startup'\n3. Enable 'Allow Background Activity'"
-            Manufacturer.VIVO -> "1. Find 'Fitu' in the list\n2. Enable 'Background Power Consumption'\n3. Set to 'Unrestricted'"
-            Manufacturer.SAMSUNG -> "1. Find 'Fitu' in the app list\n2. Tap 'Battery'\n3. Select 'Unrestricted'"
-            Manufacturer.ONEPLUS -> "1. Find 'Fitu' in the app list\n2. Enable 'Allow auto-launch'\n3. Set Battery to 'Don't optimize'"
-            else -> "1. Open device Settings\n2. Go to Apps\n3. Find 'Fitu'\n4. Enable auto-start"
+            Manufacturer.XIAOMI -> "1. Find 'Fitu' in the app list\n2. Enable 'Autostart' toggle"
+            Manufacturer.HUAWEI -> "1. Find 'Fitu'\n2. Enable 'Manage manually'\n3. Turn on all toggles"
+            Manufacturer.OPPO -> "1. Find 'Fitu'\n2. Enable 'Allow Auto-startup'"
+            Manufacturer.VIVO -> "1. Find 'Fitu'\n2. Enable autostart permission"
+            Manufacturer.SAMSUNG -> "1. Find 'Fitu'\n2. Tap 'Battery'\n3. Select 'Unrestricted'"
+            Manufacturer.ONEPLUS -> "1. Find 'Fitu'\n2. Enable 'Allow auto-launch'"
+            else -> "1. Open Settings\n2. Find 'Fitu'\n3. Enable auto-start"
         }
     }
 
     private val autoStartIntents = listOf(
-        // Xiaomi
         Intent().setComponent(ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
         Intent().setComponent(ComponentName("com.miui.securitycenter", "com.miui.powercenter.PowerSettings")),
-        // Huawei
         Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")),
         Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity")),
-        // Oppo
         Intent().setComponent(ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")),
         Intent().setComponent(ComponentName("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity")),
-        // Vivo
         Intent().setComponent(ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")),
         Intent().setComponent(ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager")),
-        // Samsung
         Intent().setComponent(ComponentName("com.samsung.android.lool", "com.samsung.android.sm.battery.ui.BatteryActivity")),
-        // OnePlus
         Intent().setComponent(ComponentName("com.oneplus.security", "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity")),
-        // Asus
         Intent().setComponent(ComponentName("com.asus.mobilemanager", "com.asus.mobilemanager.autostart.AutoStartActivity")),
-        // Nokia
         Intent().setComponent(ComponentName("com.evenwell.powersaving.g3", "com.evenwell.powersaving.g3.exception.PowerSaverExceptionActivity")),
-        // Meizu
         Intent().setComponent(ComponentName("com.meizu.safe", "com.meizu.safe.permission.SmartBGActivity"))
     )
 
@@ -93,13 +100,16 @@ object AutoStartManager {
                 try {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(intent)
+                    setAutoStartConfigured(context, true)
                     return true
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to open auto-start settings", e)
                 }
             }
         }
-        return openAppInfoSettings(context)
+        val result = openAppInfoSettings(context)
+        if (result) setAutoStartConfigured(context, true)
+        return result
     }
 
     fun openAppInfoSettings(context: Context): Boolean {
