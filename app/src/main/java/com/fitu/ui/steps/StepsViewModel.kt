@@ -1,5 +1,6 @@
- package com.fitu.ui.steps
+package com.fitu.ui.steps
 
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.ViewModel
@@ -11,6 +12,7 @@ import com.fitu.data.service.StepCounterService
 import com.fitu.util.UnitConverter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -43,9 +45,16 @@ class StepsViewModel @Inject constructor(
     val userWeightKg: StateFlow<Int> = userPreferencesRepository.userWeightKg
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 70)
 
-    // ✅ FIX #24: Unit preference
+    // Unit preference
     val useImperialUnits: StateFlow<Boolean> = userPreferencesRepository.useImperialUnits
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    // ✅ FIX #88: Track if service is running
+    private val _isServiceRunning = MutableStateFlow(false)
+    val isServiceRunning: StateFlow<Boolean> = _isServiceRunning
+
+    // ✅ FIX #88: Expose hardware counter state
+    val usesHardwareCounter: StateFlow<Boolean> = StepCounterService.usesHardwareCounter
 
     // Progress (0.0 to 1.0)
     val progress: StateFlow<Float> = combine(stepCount, dailyStepGoal) { steps, goal ->
@@ -53,7 +62,7 @@ class StepsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
     /**
-     * ✅ FIX #7: Personalized stride length based on user's height
+     * Personalized stride length based on user's height
      */
     val distanceKm: StateFlow<Float> = combine(stepCount, userHeightCm) { steps, heightCm ->
         val strideLengthKm = calculateStrideLengthKm(heightCm)
@@ -61,7 +70,7 @@ class StepsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
     /**
-     * ✅ FIX #24: Formatted distance based on unit preference
+     * Formatted distance based on unit preference
      */
     val formattedDistance: StateFlow<String> = combine(distanceKm, useImperialUnits) { km, useImperial ->
         if (useImperial) {
@@ -73,21 +82,21 @@ class StepsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "0.00")
 
     /**
-     * ✅ FIX #24: Distance unit label
+     * Distance unit label
      */
     val distanceUnit: StateFlow<String> = useImperialUnits.combine(stepCount) { useImperial, _ ->
         UnitConverter.getDistanceUnit(useImperial)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "KM")
 
     /**
-     * ✅ FIX #6: Personalized calorie calculation based on user's weight
+     * Personalized calorie calculation based on user's weight
      */
     val caloriesBurned: StateFlow<Int> = combine(stepCount, userWeightKg) { steps, weightKg ->
         val caloriesPerStep = calculateCaloriesPerStep(weightKg)
         (steps * caloriesPerStep).toInt()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    // ✅ FIX #11: Loading state for weekly steps chart
+    // Loading state for weekly steps chart
     private val _isWeeklyDataLoading = MutableStateFlow(true)
     val isWeeklyDataLoading: StateFlow<Boolean> = _isWeeklyDataLoading
 
@@ -103,6 +112,7 @@ class StepsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
+        checkServiceRunning()
         startService()
         loadWeeklySteps()
         
@@ -110,6 +120,14 @@ class StepsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.dailyStepGoal.collect { goal ->
                 updateServiceStepGoal(goal)
+            }
+        }
+        
+        // ✅ FIX #88: Periodically check if service is running
+        viewModelScope.launch {
+            while (true) {
+                delay(5000) // Check every 5 seconds
+                checkServiceRunning()
             }
         }
     }
@@ -130,6 +148,18 @@ class StepsViewModel @Inject constructor(
         return weightKg * 0.00057f
     }
 
+    /**
+     * ✅ FIX #88: Check if the step counter service is currently running
+     */
+    private fun checkServiceRunning() {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        @Suppress("DEPRECATION")
+        val isRunning = activityManager.getRunningServices(Integer.MAX_VALUE)
+            .any { it.service.className == StepCounterService::class.java.name }
+        
+        _isServiceRunning.value = isRunning
+    }
+
     fun startService() {
         viewModelScope.launch {
             val goal = userPreferencesRepository.dailyStepGoal.first()
@@ -143,6 +173,24 @@ class StepsViewModel @Inject constructor(
             } else {
                 context.startService(intent)
             }
+            
+            // Update running state after a short delay
+            delay(500)
+            checkServiceRunning()
+        }
+    }
+
+    /**
+     * ✅ FIX #88: Stop the step counter service
+     */
+    fun stopService() {
+        viewModelScope.launch {
+            val intent = Intent(context, StepCounterService::class.java)
+            context.stopService(intent)
+            
+            // Update running state after a short delay
+            delay(500)
+            checkServiceRunning()
         }
     }
     
@@ -156,7 +204,6 @@ class StepsViewModel @Inject constructor(
 
     private fun loadWeeklySteps() {
         viewModelScope.launch {
-            // ✅ FIX #11: Set loading to true before fetching
             _isWeeklyDataLoading.value = true
             
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -168,7 +215,6 @@ class StepsViewModel @Inject constructor(
             
             stepDao.getStepsBetweenDates(startDate, endDate).collect { stepEntities ->
                 _weeklyStepsFromDb.value = stepEntities
-                // ✅ FIX #11: Set loading to false after data is loaded
                 _isWeeklyDataLoading.value = false
             }
         }
@@ -216,4 +262,4 @@ data class DaySteps(
     val date: String,
     val steps: Int,
     val isToday: Boolean
-) 
+)
