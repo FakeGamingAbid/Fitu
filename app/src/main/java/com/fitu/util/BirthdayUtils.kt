@@ -1,7 +1,8 @@
-package com.fitu.util
+ package com.fitu.util
 
 import java.time.LocalDate
 import java.time.Period
+import java.time.temporal.ChronoUnit
 
 /**
  * Utility functions for birthday-related features.
@@ -28,7 +29,7 @@ object BirthdayUtils {
 
     /**
      * Check if today is the user's birthday.
-     * Handles leap year birthdays (Feb 29) by celebrating on Feb 28 in non-leap years.
+     * Only returns true if BOTH day AND month match.
      */
     fun isBirthday(birthDay: Int?, birthMonth: Int?): Boolean {
         if (birthDay == null || birthMonth == null) {
@@ -49,6 +50,7 @@ object BirthdayUtils {
             return todayMonth == 2 && todayDay == 29
         }
 
+        // ✅ FIX: Check BOTH month AND day match
         return todayMonth == birthMonth && todayDay == birthDay
     }
 
@@ -61,7 +63,7 @@ object BirthdayUtils {
             return false
         }
 
-        // Direct birthday check first
+        // First check if today is the exact birthday
         if (isBirthday(birthDay, birthMonth)) {
             return true
         }
@@ -69,11 +71,19 @@ object BirthdayUtils {
         // Check if birthday was within the last 'graceDays'
         return try {
             val today = LocalDate.now()
-            val thisYearBirthday = LocalDate.of(today.year, birthMonth, birthDay.coerceAtMost(
-                LocalDate.of(today.year, birthMonth, 1).lengthOfMonth()
-            ))
             
-            val daysSinceBirthday = Period.between(thisYearBirthday, today).days
+            // Get this year's birthday
+            val thisYearBirthday = try {
+                LocalDate.of(today.year, birthMonth, birthDay)
+            } catch (e: Exception) {
+                // Handle invalid dates like Feb 30
+                LocalDate.of(today.year, birthMonth, 1).plusMonths(1).minusDays(1)
+            }
+            
+            // ✅ FIX: Use ChronoUnit.DAYS for accurate day difference
+            val daysSinceBirthday = ChronoUnit.DAYS.between(thisYearBirthday, today)
+            
+            // Only show if birthday was 0 to graceDays ago (not future, not too old)
             daysSinceBirthday in 0..graceDays
         } catch (e: Exception) {
             false
@@ -127,4 +137,4 @@ object BirthdayUtils {
             else -> null
         }
     }
-}
+} 
