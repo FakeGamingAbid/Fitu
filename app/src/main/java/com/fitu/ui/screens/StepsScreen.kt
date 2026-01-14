@@ -10,10 +10,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,34 +27,60 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
 import com.fitu.ui.steps.StepsViewModel
 import com.fitu.ui.theme.OrangePrimary
+import com.fitu.util.AutoStartManager
+import com.fitu.util.BatteryOptimizationHelper
+
+private val WarningOrange = Color(0xFFFF9800)
+private val SuccessGreen = Color(0xFF4CAF50)
 
 @Composable
 fun StepsScreen(
     viewModel: StepsViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    
     val currentSteps by viewModel.stepCount.collectAsState()
     val dailyGoal by viewModel.dailyStepGoal.collectAsState()
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val weeklySteps by viewModel.weeklySteps.collectAsState()
-    
-    // ✅ FIX #88: Observe service running state
     val isServiceRunning by viewModel.isServiceRunning.collectAsState()
     val usesHardwareCounter by viewModel.usesHardwareCounter.collectAsState()
-    
-    // Loading state for weekly data
     val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
-
-    // Unit conversion
     val formattedDistance by viewModel.formattedDistance.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
+
+    // Permission states
+    var isBatteryOptimized by remember {
+        mutableStateOf(!BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context))
+    }
+    val needsAutoStart = AutoStartManager.hasAutoStartFeature()
+    val manufacturerName = AutoStartManager.getManufacturerName()
+    
+    // Refresh permission state when returning from settings
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isBatteryOptimized = !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val progress = if (dailyGoal > 0) currentSteps.toFloat() / dailyGoal.toFloat() else 0f
     val animatedProgress by animateFloatAsState(
@@ -82,7 +111,23 @@ fun StepsScreen(
             fontSize = 14.sp
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- Permission Warning Card ---
+        if (isBatteryOptimized || needsAutoStart) {
+            PermissionWarningCard(
+                isBatteryOptimized = isBatteryOptimized,
+                needsAutoStart = needsAutoStart,
+                manufacturerName = manufacturerName,
+                onBatteryClick = {
+                    BatteryOptimizationHelper.requestIgnoreBatteryOptimization(context)
+                },
+                onAutoStartClick = {
+                    AutoStartManager.openAutoStartSettings(context)
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         // --- Main Step Ring ---
         Box(
@@ -92,7 +137,6 @@ fun StepsScreen(
                 .padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Ring background
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawArc(
                     color = Color.White.copy(alpha = 0.1f),
@@ -102,7 +146,6 @@ fun StepsScreen(
                     style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
                 )
             }
-            // Ring progress
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawArc(
                     color = OrangePrimary,
@@ -112,7 +155,6 @@ fun StepsScreen(
                     style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
                 )
             }
-            // Sneaker icon at top
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -128,7 +170,6 @@ fun StepsScreen(
                     modifier = Modifier.size(28.dp)
                 )
             }
-            // Center content
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = String.format("%,d", currentSteps),
@@ -147,7 +188,7 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ✅ FIX #88: Show different UI based on service state
+        // --- Tracking Status ---
         TrackingStatusSection(
             isServiceRunning = isServiceRunning,
             usesHardwareCounter = usesHardwareCounter,
@@ -157,61 +198,31 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- Stats Row (Distance and KCAL) ---
+        // --- Stats Row ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Distance Card with unit conversion
             GlassCard(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        FootprintsIcon,
-                        contentDescription = null,
-                        tint = OrangePrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Icon(FootprintsIcon, null, tint = OrangePrimary, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = formattedDistance,
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = distanceUnit,
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp
-                    )
+                    Text(formattedDistance, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text(distanceUnit, color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
                 }
             }
-            // KCAL Card
             GlassCard(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        Icons.Default.LocalFireDepartment,
-                        contentDescription = null,
-                        tint = OrangePrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Icon(Icons.Default.LocalFireDepartment, null, tint = OrangePrimary, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "$caloriesBurned",
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "KCAL",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp
-                    )
+                    Text("$caloriesBurned", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("KCAL", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
                 }
             }
         }
@@ -229,55 +240,20 @@ fun StepsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("📅", fontSize = 14.sp)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "TODAY'S GOAL",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Text("TODAY'S GOAL", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = String.format("%,d", currentSteps),
-                            color = Color.White,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = " / ${String.format("%,d", dailyGoal)}",
-                            color = Color.White.copy(alpha = 0.4f),
-                            fontSize = 16.sp
-                        )
+                        Text(String.format("%,d", currentSteps), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        Text(" / ${String.format("%,d", dailyGoal)}", color = Color.White.copy(alpha = 0.4f), fontSize = 16.sp)
                     }
                 }
-                // Goal Progress Ring
-                Box(
-                    modifier = Modifier.size(56.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawArc(
-                            color = Color.White.copy(alpha = 0.1f),
-                            startAngle = -90f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            style = Stroke(width = 4.dp.toPx())
-                        )
-                        drawArc(
-                            color = OrangePrimary,
-                            startAngle = -90f,
-                            sweepAngle = 360f * animatedProgress,
-                            useCenter = false,
-                            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-                        )
+                        drawArc(color = Color.White.copy(alpha = 0.1f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 4.dp.toPx()))
+                        drawArc(color = OrangePrimary, startAngle = -90f, sweepAngle = 360f * animatedProgress, useCenter = false, style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round))
                     }
-                    Text(
-                        text = "${goalProgress}%",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("${goalProgress}%", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -293,41 +269,86 @@ fun StepsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("📅", fontSize = 14.sp)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Weekly Activity",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("Weekly Activity", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
-            Text(
-                text = "STEPS",
-                color = OrangePrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("STEPS", color = OrangePrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Weekly Bar Chart with Loading State
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             if (isWeeklyDataLoading) {
                 WeeklyChartLoading()
             } else {
-                WeeklyChartContent(
-                    weeklySteps = weeklySteps,
-                    currentSteps = currentSteps
-                )
+                WeeklyChartContent(weeklySteps = weeklySteps, currentSteps = currentSteps)
             }
         }
     }
 }
 
-/**
- * ✅ FIX #88: Tracking Status Section
- * Shows different UI based on whether the service is running
- */
+// --- Permission Warning Card ---
+@Composable
+private fun PermissionWarningCard(
+    isBatteryOptimized: Boolean,
+    needsAutoStart: Boolean,
+    manufacturerName: String,
+    onBatteryClick: () -> Unit,
+    onAutoStartClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = WarningOrange.copy(alpha = 0.1f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Warning, null, tint = WarningOrange, modifier = Modifier.size(24.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("Background permissions needed", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Step counting may stop when screen is off", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Battery Optimization Button
+            if (isBatteryOptimized) {
+                OutlinedButton(
+                    onClick = onBatteryClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningOrange),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(WarningOrange)
+                    )
+                ) {
+                    Icon(Icons.Default.BatteryAlert, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Disable Battery Restrictions")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Auto-Start Button (OEM devices)
+            if (needsAutoStart) {
+                OutlinedButton(
+                    onClick = onAutoStartClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningOrange),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(WarningOrange)
+                    )
+                ) {
+                    Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Enable Auto-Start ($manufacturerName)")
+                }
+            }
+        }
+    }
+}
+
+// --- Tracking Status Section ---
 @Composable
 private fun TrackingStatusSection(
     isServiceRunning: Boolean,
@@ -336,96 +357,51 @@ private fun TrackingStatusSection(
     onStopTracking: () -> Unit
 ) {
     if (isServiceRunning) {
-        // Service is running - show status card
-        GlassCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Animated pulsing dot to indicate active tracking
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(Color(0xFF4CAF50), CircleShape)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(modifier = Modifier.size(12.dp).background(SuccessGreen, CircleShape))
                     Column {
+                        Text("Tracking Active", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         Text(
-                            text = "Tracking Active",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (usesHardwareCounter) "Using hardware sensor" else "Using accelerometer",
+                            if (usesHardwareCounter) "Using hardware sensor" else "Using accelerometer",
                             color = Color.White.copy(alpha = 0.5f),
                             fontSize = 12.sp
                         )
                     }
                 }
-                
-                // Stop button (optional - some users may want to pause)
                 IconButton(
                     onClick = onStopTracking,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(
-                            Color.White.copy(alpha = 0.1f),
-                            RoundedCornerShape(10.dp)
-                        )
+                    modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
                 ) {
-                    Icon(
-                        Icons.Default.Stop,
-                        contentDescription = "Stop Tracking",
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Default.Stop, "Stop Tracking", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
                 }
             }
         }
     } else {
-        // Service not running - show start button
         Button(
             onClick = onStartTracking,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Icon(
-                Icons.Filled.PlayArrow,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
+            Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(28.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Start Tracking",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Start Tracking", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
 
-/**
- * Loading skeleton for weekly chart
- */
+// --- Weekly Chart Loading ---
 @Composable
 private fun WeeklyChartLoading() {
     Column {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp),
+            modifier = Modifier.fillMaxWidth().height(100.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom
         ) {
@@ -434,67 +410,38 @@ private fun WeeklyChartLoading() {
                     modifier = Modifier
                         .width(24.dp)
                         .height((20 + (it * 10)).dp)
-                        .background(
-                            Color.White.copy(alpha = 0.1f),
-                            RoundedCornerShape(4.dp)
-                        )
+                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
                 )
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach { day ->
-                Text(
-                    text = day,
-                    color = Color.White.copy(alpha = 0.3f),
-                    fontSize = 11.sp
-                )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach {
+                Text(it, color = Color.White.copy(alpha = 0.3f), fontSize = 11.sp)
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                color = OrangePrimary,
-                strokeWidth = 2.dp
-            )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = OrangePrimary, strokeWidth = 2.dp)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Loading weekly data...",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp
-            )
+            Text("Loading weekly data...", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
         }
     }
 }
 
-/**
- * Actual weekly chart content
- */
+// --- Weekly Chart Content ---
 @Composable
 private fun WeeklyChartContent(
     weeklySteps: List<com.fitu.ui.steps.DaySteps>,
     currentSteps: Int
 ) {
-    // Memoize max calculation
     val maxSteps = remember(weeklySteps, currentSteps) {
-        weeklySteps.maxOfOrNull { 
-            if (it.isToday) currentSteps else it.steps 
-        }?.coerceAtLeast(1) ?: 1
+        weeklySteps.maxOfOrNull { if (it.isToday) currentSteps else it.steps }?.coerceAtLeast(1) ?: 1
     }
-    
+
     Column {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp),
+            modifier = Modifier.fillMaxWidth().height(100.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom
         ) {
@@ -508,22 +455,17 @@ private fun WeeklyChartContent(
                         .background(
                             if (steps > 0) {
                                 if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
-                            } else {
-                                Color.White.copy(alpha = 0.1f)
-                            },
+                            } else Color.White.copy(alpha = 0.1f),
                             RoundedCornerShape(4.dp)
                         )
                 )
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             weeklySteps.forEach { dayData ->
                 Text(
-                    text = dayData.day,
+                    dayData.day,
                     color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
                     fontSize = 11.sp,
                     fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal
