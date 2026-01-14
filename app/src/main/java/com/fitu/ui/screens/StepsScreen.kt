@@ -51,7 +51,7 @@ fun StepsScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    
+
     val currentSteps by viewModel.stepCount.collectAsState()
     val dailyGoal by viewModel.dailyStepGoal.collectAsState()
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
@@ -66,14 +66,17 @@ fun StepsScreen(
     var isBatteryOptimized by remember {
         mutableStateOf(!BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context))
     }
-    val needsAutoStart = AutoStartManager.hasAutoStartFeature()
+    var showAutoStartWarning by remember {
+        mutableStateOf(AutoStartManager.shouldShowAutoStartWarning(context))
+    }
     val manufacturerName = AutoStartManager.getManufacturerName()
-    
+
     // Refresh permission state when returning from settings
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isBatteryOptimized = !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                showAutoStartWarning = AutoStartManager.shouldShowAutoStartWarning(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -114,16 +117,17 @@ fun StepsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Permission Warning Card ---
-        if (isBatteryOptimized || needsAutoStart) {
+        if (isBatteryOptimized || showAutoStartWarning) {
             PermissionWarningCard(
                 isBatteryOptimized = isBatteryOptimized,
-                needsAutoStart = needsAutoStart,
+                needsAutoStart = showAutoStartWarning,
                 manufacturerName = manufacturerName,
                 onBatteryClick = {
                     BatteryOptimizationHelper.requestIgnoreBatteryOptimization(context)
                 },
                 onAutoStartClick = {
                     AutoStartManager.openAutoStartSettings(context)
+                    showAutoStartWarning = false
                 }
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -286,7 +290,7 @@ fun StepsScreen(
     }
 }
 
-// --- Permission Warning Card ---
+// --- Permission Warning Card with Device-Specific Text ---
 @Composable
 private fun PermissionWarningCard(
     isBatteryOptimized: Boolean,
@@ -295,48 +299,101 @@ private fun PermissionWarningCard(
     onBatteryClick: () -> Unit,
     onAutoStartClick: () -> Unit
 ) {
+    // Device-specific helper texts for battery
+    val batteryHelperText = when (AutoStartManager.getManufacturer()) {
+        AutoStartManager.Manufacturer.XIAOMI -> "📋 Find Fitu → Battery saver → Select 'No restrictions'"
+        AutoStartManager.Manufacturer.SAMSUNG -> "📋 Find Fitu → Battery → Select 'Unrestricted'"
+        AutoStartManager.Manufacturer.HUAWEI -> "📋 Find Fitu → Disable 'Power-intensive prompt'"
+        AutoStartManager.Manufacturer.OPPO -> "📋 Find Fitu → Enable 'Allow background activity'"
+        AutoStartManager.Manufacturer.VIVO -> "📋 Find Fitu → Enable 'High background power consumption'"
+        AutoStartManager.Manufacturer.ONEPLUS -> "📋 Find Fitu → Battery → Select 'Don't optimize'"
+        else -> "📋 Set Fitu to 'Unrestricted' in battery settings"
+    }
+
+    // Device-specific helper texts for auto-start
+    val autoStartHelperText = when (AutoStartManager.getManufacturer()) {
+        AutoStartManager.Manufacturer.XIAOMI -> "📋 Find 'Fitu' and turn ON the autostart toggle"
+        AutoStartManager.Manufacturer.HUAWEI -> "📋 Find 'Fitu' → Manage manually → Turn on all toggles"
+        AutoStartManager.Manufacturer.OPPO -> "📋 Find 'Fitu' → Enable 'Allow Auto-startup'"
+        AutoStartManager.Manufacturer.VIVO -> "📋 Find 'Fitu' → Enable autostart permission"
+        AutoStartManager.Manufacturer.SAMSUNG -> "📋 Find 'Fitu' → Allow background activity"
+        AutoStartManager.Manufacturer.ONEPLUS -> "📋 Find 'Fitu' → Enable 'Allow auto-launch'"
+        else -> "📋 Find 'Fitu' in the list and enable autostart"
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = WarningOrange.copy(alpha = 0.1f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Warning, null, tint = WarningOrange, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text("Background permissions needed", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("Step counting may stop when screen is off", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                    Text(
+                        "Background permissions needed",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Step counting may stop when screen is off",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 12.sp
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Battery Optimization Button
+            // Battery Optimization Section
             if (isBatteryOptimized) {
+                Text(
+                    text = batteryHelperText,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
                 OutlinedButton(
                     onClick = onBatteryClick,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningOrange),
                     border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(WarningOrange)
+                        brush = SolidColor(WarningOrange)
                     )
                 ) {
                     Icon(Icons.Default.BatteryAlert, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Disable Battery Restrictions")
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+
+                if (needsAutoStart) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
 
-            // Auto-Start Button (OEM devices)
+            // Auto-Start Section
             if (needsAutoStart) {
+                Text(
+                    text = autoStartHelperText,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
                 OutlinedButton(
                     onClick = onAutoStartClick,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningOrange),
                     border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(WarningOrange)
+                        brush = SolidColor(WarningOrange)
                     )
                 ) {
                     Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp))
@@ -475,7 +532,7 @@ private fun WeeklyChartContent(
     }
 }
 
-// Sneaker Icon
+// --- Sneaker Icon ---
 private val SneakerIcon: ImageVector
     get() = ImageVector.Builder(
         name = "Sneaker",
