@@ -1,4 +1,4 @@
- package com.fitu.di
+package com.fitu.di
 
 import android.app.Application
 import android.content.Context
@@ -47,14 +47,6 @@ object AppModule {
         return SecureStorage(context)
     }
 
-    /**
-     * ✅ FIX #1: Proper database migrations instead of destructive migration
-     * 
-     * Migration history:
-     * - Version 1-4: Initial versions (legacy)
-     * - Version 5: Current stable version
-     * - Version 6+: Future versions with proper migrations
-     */
     @Provides
     @Singleton
     fun provideDatabase(application: Application): FituDatabase {
@@ -63,12 +55,10 @@ object AppModule {
             FituDatabase::class.java,
             "fitu_db"
         )
-        // ✅ Add migrations here when you update the database schema
         .addMigrations(
-            MIGRATION_5_6
+            MIGRATION_5_6,
+            MIGRATION_6_7  // ✅ Add new migration
         )
-        // ✅ Only use destructive migration as LAST RESORT for old versions
-        // This handles upgrades from very old versions (1-4) that we can't migrate
         .fallbackToDestructiveMigrationFrom(1, 2, 3, 4)
         .build()
     }
@@ -104,44 +94,16 @@ object AppModule {
     }
 }
 
-/**
- * ✅ Migration from version 5 to 6 (template for future migrations)
- * 
- * When you need to add a new migration:
- * 1. Increment the version number in FituDatabase.kt
- * 2. Create a new MIGRATION_X_Y object below
- * 3. Add the migration to .addMigrations() in provideDatabase()
- * 
- * Example migrations:
- * - Add new column: database.execSQL("ALTER TABLE table_name ADD COLUMN column_name TYPE DEFAULT value")
- * - Add new table: database.execSQL("CREATE TABLE IF NOT EXISTS ...")
- * - Add index: database.execSQL("CREATE INDEX IF NOT EXISTS ...")
- */
+// Existing migration
 val MIGRATION_5_6 = object : Migration(5, 6) {
     override fun migrate(database: SupportSQLiteDatabase) {
-        // ✅ This is a placeholder migration (no schema changes from 5 to 6)
-        // When you need to make schema changes, add the SQL here
-        // Example: database.execSQL("ALTER TABLE daily_steps ADD COLUMN distance_km REAL DEFAULT 0.0")
+        // Placeholder migration
     }
 }
 
-// ✅ Template for future migrations - copy and modify as needed
-/*
+// ✅ NEW: Migration to add photoUri column to meals table
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(database: SupportSQLiteDatabase) {
-        // Add your migration SQL here
-        // Example: Add a new column
-        // database.execSQL("ALTER TABLE meals ADD COLUMN fiber INTEGER DEFAULT 0")
-        
-        // Example: Create a new table
-        // database.execSQL("""
-        //     CREATE TABLE IF NOT EXISTS water_intake (
-        //         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-        //         date TEXT NOT NULL,
-        //         amount_ml INTEGER NOT NULL,
-        //         timestamp INTEGER NOT NULL
-        //     )
-        // """)
+        database.execSQL("ALTER TABLE meals ADD COLUMN photoUri TEXT DEFAULT NULL")
     }
 }
-*/ 
