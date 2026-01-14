@@ -44,21 +44,15 @@ class StepCounterService : Service(), SensorEventListener {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    // ✅ Use hardware step counter instead of accelerometer
     private var stepCounterSensor: Sensor? = null
     private var stepDetectorSensor: Sensor? = null
+    private var accelerometerSensor: Sensor? = null
     
-    // Track initial step count from sensor (sensor counts from device boot)
     private var initialStepCount: Int = -1
     private var stepsAtStartOfDay: Int = 0
     
-    // Current date tracking
     private var currentDate: String = ""
-    
-    // Daily step goal
     private var dailyStepGoal: Int = 10000
-    
-    // Track which milestones have been notified today
     private val notifiedMilestones = mutableSetOf<Int>()
 
     companion object {
@@ -67,10 +61,12 @@ class StepCounterService : Service(), SensorEventListener {
         private val _stepCount = MutableStateFlow(0)
         val stepCount: StateFlow<Int> = _stepCount
         
+        private val _motionMagnitude = MutableStateFlow(0f)
+        val motionMagnitude: StateFlow<Float> = _motionMagnitude
+        
         private val _isInitialized = MutableStateFlow(false)
         val isInitialized: StateFlow<Boolean> = _isInitialized
         
-        // ✅ Track if hardware step counter is available
         private val _usesHardwareCounter = MutableStateFlow(false)
         val usesHardwareCounter: StateFlow<Boolean> = _usesHardwareCounter
         
@@ -120,43 +116,35 @@ class StepCounterService : Service(), SensorEventListener {
         return START_STICKY
     }
 
-    // ✅ NEW: Handle day change properly
     private fun handleDayChange(newDate: String) {
         currentDate = newDate
-        
-        // Save yesterday's final count
         saveSteps(_stepCount.value)
         
-        // Reset for new day
         _stepCount.value = 0
         stepsAtStartOfDay = 0
-        initialStepCount = -1  // Will be reset on next sensor event
+        initialStepCount = -1
         
         notifiedMilestones.clear()
         clearNotifiedMilestones()
-        
         loadTodayStepsAsync()
     }
 
-    // ✅ FIXED: Register hardware step counter
     private fun registerSensors() {
-        // Try hardware step counter first (most accurate, lowest battery)
         stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
         
         if (stepCounterSensor != null) {
-            Log.d(TAG, "✅ Using hardware TYPE_STEP_COUNTER")
+            Log.d(TAG, "Using hardware TYPE_STEP_COUNTER")
             _usesHardwareCounter.value = true
             sensorManager.registerListener(
                 this, 
                 stepCounterSensor, 
-                SensorManager.SENSOR_DELAY_UI  // Low frequency is fine for step counter
+                SensorManager.SENSOR_DELAY_UI
             )
         } else {
-            // Fallback to step detector (per-step events)
             stepDetectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
             
             if (stepDetectorSensor != null) {
-                Log.d(TAG, "⚠️ Using TYPE_STEP_DETECTOR (fallback)")
+                Log.d(TAG, "Using TYPE_STEP_DETECTOR (fallback)")
                 _usesHardwareCounter.value = true
                 sensorManager.registerListener(
                     this,
@@ -164,27 +152,23 @@ class StepCounterService : Service(), SensorEventListener {
                     SensorManager.SENSOR_DELAY_UI
                 )
             } else {
-                // Last resort: accelerometer (your current implementation)
-                Log.w(TAG, "❌ No hardware step sensor! Falling back to accelerometer")
+                Log.w(TAG, "No hardware step sensor! Falling back to accelerometer")
                 _usesHardwareCounter.value = false
                 registerAccelerometerFallback()
             }
         }
     }
 
-    // ✅ Keep accelerometer as last resort fallback
     private fun registerAccelerometerFallback() {
-        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        accelerometer?.let {
+        accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        accelerometerSensor?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
         }
     }
 
-    // ✅ FIXED: Handle sensor events properly
     override fun onSensorChanged(event: SensorEvent?) {
         event ?: return
         
-        // Check for day change
         val today = getTodayDate()
         if (today != currentDate) {
             handleDayChange(today)
@@ -192,23 +176,20 @@ class StepCounterService : Service(), SensorEventListener {
 
         when (event.sensor.type) {
             Sensor.TYPE_STEP_COUNTER -> handleStepCounter(event)
-            Sensor.TYPE_STEP_DETECTOR -> handleStepDetector(event)
+            Sensor.TYPE_STEP_DETECTOR -> handleStepDetector()
             Sensor.TYPE_ACCELEROMETER -> handleAccelerometer(event)
         }
     }
 
-    // ✅ NEW: Handle hardware step counter
     private fun handleStepCounter(event: SensorEvent) {
         val totalStepsSinceBoot = event.values[0].toInt()
         
         if (initialStepCount < 0) {
-            // First reading - calculate offset
             initialStepCount = totalStepsSinceBoot
             stepsAtStartOfDay = _stepCount.value
             Log.d(TAG, "Initial step count: $initialStepCount, steps at start: $stepsAtStartOfDay")
         }
         
-        // Calculate today's steps
         val stepsSinceServiceStart = totalStepsSinceBoot - initialStepCount
         val todaySteps = stepsAtStartOfDay + stepsSinceServiceStart
         
@@ -219,14 +200,13 @@ class StepCounterService : Service(), SensorEventListener {
         }
     }
 
-    // ✅ NEW: Handle step detector (one event per step)
-    private fun handleStepDetector(event: SensorEvent) {
+    private fun handleStepDetector() {
         _stepCount.value += 1
         checkMilestones(_stepCount.value)
         saveStepsPeriodically(_stepCount.value)
     }
 
-    // ✅ Keep accelerometer fallback logic
+    // Accelerometer fallback variables
     private val gravity = FloatArray(3)
     private var smoothedMag = 0.0
     private var isBelowReset = true
@@ -253,6 +233,7 @@ class StepCounterService : Service(), SensorEventListener {
 
         val rawMag = Math.sqrt((lx * lx + ly * ly + lz * lz).toDouble()).toFloat()
         smoothedMag = (SMOOTH_FACTOR * smoothedMag) + ((1 - SMOOTH_FACTOR) * rawMag)
+        _motionMagnitude.value = smoothedMag.toFloat()
 
         val now = System.currentTimeMillis()
         if (smoothedMag > STEP_THRESHOLD && isBelowReset) {
@@ -268,9 +249,8 @@ class StepCounterService : Service(), SensorEventListener {
         }
     }
 
-    // ✅ Save periodically instead of every step
     private var lastSaveTime = 0L
-    private val SAVE_INTERVAL = 10000L  // Save every 10 seconds
+    private val SAVE_INTERVAL = 10000L
 
     private fun saveStepsPeriodically(steps: Int) {
         val now = System.currentTimeMillis()
@@ -291,8 +271,6 @@ class StepCounterService : Service(), SensorEventListener {
             updateNotification(steps)
         }
     }
-
-    // ... rest of your existing code (notifications, milestones, etc.) stays the same ...
 
     private fun loadStepGoal() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
