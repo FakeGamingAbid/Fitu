@@ -22,5 +22,7 @@ data class MealEntity(
     val fats: Int,
     val timestamp: Long,
     val mealType: String = "snacks", // "breakfast", "lunch", "dinner", "snacks"
-    val portion: Float = 1f
+    val portion: Float = 1f,
+    // ✅ NEW: Store photo URI or file path (null if added via text search)
+    val photoUri: String? = null
 )
