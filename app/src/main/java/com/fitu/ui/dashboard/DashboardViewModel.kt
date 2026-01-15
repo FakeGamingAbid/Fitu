@@ -85,8 +85,11 @@ class DashboardViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf(0, 0, 0, 0, 0, 0, 0))
 
     // Workout summary
-    private val _workoutsCompleted = MutableStateFlow(0)
-    val workoutsCompleted: StateFlow<Int> = _workoutsCompleted
+    // Workout summary
+    val workoutsCompleted: StateFlow<Int> = repository.getWorkoutsForDay(
+        getTodayRange().first, getTodayRange().second
+    ).map { it.size }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     // Birthday feature
     private val _showBirthdayDialog = MutableStateFlow(false)
