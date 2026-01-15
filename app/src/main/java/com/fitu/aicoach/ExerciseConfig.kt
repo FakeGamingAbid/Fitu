@@ -36,7 +36,7 @@ data class ExerciseConfig(
             return when (type) {
                 ExerciseType.PUSH_UP -> {
                     // Elbow angle: Shoulder → Elbow → Wrist
-                    // Down: < 90° (arm bent), Up: > 160° (arm extended)
+                        // Down: < 100° (arm bent), Up: > 150° (arm extended)
                     ExerciseConfig(
                         exerciseType = type,
                         landmarks = if (useLeftSide) {
@@ -53,14 +53,14 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Elbow",
-                        downThreshold = 90f,
-                        upThreshold = 160f,
+                        downThreshold = 100f, // Was 90f - Relaxed
+                        upThreshold = 150f,   // Was 160f - Relaxed
                         useLeftSide = useLeftSide
                     )
                 }
                 ExerciseType.SQUAT -> {
                     // Knee angle: Hip → Knee → Ankle
-                    // Down: < 90° (deep squat), Up: > 160° (standing)
+                    // Down: < 100° (deep squat), Up: > 150° (standing)
                     ExerciseConfig(
                         exerciseType = type,
                         landmarks = if (useLeftSide) {
@@ -77,8 +77,8 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Knee",
-                        downThreshold = 90f,
-                        upThreshold = 160f,
+                        downThreshold = 100f, // Was 90f - Relaxed
+                        upThreshold = 150f,   // Was 160f - Relaxed
                         useLeftSide = useLeftSide
                     )
                 }
@@ -108,7 +108,7 @@ data class ExerciseConfig(
                 }
                 ExerciseType.DUMBBELL_CURL -> {
                     // Elbow angle: Shoulder → Elbow → Wrist
-                    // Down: > 160° (arm extended), Up: < 60° (fully curled)
+                    // Down: > 150° (arm extended), Up: < 80° (fully curled)
                     // Note: Thresholds are INVERTED compared to push-up
                     ExerciseConfig(
                         exerciseType = type,
@@ -126,14 +126,14 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Elbow",
-                        downThreshold = 160f, // Arm extended (start position)
-                        upThreshold = 60f,    // Arm curled (end position)
+                        downThreshold = 150f, // Was 160f - Relaxed
+                        upThreshold = 80f,    // Was 60f - Relaxed
                         useLeftSide = useLeftSide
                     )
                 }
                 ExerciseType.CRUNCH -> {
                     // Hip/Torso angle: Shoulder → Hip → Knee
-                    // Down: > 160° (lying flat), Up: < 110° (crunched up)
+                    // Down: > 150° (lying flat), Up: < 135° (crunched up)
                     ExerciseConfig(
                         exerciseType = type,
                         landmarks = if (useLeftSide) {
@@ -150,8 +150,8 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Torso",
-                        downThreshold = 160f, // Lying flat
-                        upThreshold = 110f,   // Crunched up
+                        downThreshold = 150f, // Was 160f - Relaxed
+                        upThreshold = 135f,   // Was 110f - Significantly relaxed
                         useLeftSide = useLeftSide
                     )
                 }
