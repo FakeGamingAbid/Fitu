@@ -67,6 +67,9 @@ fun CoachScreen(
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val workoutSaved by viewModel.workoutSaved.collectAsState()
 
+    // Pose analyzer reference (to update exercise and reset)
+    var poseAnalyzer by remember { mutableStateOf<PoseAnalyzer?>(null) }
+
     // Auto-save workout and cleanup when leaving the screen
     DisposableEffect(Unit) {
         onDispose {
@@ -90,9 +93,6 @@ fun CoachScreen(
     ) { granted ->
         viewModel.setCameraPermission(granted)
     }
-
-    // Pose analyzer reference (to update exercise and reset)
-    var poseAnalyzer by remember { mutableStateOf<PoseAnalyzer?>(null) }
 
     // Update analyzer when exercise changes
     LaunchedEffect(selectedExercise) {
