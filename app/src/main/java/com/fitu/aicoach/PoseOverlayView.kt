@@ -283,67 +283,75 @@ class PoseOverlayView @JvmOverloads constructor(
     /**
      * Translate a point from image coordinates to view coordinates.
      * 
-     * Coordinate Mapping:
-     * 1. ML Kit returns coordinates in image space (imageWidth x imageHeight)
-     * 2. We need to map these to view space (viewWidth x viewHeight)
-     * 3. Handle rotation (0°, 90°, 180°, 270°) from camera
-     * 4. Handle front camera mirroring (horizontal flip)
+     * Key insight: ML Kit pose detection returns coordinates based on the 
+     * ROTATED image dimensions. When rotation is 90° or 270°, the image
+     * width and height are swapped in the coordinate system.
      * 
-     * Rotation Handling:
-     * - 0°: No rotation needed
-     * - 90°: Rotate 90° clockwise (swap x/y, adjust origin)
-     * - 180°: Flip both axes
-     * - 270°: Rotate 90° counter-clockwise
+     * For front camera with FILL_CENTER PreviewView:
+     * 1. The preview is mirrored horizontally by PreviewView
+     * 2. We need to match that mirroring in our overlay
+     * 3. Scale to fill the view while maintaining aspect ratio
      */
     private fun translatePoint(x: Float, y: Float): PointF {
-        var translatedX = x
-        var translatedY = y
-        var sourceWidth = imageWidth.toFloat()
-        var sourceHeight = imageHeight.toFloat()
-
-        // Handle rotation
+        // After rotation, determine the effective dimensions
+        // ML Kit returns coordinates in the rotated frame
+        val isRotated = rotationDegrees == 90 || rotationDegrees == 270
+        val effectiveWidth = if (isRotated) imageHeight.toFloat() else imageWidth.toFloat()
+        val effectiveHeight = if (isRotated) imageWidth.toFloat() else imageHeight.toFloat()
+        
+        // Map coordinates based on rotation
+        var mappedX: Float
+        var mappedY: Float
+        
         when (rotationDegrees) {
+            0 -> {
+                mappedX = x
+                mappedY = y
+            }
             90 -> {
-                // Rotate 90° clockwise
-                val temp = translatedX
-                translatedX = imageHeight - translatedY
-                translatedY = temp
-                sourceWidth = imageHeight.toFloat()
-                sourceHeight = imageWidth.toFloat()
+                // 90° clockwise rotation
+                mappedX = y
+                mappedY = imageWidth - x
             }
             180 -> {
-                // Flip both axes
-                translatedX = imageWidth - translatedX
-                translatedY = imageHeight - translatedY
+                mappedX = imageWidth - x
+                mappedY = imageHeight - y
             }
             270 -> {
-                // Rotate 90° counter-clockwise
-                val temp = translatedX
-                translatedX = translatedY
-                translatedY = imageWidth - temp
-                sourceWidth = imageHeight.toFloat()
-                sourceHeight = imageWidth.toFloat()
+                // 270° clockwise (or 90° counter-clockwise)
+                mappedX = imageHeight - y
+                mappedY = x
+            }
+            else -> {
+                mappedX = x
+                mappedY = y
             }
         }
-
-        // Handle front camera mirroring (horizontal flip)
+        
+        // For front camera: mirror horizontally to match PreviewView
+        // PreviewView shows a mirrored image, so we need to flip X
         if (isFrontCamera) {
-            translatedX = sourceWidth - translatedX
+            mappedX = effectiveWidth - mappedX
         }
-
-        // Scale to view dimensions
-        val scaleX = width.toFloat() / sourceWidth
-        val scaleY = height.toFloat() / sourceHeight
-        val scale = maxOf(scaleX, scaleY)
-
-        // Center the scaled image
-        val offsetX = (width - sourceWidth * scale) / 2f
-        val offsetY = (height - sourceHeight * scale) / 2f
-
-        translatedX = translatedX * scale + offsetX
-        translatedY = translatedY * scale + offsetY
-
-        return PointF(translatedX, translatedY)
+        
+        // Calculate scale to fill the view (FILL_CENTER behavior)
+        val scaleX = width.toFloat() / effectiveWidth
+        val scaleY = height.toFloat() / effectiveHeight
+        val scale = maxOf(scaleX, scaleY)  // Use max for FILL (crop if needed)
+        
+        // Calculate the scaled dimensions
+        val scaledWidth = effectiveWidth * scale
+        val scaledHeight = effectiveHeight * scale
+        
+        // Calculate offset to center the scaled image
+        val offsetX = (width - scaledWidth) / 2f
+        val offsetY = (height - scaledHeight) / 2f
+        
+        // Apply scale and offset
+        val finalX = mappedX * scale + offsetX
+        val finalY = mappedY * scale + offsetY
+        
+        return PointF(finalX, finalY)
     }
 
     /**
