@@ -168,15 +168,20 @@ class AiCoachViewModel @Inject constructor(
         // Only save if there's actual activity
         if (reps > 0 || holdTime > 0) {
             viewModelScope.launch {
-                val workout = WorkoutEntity(
-                    type = exercise.displayName,
-                    reps = reps,
-                    durationMs = holdTime,
-                    timestamp = System.currentTimeMillis(),
-                    caloriesBurned = calories
-                )
-                workoutDao.insertWorkout(workout)
-                _workoutSaved.value = true
+                try {
+                    val workout = WorkoutEntity(
+                        type = exercise.displayName,
+                        reps = reps,
+                        durationMs = holdTime,
+                        timestamp = System.currentTimeMillis(),
+                        caloriesBurned = calories
+                    )
+                    workoutDao.insertWorkout(workout)
+                    _workoutSaved.value = true
+                } catch (e: Exception) {
+                    android.util.Log.e("AiCoachViewModel", "Failed to save workout", e)
+                    _workoutSaved.value = false
+                }
             }
         }
     }

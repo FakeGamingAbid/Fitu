@@ -67,9 +67,10 @@ fun CoachScreen(
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val workoutSaved by viewModel.workoutSaved.collectAsState()
 
-    // Auto-save workout when leaving the screen
+    // Auto-save workout and cleanup when leaving the screen
     DisposableEffect(Unit) {
         onDispose {
+            poseAnalyzer?.close()  // ✅ FIX: Close pose detector to prevent memory leak
             viewModel.saveCurrentWorkout()
         }
     }

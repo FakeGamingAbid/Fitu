@@ -57,7 +57,8 @@ object AppModule {
         )
         .addMigrations(
             MIGRATION_5_6,
-            MIGRATION_6_7  // ✅ Add new migration
+            MIGRATION_6_7,
+            MIGRATION_7_8  // ✅ Add durationMs to workouts
         )
         .fallbackToDestructiveMigrationFrom(1, 2, 3, 4)
         .build()
@@ -101,9 +102,16 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
-// ✅ NEW: Migration to add photoUri column to meals table
+// Migration to add photoUri column to meals table
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE meals ADD COLUMN photoUri TEXT DEFAULT NULL")
+    }
+}
+
+// ✅ NEW: Migration to add durationMs column to workouts table
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE workouts ADD COLUMN durationMs INTEGER NOT NULL DEFAULT 0")
     }
 }

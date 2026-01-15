@@ -8,6 +8,12 @@ val SurfaceDark = Color(0xFF1E1E24)
 val TextWhite = Color(0xFFFFFFFF)
 val TextGray = Color(0xFFB0B0B0)
 
+// AI Coach colors
+val GreenSuccess = Color(0xFF4CAF50)
+val JointOrange = Color(0xFFFF6B00)
+val SkeletonWhite = Color(0xFFFFFFFF)
+val FeedbackGreen = Color(0xFF00FF00)
+
 val Purple80 = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)
 val Pink80 = Color(0xFFEFB8C8)
