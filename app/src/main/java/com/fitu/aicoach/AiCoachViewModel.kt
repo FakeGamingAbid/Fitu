@@ -3,6 +3,8 @@ package com.fitu.aicoach
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.UserPreferencesRepository
+import com.fitu.data.local.dao.WorkoutDao
+import com.fitu.data.local.entity.WorkoutEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -10,15 +12,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
  * ViewModel for the AI Coach screen.
  * Manages exercise selection, rep count, timer state, and calorie tracking.
+ * Saves completed workouts to the database.
  */
 @HiltViewModel
 class AiCoachViewModel @Inject constructor(
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val workoutDao: WorkoutDao
 ) : ViewModel() {
 
     // User's weight for calorie calculation
@@ -60,6 +65,10 @@ class AiCoachViewModel @Inject constructor(
     // Is workout active
     private val _isWorkoutActive = MutableStateFlow(false)
     val isWorkoutActive: StateFlow<Boolean> = _isWorkoutActive.asStateFlow()
+
+    // Track if workout was saved (to show feedback)
+    private val _workoutSaved = MutableStateFlow(false)
+    val workoutSaved: StateFlow<Boolean> = _workoutSaved.asStateFlow()
 
     /**
      * Calories burned - calculated based on exercise type, reps/time, and user weight
@@ -135,14 +144,53 @@ class AiCoachViewModel @Inject constructor(
      */
     fun startWorkout() {
         _isWorkoutActive.value = true
+        _workoutSaved.value = false
         resetStats()
     }
 
     /**
-     * Stop workout session
+     * Stop workout session and save to database
      */
     fun stopWorkout() {
         _isWorkoutActive.value = false
+        saveWorkoutToDatabase()
+    }
+
+    /**
+     * Save the current workout to the database
+     */
+    private fun saveWorkoutToDatabase() {
+        val exercise = _selectedExercise.value
+        val reps = _repCount.value
+        val holdTime = _holdTimeMs.value
+        val calories = caloriesBurned.value.toInt()
+
+        // Only save if there's actual activity
+        if (reps > 0 || holdTime > 0) {
+            viewModelScope.launch {
+                val workout = WorkoutEntity(
+                    type = exercise.displayName,
+                    reps = reps,
+                    durationMs = holdTime,
+                    timestamp = System.currentTimeMillis(),
+                    caloriesBurned = calories
+                )
+                workoutDao.insertWorkout(workout)
+                _workoutSaved.value = true
+            }
+        }
+    }
+
+    /**
+     * Manually save current workout (e.g., when user leaves screen)
+     */
+    fun saveCurrentWorkout() {
+        val reps = _repCount.value
+        val holdTime = _holdTimeMs.value
+        
+        if (reps > 0 || holdTime > 0) {
+            saveWorkoutToDatabase()
+        }
     }
 
     /**
@@ -154,6 +202,7 @@ class AiCoachViewModel @Inject constructor(
         _formScore.value = 0f
         _currentAngle.value = 0f
         _feedback.value = ""
+        _workoutSaved.value = false
     }
 
     /**

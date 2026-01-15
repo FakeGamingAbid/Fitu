@@ -6,8 +6,9 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "workouts")
 data class WorkoutEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val type: String, // e.g., "Squat", "Pushup"
+    val type: String, // e.g., "Squat", "Push-up", "Plank"
     val reps: Int,
+    val durationMs: Long = 0L, // Duration for time-based exercises
     val timestamp: Long,
     val caloriesBurned: Int
 )

@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -64,6 +65,14 @@ fun CoachScreen(
     val hasCameraPermission by viewModel.hasCameraPermission.collectAsState()
     val isWorkoutActive by viewModel.isWorkoutActive.collectAsState()
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
+    val workoutSaved by viewModel.workoutSaved.collectAsState()
+
+    // Auto-save workout when leaving the screen
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.saveCurrentWorkout()
+        }
+    }
 
     // Check initial permission state
     LaunchedEffect(Unit) {
@@ -119,22 +128,48 @@ fun CoachScreen(
                 )
             }
             
-            // Reset button
-            if (isWorkoutActive) {
-                IconButton(
-                    onClick = {
-                        poseAnalyzer?.reset()
-                        viewModel.resetStats()
-                    },
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(Color.White.copy(alpha = 0.1f), CircleShape)
-                ) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = "Reset",
-                        tint = OrangePrimary
-                    )
+            // Reset and Save buttons
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Save button (only show when there's progress)
+                if (repCount > 0 || holdTimeMs > 0L) {
+                    IconButton(
+                        onClick = {
+                            viewModel.saveCurrentWorkout()
+                        },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(
+                                if (workoutSaved) Color(0xFF4CAF50) else OrangePrimary,
+                                CircleShape
+                            )
+                    ) {
+                        Icon(
+                            Icons.Default.Save,
+                            contentDescription = "Save Workout",
+                            tint = Color.White
+                        )
+                    }
+                }
+                
+                // Reset button
+                if (repCount > 0 || holdTimeMs > 0L) {
+                    IconButton(
+                        onClick = {
+                            poseAnalyzer?.reset()
+                            viewModel.resetStats()
+                        },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Reset",
+                            tint = OrangePrimary
+                        )
+                    }
                 }
             }
         }
