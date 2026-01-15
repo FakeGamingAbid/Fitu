@@ -22,7 +22,7 @@ import com.fitu.data.local.entity.FoodCacheEntity
         StepEntity::class
     ],
     version = 8,  // ✅ Incremented for durationMs column in workouts
-    exportSchema = true
+    exportSchema = false
 )
 abstract class FituDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
