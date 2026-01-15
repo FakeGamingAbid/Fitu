@@ -377,17 +377,28 @@ private fun CameraPreviewWithOverlay(
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
-                    // Create pose analyzer
+                    // Create pose analyzer with proper callback to update ViewModel
                     val overlay = PoseOverlayView(ctx)
                     overlayView = overlay
 
+                    // Use nullable reference to allow self-reference in callback
+                    var analyzerRef: PoseAnalyzer? = null
                     val analyzer = PoseAnalyzer(
                         overlay = overlay,
                         onPoseDetected = { pose, angle, config ->
-                            // Get stats from analyzer
-                            // Stats are updated via the overlay callbacks
+                            // ✅ FIXED: Update stats via callback on every frame
+                            analyzerRef?.let { a ->
+                                onStatsUpdate(
+                                    a.getRepCount(),
+                                    a.getHoldTimeMs(),
+                                    a.getBestHoldTimeMs(),
+                                    a.getFormScore(),
+                                    angle
+                                )
+                            }
                         }
                     ).also {
+                        analyzerRef = it
                         it.setExercise(selectedExercise)
                         it.setFrontCamera(true)
                         onAnalyzerCreated(it)
