@@ -53,8 +53,8 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Elbow",
-                        downThreshold = 100f, // Was 90f - Relaxed
-                        upThreshold = 150f,   // Was 160f - Relaxed
+                        downThreshold = 110f, // Drastically relaxed from 100f
+                        upThreshold = 140f,   // Drastically relaxed from 150f
                         useLeftSide = useLeftSide
                     )
                 }
@@ -77,8 +77,8 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Knee",
-                        downThreshold = 100f, // Was 90f - Relaxed
-                        upThreshold = 150f,   // Was 160f - Relaxed
+                        downThreshold = 120f, // Drastically relaxed (quarter squat counts)
+                        upThreshold = 145f,   // Relaxed from 150f
                         useLeftSide = useLeftSide
                     )
                 }
@@ -101,8 +101,8 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Body Line",
-                        downThreshold = 160f, // Min angle for valid plank
-                        upThreshold = 180f,   // Max angle (perfectly straight)
+                        downThreshold = 150f, // Relaxed from 160f
+                        upThreshold = 180f,
                         useLeftSide = useLeftSide
                     )
                 }
@@ -126,8 +126,8 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Elbow",
-                        downThreshold = 150f, // Was 160f - Relaxed
-                        upThreshold = 80f,    // Was 60f - Relaxed
+                        downThreshold = 140f, // Relaxed from 150f
+                        upThreshold = 100f,   // Drastically relaxed from 80f
                         useLeftSide = useLeftSide
                     )
                 }
@@ -150,8 +150,8 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Torso",
-                        downThreshold = 150f, // Was 160f - Relaxed
-                        upThreshold = 135f,   // Was 110f - Significantly relaxed
+                        downThreshold = 150f, // Keep strict-ish for lying flat
+                        upThreshold = 140f,   // Relaxed from 135f
                         useLeftSide = useLeftSide
                     )
                 }
