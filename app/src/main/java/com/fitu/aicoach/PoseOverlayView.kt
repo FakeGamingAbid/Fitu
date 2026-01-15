@@ -241,41 +241,16 @@ class PoseOverlayView @JvmOverloads constructor(
             textPaint
         )
 
-        // Draw stats based on exercise type
-        if (currentExerciseType.isTimeBased) {
-            // Time-based: Show timer and form score
-            val timeStr = formatTime(currentHoldTimeMs)
-            canvas.drawText(
-                "⏱ $timeStr",
-                centerX,
-                height - 180f,
-                feedbackPaint
-            )
-            
-            val formStr = String.format("Form: %.1f/10", currentFormScore)
-            canvas.drawText(
-                formStr,
-                centerX,
-                height - 110f,
-                textPaint
-            )
-        } else {
-            // Rep-based: Show rep count
-            canvas.drawText(
-                "Reps: $currentRepCount",
-                centerX,
-                height - 140f,
-                feedbackPaint
-            )
-        }
+        // Draw stats based on exercise type - handled by Composable StatsOverlay
+        // We only draw the FEEDBACK (Up/Down/Good/Warn) here
 
-        // Draw feedback
+        // Draw feedback higher up to avoid overlapping with the bottom stats card
         if (currentFeedback.isNotEmpty()) {
             canvas.drawText(
                 currentFeedback,
                 centerX,
-                height - 50f,
-                textPaint
+                height - 300f, // Moved up significantly (was -50f)
+                feedbackPaint
             )
         }
     }
