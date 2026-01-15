@@ -141,9 +141,9 @@ class PoseAnalyzer(
         val midLandmark = pose.getPoseLandmark(exerciseConfig.landmarks.second)
         val lastLandmark = pose.getPoseLandmark(exerciseConfig.landmarks.third)
 
-        // Calculate angle - ALWAYS try if landmarks exist (even low confidence)
-        // This is critical for rep counting to work on all devices/conditions
-        val angle = if (firstLandmark != null && midLandmark != null && lastLandmark != null) {
+        // Calculate angle only if landmarks are reliable (50%+ confidence)
+        // This filters out noisy detections from camera shake
+        val angle = if (AngleMath.areLandmarksReliable(firstLandmark, midLandmark, lastLandmark)) {
             AngleMath.calculateAngle(firstLandmark, midLandmark, lastLandmark)
         } else {
             -1f

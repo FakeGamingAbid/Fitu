@@ -1,30 +1,36 @@
 package com.fitu.aicoach
 
 /**
- * State machine for counting exercise repetitions.
+ * State machine for counting exercise repetitions with anti-jitter protection.
  * 
- * Prevents flicker counting by requiring a FULL CYCLE before incrementing reps:
- * - Starting state: UNKNOWN (no position detected yet)
- * - After detecting UP position: state = UP
- * - After detecting DOWN position (from UP): state = DOWN
- * - After detecting UP position again (from DOWN): state = UP, rep count += 1
+ * ANTI-PHANTOM REP FEATURES:
+ * 1. ANGLE SMOOTHING: Averages the last N angles to reduce noise from camera shake
+ * 2. FRAME DEBOUNCE: Requires angle to stay in threshold for N consecutive frames
+ * 3. MINIMUM REP INTERVAL: Prevents counting reps faster than humanly possible
+ * 4. HYSTERESIS: Large gap between up/down thresholds
  * 
  * The state machine only counts a rep when completing: UP → DOWN → UP
- * 
- * Hysteresis is implemented by using separate thresholds:
- * - downThreshold: angle must go BELOW this to transition to DOWN
- * - upThreshold: angle must go ABOVE this to transition to UP
- * 
- * This prevents rapid state changes when angle hovers near a threshold.
  */
 class RepCounter(
     private val downThreshold: Float,
     private val upThreshold: Float,
     private val exerciseType: ExerciseType
 ) {
-    /**
-     * Current state of the exercise motion
-     */
+    companion object {
+        // Anti-jitter configuration
+        private const val SMOOTHING_WINDOW = 5        // Average last 5 angles
+        private const val DEBOUNCE_FRAMES = 3         // Require 3 consecutive frames in position
+        private const val MIN_REP_INTERVAL_MS = 800L  // Minimum 800ms between reps (max ~75 reps/min)
+        
+        fun forExercise(config: ExerciseConfig): RepCounter {
+            return RepCounter(
+                downThreshold = config.downThreshold,
+                upThreshold = config.upThreshold,
+                exerciseType = config.exerciseType
+            )
+        }
+    }
+
     enum class State {
         UNKNOWN,  // Initial state, position not yet determined
         UP,       // Extended position (start/end of rep)
@@ -34,45 +40,47 @@ class RepCounter(
     private var state: State = State.UNKNOWN
     private var _repCount: Int = 0
     
-    /**
-     * Current rep count
-     */
-    val repCount: Int get() = _repCount
+    // Angle smoothing buffer
+    private val angleBuffer = ArrayDeque<Float>(SMOOTHING_WINDOW)
+    
+    // Frame debounce counters
+    private var framesInUp = 0
+    private var framesInDown = 0
+    
+    // Timestamp of last rep
+    private var lastRepTimeMs: Long = 0L
 
-    /**
-     * Current state for UI display
-     */
+    val repCount: Int get() = _repCount
     val currentState: State get() = state
 
     /**
      * Update the counter with a new angle measurement.
-     * 
      * @param angle Current angle in degrees (0-180)
      * @return True if a new rep was counted this frame
      */
     fun update(angle: Float): Boolean {
         if (angle < 0) {
-            // Invalid angle, don't update state
+            // Invalid angle - clear buffer to avoid stale data
+            angleBuffer.clear()
+            framesInUp = 0
+            framesInDown = 0
             return false
         }
 
-        var repCounted = false
-
-        // Handle different exercises with inverted logic
-        when (exerciseType) {
-            ExerciseType.DUMBBELL_CURL, ExerciseType.CRUNCH -> {
-                // For curls/crunches: DOWN means arm/torso extended (angle > downThreshold)
-                //                     UP means arm/torso contracted (angle < upThreshold)
-                repCounted = updateInverted(angle)
-            }
-            else -> {
-                // For push-ups/squats: DOWN means bent (angle < downThreshold)
-                //                       UP means extended (angle > upThreshold)
-                repCounted = updateNormal(angle)
-            }
+        // Add to smoothing buffer
+        if (angleBuffer.size >= SMOOTHING_WINDOW) {
+            angleBuffer.removeFirst()
         }
-
-        return repCounted
+        angleBuffer.addLast(angle)
+        
+        // Calculate smoothed angle (average of buffer)
+        val smoothedAngle = angleBuffer.average().toFloat()
+        
+        // Use smoothed angle for state detection
+        return when (exerciseType) {
+            ExerciseType.DUMBBELL_CURL, ExerciseType.CRUNCH -> updateInverted(smoothedAngle)
+            else -> updateNormal(smoothedAngle)
+        }
     }
 
     /**
@@ -82,28 +90,50 @@ class RepCounter(
      */
     private fun updateNormal(angle: Float): Boolean {
         var repCounted = false
+        val currentTime = System.currentTimeMillis()
+
+        // Check current position
+        val isInDownPosition = angle < downThreshold
+        val isInUpPosition = angle > upThreshold
+
+        // Update debounce counters
+        if (isInDownPosition) {
+            framesInDown++
+            framesInUp = 0
+        } else if (isInUpPosition) {
+            framesInUp++
+            framesInDown = 0
+        } else {
+            // In dead zone - slowly decay counters
+            framesInUp = maxOf(0, framesInUp - 1)
+            framesInDown = maxOf(0, framesInDown - 1)
+        }
 
         when (state) {
             State.UNKNOWN -> {
-                // Determine initial state based on current angle
-                if (angle > upThreshold) {
+                // Determine initial state (requires debounce)
+                if (framesInUp >= DEBOUNCE_FRAMES) {
                     state = State.UP
-                } else if (angle < downThreshold) {
+                } else if (framesInDown >= DEBOUNCE_FRAMES) {
                     state = State.DOWN
                 }
             }
             State.UP -> {
-                // Check if user went DOWN
-                if (angle < downThreshold) {
+                // Check if user went DOWN (requires debounce)
+                if (framesInDown >= DEBOUNCE_FRAMES) {
                     state = State.DOWN
                 }
             }
             State.DOWN -> {
-                // Check if user came back UP → count rep!
-                if (angle > upThreshold) {
-                    state = State.UP
-                    _repCount++
-                    repCounted = true
+                // Check if user came back UP → count rep! (requires debounce + time check)
+                if (framesInUp >= DEBOUNCE_FRAMES) {
+                    val timeSinceLastRep = currentTime - lastRepTimeMs
+                    if (timeSinceLastRep >= MIN_REP_INTERVAL_MS) {
+                        state = State.UP
+                        _repCount++
+                        lastRepTimeMs = currentTime
+                        repCounted = true
+                    }
                 }
             }
         }
@@ -118,28 +148,50 @@ class RepCounter(
      */
     private fun updateInverted(angle: Float): Boolean {
         var repCounted = false
+        val currentTime = System.currentTimeMillis()
+
+        // Check current position (inverted logic)
+        val isInDownPosition = angle > downThreshold
+        val isInUpPosition = angle < upThreshold
+
+        // Update debounce counters
+        if (isInDownPosition) {
+            framesInDown++
+            framesInUp = 0
+        } else if (isInUpPosition) {
+            framesInUp++
+            framesInDown = 0
+        } else {
+            // In dead zone - slowly decay counters
+            framesInUp = maxOf(0, framesInUp - 1)
+            framesInDown = maxOf(0, framesInDown - 1)
+        }
 
         when (state) {
             State.UNKNOWN -> {
-                // Determine initial state based on current angle
-                if (angle > downThreshold) {
-                    state = State.DOWN  // Extended position = start
-                } else if (angle < upThreshold) {
-                    state = State.UP    // Contracted position
+                // Determine initial state (requires debounce)
+                if (framesInDown >= DEBOUNCE_FRAMES) {
+                    state = State.DOWN  // Extended = start
+                } else if (framesInUp >= DEBOUNCE_FRAMES) {
+                    state = State.UP
                 }
             }
             State.DOWN -> {
-                // Check if user contracted (UP)
-                if (angle < upThreshold) {
+                // Check if user contracted (UP) (requires debounce)
+                if (framesInUp >= DEBOUNCE_FRAMES) {
                     state = State.UP
                 }
             }
             State.UP -> {
-                // Check if user extended back (DOWN) → count rep!
-                if (angle > downThreshold) {
-                    state = State.DOWN
-                    _repCount++
-                    repCounted = true
+                // Check if user extended back (DOWN) → count rep! (requires debounce + time check)
+                if (framesInDown >= DEBOUNCE_FRAMES) {
+                    val timeSinceLastRep = currentTime - lastRepTimeMs
+                    if (timeSinceLastRep >= MIN_REP_INTERVAL_MS) {
+                        state = State.DOWN
+                        _repCount++
+                        lastRepTimeMs = currentTime
+                        repCounted = true
+                    }
                 }
             }
         }
@@ -153,6 +205,10 @@ class RepCounter(
     fun reset() {
         state = State.UNKNOWN
         _repCount = 0
+        angleBuffer.clear()
+        framesInUp = 0
+        framesInDown = 0
+        lastRepTimeMs = 0L
     }
 
     /**
@@ -163,19 +219,6 @@ class RepCounter(
             State.UNKNOWN -> "Ready"
             State.UP -> "Up"
             State.DOWN -> "Down"
-        }
-    }
-
-    companion object {
-        /**
-         * Create a RepCounter configured for a specific exercise
-         */
-        fun forExercise(config: ExerciseConfig): RepCounter {
-            return RepCounter(
-                downThreshold = config.downThreshold,
-                upThreshold = config.upThreshold,
-                exerciseType = config.exerciseType
-            )
         }
     }
 }

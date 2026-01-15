@@ -132,10 +132,10 @@ object AngleMath {
      * Check if a landmark has sufficient confidence (in-frame likelihood).
      * 
      * @param landmark The pose landmark to check
-     * @param minConfidence Minimum confidence threshold (default 0.2 - lowered for better detection)
+     * @param minConfidence Minimum confidence threshold (0.5 = 50% - balanced for reliability)
      * @return True if landmark is reliable, false otherwise
      */
-    fun isLandmarkReliable(landmark: PoseLandmark?, minConfidence: Float = 0.2f): Boolean {
+    fun isLandmarkReliable(landmark: PoseLandmark?, minConfidence: Float = 0.5f): Boolean {
         return landmark != null && landmark.inFrameLikelihood >= minConfidence
     }
 
@@ -146,7 +146,7 @@ object AngleMath {
         first: PoseLandmark?,
         mid: PoseLandmark?,
         last: PoseLandmark?,
-        minConfidence: Float = 0.2f
+        minConfidence: Float = 0.5f
     ): Boolean {
         return isLandmarkReliable(first, minConfidence) &&
                isLandmarkReliable(mid, minConfidence) &&
