@@ -63,6 +63,7 @@ fun CoachScreen(
     val currentAngle by viewModel.currentAngle.collectAsState()
     val hasCameraPermission by viewModel.hasCameraPermission.collectAsState()
     val isWorkoutActive by viewModel.isWorkoutActive.collectAsState()
+    val caloriesBurned by viewModel.caloriesBurned.collectAsState()
 
     // Check initial permission state
     LaunchedEffect(Unit) {
@@ -185,6 +186,7 @@ fun CoachScreen(
                     bestHoldTimeMs = bestHoldTimeMs,
                     formScore = formScore,
                     currentAngle = currentAngle,
+                    caloriesBurned = caloriesBurned,
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
@@ -396,7 +398,7 @@ private fun CameraPreviewWithOverlay(
 }
 
 /**
- * Stats overlay showing reps/time and form score
+ * Stats overlay showing reps/time, calories, and form score
  */
 @Composable
 private fun StatsOverlay(
@@ -406,6 +408,7 @@ private fun StatsOverlay(
     bestHoldTimeMs: Long,
     formScore: Float,
     currentAngle: Float,
+    caloriesBurned: Float,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -431,18 +434,18 @@ private fun StatsOverlay(
             if (exerciseType.isTimeBased) {
                 // Time-based stats (Plank)
                 StatItem(
-                    label = "HOLD TIME",
+                    label = "TIME",
                     value = formatTime(holdTimeMs),
                     highlight = true
                 )
                 StatItem(
-                    label = "BEST",
-                    value = formatTime(bestHoldTimeMs),
+                    label = "KCAL",
+                    value = String.format("%.1f", caloriesBurned),
                     highlight = false
                 )
                 StatItem(
                     label = "FORM",
-                    value = String.format("%.1f", formScore),
+                    value = String.format("%.0f", formScore),
                     highlight = formScore >= 7f
                 )
             } else {
@@ -451,6 +454,11 @@ private fun StatsOverlay(
                     label = "REPS",
                     value = repCount.toString(),
                     highlight = true
+                )
+                StatItem(
+                    label = "KCAL",
+                    value = String.format("%.1f", caloriesBurned),
+                    highlight = false
                 )
                 StatItem(
                     label = "ANGLE",

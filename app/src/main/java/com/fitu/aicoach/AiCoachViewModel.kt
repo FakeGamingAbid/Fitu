@@ -1,18 +1,29 @@
 package com.fitu.aicoach
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.fitu.data.local.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /**
  * ViewModel for the AI Coach screen.
- * Manages exercise selection, rep count, and timer state.
+ * Manages exercise selection, rep count, timer state, and calorie tracking.
  */
 @HiltViewModel
-class AiCoachViewModel @Inject constructor() : ViewModel() {
+class AiCoachViewModel @Inject constructor(
+    private val userPreferencesRepository: UserPreferencesRepository
+) : ViewModel() {
+
+    // User's weight for calorie calculation
+    val userWeightKg: StateFlow<Int> = userPreferencesRepository.userWeightKg
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 70)
 
     // Selected exercise type
     private val _selectedExercise = MutableStateFlow(ExerciseType.PUSH_UP)
@@ -49,6 +60,22 @@ class AiCoachViewModel @Inject constructor() : ViewModel() {
     // Is workout active
     private val _isWorkoutActive = MutableStateFlow(false)
     val isWorkoutActive: StateFlow<Boolean> = _isWorkoutActive.asStateFlow()
+
+    /**
+     * Calories burned - calculated based on exercise type, reps/time, and user weight
+     */
+    val caloriesBurned: StateFlow<Float> = combine(
+        _selectedExercise,
+        _repCount,
+        _holdTimeMs,
+        userWeightKg
+    ) { exercise, reps, holdTime, weight ->
+        if (exercise.isTimeBased) {
+            ExerciseType.calculateCaloriesFromTime(exercise, holdTime, weight)
+        } else {
+            ExerciseType.calculateCaloriesFromReps(exercise, reps, weight)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
     /**
      * Select an exercise to track
