@@ -53,14 +53,16 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Elbow",
-                        downThreshold = 110f, // Drastically relaxed from 100f
-                        upThreshold = 140f,   // Drastically relaxed from 150f
+                        // Push-up: Need to bend arm significantly (< 90°) and extend (> 150°)
+                        // 60° gap prevents phantom reps
+                        downThreshold = 90f,
+                        upThreshold = 150f,
                         useLeftSide = useLeftSide
                     )
                 }
                 ExerciseType.SQUAT -> {
                     // Knee angle: Hip → Knee → Ankle
-                    // Down: < 100° (deep squat), Up: > 150° (standing)
+                    // Down: < 110° (at least half squat), Up: > 165° (standing straight)
                     ExerciseConfig(
                         exerciseType = type,
                         landmarks = if (useLeftSide) {
@@ -77,8 +79,10 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Knee",
-                        downThreshold = 120f, // Drastically relaxed (quarter squat counts)
-                        upThreshold = 145f,   // Relaxed from 150f
+                        // Squat: Need actual squat (< 110°) and stand up (> 165°)
+                        // 55° gap prevents phantom reps
+                        downThreshold = 110f,
+                        upThreshold = 165f,
                         useLeftSide = useLeftSide
                     )
                 }
@@ -101,14 +105,14 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Body Line",
-                        downThreshold = 150f, // Relaxed from 160f
+                        downThreshold = 160f,
                         upThreshold = 180f,
                         useLeftSide = useLeftSide
                     )
                 }
                 ExerciseType.DUMBBELL_CURL -> {
                     // Elbow angle: Shoulder → Elbow → Wrist
-                    // Down: > 150° (arm extended), Up: < 80° (fully curled)
+                    // Down: > 150° (arm extended), Up: < 70° (fully curled)
                     // Note: Thresholds are INVERTED compared to push-up
                     ExerciseConfig(
                         exerciseType = type,
@@ -126,14 +130,16 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Elbow",
-                        downThreshold = 140f, // Relaxed from 150f
-                        upThreshold = 100f,   // Drastically relaxed from 80f
+                        // Curl: Need to extend arm (> 150°) and curl tight (< 70°)
+                        // 80° gap prevents phantom reps
+                        downThreshold = 150f,
+                        upThreshold = 70f,
                         useLeftSide = useLeftSide
                     )
                 }
                 ExerciseType.CRUNCH -> {
                     // Hip/Torso angle: Shoulder → Hip → Knee
-                    // Down: > 150° (lying flat), Up: < 135° (crunched up)
+                    // Down: > 160° (lying flat), Up: < 110° (crunched up)
                     ExerciseConfig(
                         exerciseType = type,
                         landmarks = if (useLeftSide) {
@@ -150,8 +156,10 @@ data class ExerciseConfig(
                             )
                         },
                         angleName = "Torso",
-                        downThreshold = 150f, // Keep strict-ish for lying flat
-                        upThreshold = 140f,   // Relaxed from 135f
+                        // Crunch: Need to lie flat (> 160°) and crunch hard (< 110°)
+                        // 50° gap prevents phantom reps
+                        downThreshold = 160f,
+                        upThreshold = 110f,
                         useLeftSide = useLeftSide
                     )
                 }
