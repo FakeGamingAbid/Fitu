@@ -300,33 +300,11 @@ class PoseOverlayView @JvmOverloads constructor(
         val effectiveHeight = if (isRotated) imageWidth.toFloat() else imageHeight.toFloat()
         
         // Map coordinates based on rotation
-        var mappedX: Float
-        var mappedY: Float
-        
-        when (rotationDegrees) {
-            0 -> {
-                mappedX = x
-                mappedY = y
-            }
-            90 -> {
-                // 90° clockwise rotation
-                mappedX = y
-                mappedY = imageWidth - x
-            }
-            180 -> {
-                mappedX = imageWidth - x
-                mappedY = imageHeight - y
-            }
-            270 -> {
-                // 270° clockwise (or 90° counter-clockwise)
-                mappedX = imageHeight - y
-                mappedY = x
-            }
-            else -> {
-                mappedX = x
-                mappedY = y
-            }
-        }
+        // ML Kit handles rotation internally via InputImage.fromMediaImage, so the
+        // coordinates returned in the Pose object are ALREADY relative to the upright/rotated image.
+        // We do NOT need to manually swap X/Y axes here.
+        var mappedX = x
+        var mappedY = y
         
         // For front camera: mirror horizontally to match PreviewView
         // PreviewView shows a mirrored image, so we need to flip X
