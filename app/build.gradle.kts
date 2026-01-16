@@ -22,21 +22,16 @@ android {
         }
     }
 
+    // Release signing uses a keystore file created by the workflow:
+    // app/release-keystore.jks
     signingConfigs {
         create("release") {
-            val keystoreBase64 = System.getenv("KEYSTORE_BASE64")
-            if (!keystoreBase64.isNullOrEmpty()) {
-                try {
-                    val tempFile = File.createTempFile("keystore", ".jks")
-                    tempFile.deleteOnExit()
-                    tempFile.writeBytes(java.util.Base64.getDecoder().decode(keystoreBase64))
-                    storeFile = tempFile
-                    storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-                    keyAlias = System.getenv("KEY_ALIAS") ?: "fitu"
-                    keyPassword = System.getenv("KEY_PASSWORD") ?: ""
-                } catch (e: Exception) {
-                    println("Warning: Could not decode keystore: ${e.message}")
-                }
+            val keystoreFile = file("release-keystore.jks")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("KEY_ALIAS") ?: "fitu"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
             }
         }
     }
@@ -48,12 +43,12 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            
-            val releaseSigningConfig = signingConfigs.findByName("release")
-            if (releaseSigningConfig?.storeFile != null) {
-                signingConfig = releaseSigningConfig
+
+            val releaseConfig = signingConfigs.findByName("release")
+            if (releaseConfig?.storeFile?.exists() == true) {
+                signingConfig = releaseConfig
             }
-            
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
