@@ -1,12 +1,16 @@
-package com.fitu.di
+ package com.fitu.di
 
 import android.content.Context
+import android.hardware.SensorManager
 import androidx.room.Room
 import com.fitu.data.local.AppDatabase
+import com.fitu.data.local.SecureStorage
 import com.fitu.data.local.UserPreferencesRepository
+import com.fitu.data.local.dao.FoodCacheDao
 import com.fitu.data.local.dao.MealDao
 import com.fitu.data.local.dao.StepDao
 import com.fitu.data.local.dao.WorkoutDao
+import com.fitu.data.local.dao.WorkoutPlanDao
 import com.fitu.data.repository.DashboardRepositoryImpl
 import com.fitu.data.repository.StreakRepository
 import com.fitu.domain.repository.DashboardRepository
@@ -55,10 +59,38 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideWorkoutPlanDao(database: AppDatabase): WorkoutPlanDao {
+        return database.workoutPlanDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideFoodCacheDao(database: AppDatabase): FoodCacheDao {
+        return database.foodCacheDao()
+    }
+
+    @Provides
+    @Singleton
     fun provideUserPreferencesRepository(
         @ApplicationContext context: Context
     ): UserPreferencesRepository {
         return UserPreferencesRepository(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSecureStorage(
+        @ApplicationContext context: Context
+    ): SecureStorage {
+        return SecureStorage(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSensorManager(
+        @ApplicationContext context: Context
+    ): SensorManager {
+        return context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     }
 
     @Provides
@@ -79,4 +111,4 @@ object AppModule {
     ): StreakRepository {
         return StreakRepository(stepDao, userPreferencesRepository)
     }
-}
+} 
