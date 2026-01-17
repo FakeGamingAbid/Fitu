@@ -1,4 +1,4 @@
- package com.fitu.ui.screens
+package com.fitu.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -36,6 +36,46 @@ import com.fitu.ui.theme.OrangePrimary
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Get time-based greeting with emoji
+ */
+private fun getTimeBasedGreeting(): Pair<String, String> {
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    return when (hour) {
+        in 5..11 -> "Good morning" to "Rise and shine! Ready to crush your goals today?"
+        in 12..16 -> "Good afternoon" to "Keep the momentum going! You're doing great."
+        in 17..20 -> "Good evening" to "Great job today! Time to wind down."
+        else -> "Good night" to "Rest well! Tomorrow is a new opportunity."
+    }
+}
+
+/**
+ * Get greeting emoji based on time
+ */
+private fun getGreetingEmoji(): String {
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    return when (hour) {
+        in 5..11 -> "☀️"
+        in 12..16 -> "🌤️"
+        in 17..20 -> "🌅"
+        else -> "🌙"
+    }
+}
+
+/**
+ * Get motivational message based on step progress
+ */
+private fun getMotivationalMessage(stepProgress: Float, workoutsCompleted: Int): String {
+    return when {
+        stepProgress >= 1f -> "Amazing! You crushed your step goal! 🎉"
+        stepProgress >= 0.75f -> "Almost there! Just a little more to hit your goal! 💪"
+        stepProgress >= 0.5f -> "Halfway there! Keep moving! 🚀"
+        stepProgress >= 0.25f -> "Great start! Every step counts! 👍"
+        workoutsCompleted > 0 -> "Nice workout! Keep the energy up! 🔥"
+        else -> "Let's get moving! Your goals are waiting! 🏃"
+    }
+}
+
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
@@ -48,15 +88,16 @@ fun DashboardScreen(
     val caloriesBurned by viewModel.caloriesBurned.collectAsState()
     val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
+    val workoutsCompleted by viewModel.workoutsCompleted.collectAsState()
     
-    // ✅ FIX #11: Check if steps are initialized
+    // Step initialization check
     val isStepsInitialized by viewModel.isStepsInitialized.collectAsState()
     
-    // ✅ FIX #11: Check if weekly data is loading
+    // Weekly data loading check
     val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
     val weeklySteps by viewModel.weeklySteps.collectAsState()
 
-    // ✅ FIX #24: Unit conversion
+    // Unit conversion
     val formattedDistance by viewModel.formattedDistance.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
     
@@ -75,6 +116,13 @@ fun DashboardScreen(
     val dateFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
     val todayDate = dateFormat.format(Date())
 
+    // Time-based greeting
+    val (greeting, subGreeting) = remember { getTimeBasedGreeting() }
+    val greetingEmoji = remember { getGreetingEmoji() }
+    val motivationalMessage = remember(stepProgress, workoutsCompleted) { 
+        getMotivationalMessage(stepProgress, workoutsCompleted) 
+    }
+
     // Birthday wish dialog
     if (showBirthdayDialog) {
         BirthdayWishDialog(
@@ -91,37 +139,54 @@ fun DashboardScreen(
             .padding(horizontal = 24.dp)
             .padding(top = 32.dp, bottom = 120.dp)
     ) {
-        // --- Header ---
+        // --- Header with Time-Based Greeting ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 if (isBirthday) {
+                    // Birthday greeting
                     Text(
-                        text = "🎂 Happy Birthday, ${userName.ifBlank { "User" }}! 🎉",
+                        text = "Happy Birthday, ${userName.ifBlank { "User" }}! 🎉",
                         color = OrangePrimary,
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Have an amazing day! 🎂",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp
                     )
                 } else {
+                    // Time-based greeting
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "$greeting, ${userName.ifBlank { "User" }}",
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = greetingEmoji,
+                            fontSize = 22.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Hello, ${userName.ifBlank { "User" }}",
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold
+                        text = todayDate,
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 13.sp
                     )
                 }
-                Text(
-                    text = todayDate,
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 14.sp
-                )
             }
+            
+            // Avatar
             Box(
                 modifier = Modifier
-                    .size(if (isBirthday) 52.dp else 44.dp)
+                    .size(if (isBirthday) 52.dp else 48.dp)
                     .background(
                         if (isBirthday) Brush.linearGradient(
                             listOf(OrangePrimary, Color(0xFFFFD700))
@@ -145,7 +210,37 @@ fun DashboardScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- Motivational Message Card ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            OrangePrimary.copy(alpha = 0.15f),
+                            Color.Transparent
+                        )
+                    ),
+                    RoundedCornerShape(12.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = OrangePrimary.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Text(
+                text = motivationalMessage,
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         // --- Steps Card ---
         GlassCard(
@@ -175,7 +270,7 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    // ✅ FIX #11: Show loading indicator or actual steps
+                    // Show loading indicator or actual steps
                     if (!isStepsInitialized) {
                         Text(
                             text = "Loading...",
@@ -235,7 +330,7 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ✅ FIX #24: Distance Card with unit conversion
+            // Distance Card with unit conversion
             GlassCard(modifier = Modifier.weight(1f)) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -362,7 +457,7 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ✅ FIX #11: Weekly Activity Card with Loading State
+        // --- Weekly Activity Card with Loading State ---
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
                 Row(
@@ -387,7 +482,7 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 if (isWeeklyDataLoading) {
-                    // ✅ FIX #11: Show loading skeleton
+                    // Show loading skeleton
                     DashboardWeeklyChartLoading()
                 } else {
                     // Show actual chart
@@ -444,7 +539,7 @@ fun DashboardScreen(
 }
 
 /**
- * ✅ FIX #11: Loading skeleton for dashboard weekly chart
+ * Loading skeleton for dashboard weekly chart
  */
 @Composable
 private fun DashboardWeeklyChartLoading() {
@@ -503,7 +598,7 @@ private fun DashboardWeeklyChartLoading() {
 }
 
 /**
- * ✅ FIX #11: Actual weekly chart content for dashboard
+ * Actual weekly chart content for dashboard
  */
 @Composable
 private fun DashboardWeeklyChartContent(weeklySteps: List<Int>) {
@@ -552,4 +647,4 @@ private fun DashboardWeeklyChartContent(weeklySteps: List<Int>) {
             }
         }
     }
-} 
+}
