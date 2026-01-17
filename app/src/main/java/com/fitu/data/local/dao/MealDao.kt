@@ -14,14 +14,23 @@ interface MealDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(meal: MealEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMeal(meal: MealEntity): Long
+
     @Update
     suspend fun update(meal: MealEntity)
 
     @Delete
     suspend fun delete(meal: MealEntity)
 
+    @Query("DELETE FROM meals WHERE id = :id")
+    suspend fun deleteMeal(id: Long)
+
     @Query("SELECT * FROM meals WHERE date >= :startDate AND date <= :endDate ORDER BY date DESC")
     fun getMealsInRange(startDate: Long, endDate: Long): Flow<List<MealEntity>>
+
+    @Query("SELECT * FROM meals WHERE date >= :startDate AND date <= :endDate ORDER BY date DESC")
+    fun getMealsForDay(startDate: Long, endDate: Long): Flow<List<MealEntity>>
 
     @Query("SELECT * FROM meals WHERE date >= :startDate AND date <= :endDate ORDER BY date DESC")
     suspend fun getMealsInRangeSync(startDate: Long, endDate: Long): List<MealEntity>
@@ -31,6 +40,18 @@ interface MealDao {
 
     @Query("SELECT SUM(calories) FROM meals WHERE date >= :startDate AND date <= :endDate")
     suspend fun getTotalCaloriesInRange(startDate: Long, endDate: Long): Int?
+
+    @Query("SELECT SUM(calories) FROM meals WHERE date >= :startDate AND date <= :endDate")
+    fun getCaloriesConsumedForDay(startDate: Long, endDate: Long): Flow<Int?>
+
+    @Query("SELECT SUM(protein) FROM meals WHERE date >= :startDate AND date <= :endDate")
+    fun getProteinForDay(startDate: Long, endDate: Long): Flow<Float?>
+
+    @Query("SELECT SUM(carbs) FROM meals WHERE date >= :startDate AND date <= :endDate")
+    fun getCarbsForDay(startDate: Long, endDate: Long): Flow<Float?>
+
+    @Query("SELECT SUM(fat) FROM meals WHERE date >= :startDate AND date <= :endDate")
+    fun getFatsForDay(startDate: Long, endDate: Long): Flow<Float?>
 
     @Query("DELETE FROM meals WHERE id = :id")
     suspend fun deleteById(id: Long)
