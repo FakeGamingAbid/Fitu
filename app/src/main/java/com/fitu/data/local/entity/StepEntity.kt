@@ -11,7 +11,7 @@ import androidx.room.PrimaryKey
 data class StepEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val date: Long,
+    val date: String,  // Format: "yyyy-MM-dd"
     val steps: Int,
     val goal: Int = 10000,
     val caloriesBurned: Int = 0,
