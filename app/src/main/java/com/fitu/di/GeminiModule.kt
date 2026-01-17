@@ -1,4 +1,4 @@
- package com.fitu.di
+package com.fitu.di
 
 import android.util.Log
 import com.fitu.data.local.SecureStorage
@@ -36,7 +36,7 @@ class GeminiModelProvider @Inject constructor(
 
     fun getModel(modelName: String = PRIMARY_MODEL): GenerativeModel? {
         val apiKey = secureStorage.getApiKey()
-        if (apiKey.isBlank()) {
+        if (apiKey.isNullOrBlank()) {
             Log.w(TAG, "API key is blank")
             return null
         }
@@ -49,14 +49,6 @@ class GeminiModelProvider @Inject constructor(
 
     /**
      * Generate content with automatic retry and fallback model support.
-     * 
-     * @param prompt The content prompt to send
-     * @param modelName Primary model to use
-     * @param maxRetries Maximum retry attempts
-     * @param initialDelay Initial delay between retries (exponential backoff)
-     * @param useFallback Whether to try fallback model if primary fails
-     * @return GenerateContentResponse or null if all attempts fail
-     * @throws GeminiException with detailed error information
      */
     suspend fun generateContentWithRetry(
         prompt: Content,
@@ -236,4 +228,4 @@ object GeminiModule {
     ): GeminiModelProvider {
         return GeminiModelProvider(secureStorage)
     }
-} 
+}
