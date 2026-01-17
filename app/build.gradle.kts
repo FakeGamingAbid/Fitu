@@ -22,8 +22,6 @@ android {
         }
     }
 
-    // Release signing uses a keystore file created by the workflow:
-    // app/release-keystore.jks
     signingConfigs {
         create("release") {
             val keystoreFile = file("release-keystore.jks")
@@ -128,6 +126,9 @@ dependencies {
 
     // Haze - Blur effect for Compose
     implementation("dev.chrisbanes.haze:haze:0.7.1")
+    
+    // Pull to Refresh
+    implementation("androidx.compose.material:material:1.5.4")
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
