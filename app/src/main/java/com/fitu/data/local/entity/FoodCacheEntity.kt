@@ -5,7 +5,8 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "food_cache")
 data class FoodCacheEntity(
-    @PrimaryKey val query: String, // Text query or image hash
+    @PrimaryKey
+    val query: String,
     val resultJson: String,
-    val timestamp: Long
+    val timestamp: Long = System.currentTimeMillis()
 )
