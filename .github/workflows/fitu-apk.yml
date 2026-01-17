@@ -1,18 +1,31 @@
-name: Fitu Release Build (Fast)
+name: Fitu Build
 on:
   workflow_dispatch:
     inputs:
-      build_debug:
-        description: 'Also build Debug APK?'
-        required: false
-        default: 'false'
-        type: boolean
+      build_type:
+        description: 'What to build?'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+          - release_aab
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
+    - name: Show Build Type
+      run: |
+        echo "🔨 Build type: ${{ inputs.build_type }}"
+        case "${{ inputs.build_type }}" in
+          "release") echo "   → Building Release APK only" ;;
+          "debug") echo "   → Building Debug APK only" ;;
+          "release_aab") echo "   → Building Release APK + Play Store AAB" ;;
+        esac
+
     - name: Checkout Code
       uses: actions/checkout@v4
 
@@ -34,41 +47,60 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: ${{ runner.os }}-gradle-
 
-    - name: Setup & Build
+    - name: Make Gradlew Executable
+      run: chmod +x gradlew
+
+    - name: Decode Keystore
+      if: ${{ inputs.build_type == 'release' || inputs.build_type == 'release_aab' }}
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      run: |
+        echo "$KEYSTORE_BASE64" | base64 -d > app/release-keystore.jks
+        echo "✅ Keystore decoded"
+
+    - name: Build Debug APK
+      if: ${{ inputs.build_type == 'debug' }}
+      run: ./gradlew assembleDebug --parallel --build-cache -q
+
+    - name: Build Release APK
+      if: ${{ inputs.build_type == 'release' }}
+      env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        BUILD_DEBUG: ${{ inputs.build_debug }}
-      run: |
-        chmod +x gradlew
-        echo "$KEYSTORE_BASE64" | base64 -d > app/release-keystore.jks
-        
-        if [ "$BUILD_DEBUG" = "true" ]; then
-          ./gradlew assembleDebug assembleRelease bundleRelease --parallel --build-cache -q
-        else
-          ./gradlew assembleRelease bundleRelease --parallel --build-cache -q
-        fi
+      run: ./gradlew assembleRelease --parallel --build-cache -q
+
+    - name: Build Release APK + AAB
+      if: ${{ inputs.build_type == 'release_aab' }}
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: ./gradlew assembleRelease bundleRelease --parallel --build-cache -q
 
     - name: Upload Debug APK
-      if: ${{ inputs.build_debug == 'true' }}
+      if: ${{ inputs.build_type == 'debug' }}
       uses: actions/upload-artifact@v4
       with:
         name: Fitu-Debug-APK
         path: app/build/outputs/apk/debug/*.apk
+        retention-days: 30
 
     - name: Upload Release APK
+      if: ${{ inputs.build_type == 'release' || inputs.build_type == 'release_aab' }}
       uses: actions/upload-artifact@v4
       with:
         name: Fitu-Release-APK
         path: app/build/outputs/apk/release/*.apk
+        retention-days: 90
 
     - name: Upload Release AAB
+      if: ${{ inputs.build_type == 'release_aab' }}
       uses: actions/upload-artifact@v4
       with:
         name: Fitu-PlayStore-AAB
         path: app/build/outputs/bundle/release/*.aab
+        retention-days: 90
 
     - name: Cleanup
       if: always()
