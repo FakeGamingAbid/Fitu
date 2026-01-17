@@ -35,6 +35,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.fitu.ui.theme.OrangePrimary
 
+enum class GoalType {
+    STEPS,
+    CALORIES_BURNED,
+    CALORIES_CONSUMED,
+    WORKOUT
+}
+
 @Composable
 fun GoalCelebrationDialog(
     show: Boolean,
@@ -74,13 +81,6 @@ fun GoalCelebrationDialog(
     }
 }
 
-enum class GoalType {
-    STEPS,
-    CALORIES_BURNED,
-    CALORIES_CONSUMED,
-    WORKOUT
-}
-
 @Composable
 private fun CelebrationCard(
     goalType: GoalType,
@@ -92,7 +92,6 @@ private fun CelebrationCard(
     val alpha = remember { Animatable(0f) }
 
     LaunchedEffect(key1 = true) {
-        // Bounce in animation
         scale.animateTo(
             targetValue = 1f,
             animationSpec = spring(
