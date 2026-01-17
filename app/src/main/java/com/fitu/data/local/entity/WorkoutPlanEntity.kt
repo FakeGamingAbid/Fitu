@@ -5,12 +5,13 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "workout_plans")
 data class WorkoutPlanEntity(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
     val name: String,
-    val muscleGroups: String, // Comma-separated: "Chest,Shoulders"
-    val difficulty: String, // "Beginner", "Intermediate", "Advanced"
-    val duration: Int, // in minutes
-    val equipment: String, // "Bodyweight", "Dumbbells", "Full Gym"
-    val exercises: String, // JSON string of exercises
-    val createdAt: Long
+    val description: String = "",
+    val exercises: String = "", // JSON string of exercises
+    val difficulty: String = "intermediate",
+    val durationMinutes: Int = 30,
+    val targetMuscles: String = "", // Comma-separated list
+    val createdAt: Long = System.currentTimeMillis()
 )
