@@ -5,7 +5,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -35,15 +34,13 @@ import kotlinx.coroutines.delay
 fun SplashScreen(
     onSplashFinished: () -> Unit
 ) {
-    // Animation states
     val scale = remember { Animatable(0f) }
     val rotation = remember { Animatable(-30f) }
     val alpha = remember { Animatable(0f) }
     val textAlpha = remember { Animatable(0f) }
 
-    // Run animations
     LaunchedEffect(key1 = true) {
-        // Logo scale and rotation animation
+        // Logo scale animation
         scale.animateTo(
             targetValue = 1f,
             animationSpec = tween(
@@ -51,8 +48,10 @@ fun SplashScreen(
                 easing = FastOutSlowInEasing
             )
         )
-        
-        // Run rotation alongside
+    }
+
+    LaunchedEffect(key1 = true) {
+        // Logo rotation animation
         rotation.animateTo(
             targetValue = 0f,
             animationSpec = tween(
@@ -71,7 +70,7 @@ fun SplashScreen(
                 easing = FastOutSlowInEasing
             )
         )
-        
+
         // Text fade in after logo
         delay(400)
         textAlpha.animateTo(
@@ -81,7 +80,7 @@ fun SplashScreen(
                 easing = FastOutSlowInEasing
             )
         )
-        
+
         // Wait and then navigate
         delay(1200)
         onSplashFinished()
@@ -102,14 +101,12 @@ fun SplashScreen(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Animated Logo
+            // Glow effect behind logo
             Box(
                 contentAlignment = Alignment.Center
             ) {
-                // Glow effect behind logo
                 Box(
                     modifier = Modifier
                         .size(140.dp)
@@ -126,9 +123,9 @@ fun SplashScreen(
                         )
                 )
 
-                // App Logo
+                // App Logo - using ic_launcher
                 Image(
-                    painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                    painter = painterResource(id = R.mipmap.ic_launcher),
                     contentDescription = "Fitu Logo",
                     modifier = Modifier
                         .size(120.dp)
