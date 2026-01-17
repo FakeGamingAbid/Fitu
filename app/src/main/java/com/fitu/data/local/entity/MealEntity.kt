@@ -14,16 +14,14 @@ data class MealEntity(
     val name: String,
     val description: String = "",
     val calories: Int,
-    val protein: Float = 0f,
-    val carbs: Float = 0f,
-    val fat: Float = 0f,
-    val fats: Float = 0f,  // Alternative field name for compatibility
-    val fiber: Float = 0f,
+    val protein: Int = 0,
+    val carbs: Int = 0,
+    val fat: Int = 0,
+    val fiber: Int = 0,
     val mealType: String = "snack",
-    val imageUri: String? = null,
-    val photoUri: String? = null,  // Alternative field name for compatibility
-    val portion: String? = null,
-    val date: Long,
+    val portion: Float = 1f,
+    val photoUri: String? = null,
+    val date: Long = System.currentTimeMillis(),
     val timestamp: Long = System.currentTimeMillis(),
     val createdAt: Long = System.currentTimeMillis()
 )
