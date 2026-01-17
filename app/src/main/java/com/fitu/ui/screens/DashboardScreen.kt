@@ -31,6 +31,8 @@ import com.fitu.ui.components.BirthdayWishDialog
 import com.fitu.ui.components.DumbbellIcon
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
+import com.fitu.ui.components.GoalCelebrationDialog
+import com.fitu.ui.components.GoalType
 import com.fitu.ui.dashboard.DashboardViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.text.SimpleDateFormat
@@ -105,6 +107,9 @@ fun DashboardScreen(
     val showBirthdayDialog by viewModel.showBirthdayDialog.collectAsState()
     val isBirthday by viewModel.isBirthday.collectAsState()
 
+    // 🎉 Goal Celebration
+    val showStepGoalCelebration by viewModel.showStepGoalCelebration.collectAsState()
+
     val stepProgress = if (dailyStepGoal > 0) currentSteps.toFloat() / dailyStepGoal else 0f
     val animatedStepProgress by animateFloatAsState(
         targetValue = stepProgress.coerceIn(0f, 1f),
@@ -130,6 +135,15 @@ fun DashboardScreen(
             onDismiss = { viewModel.dismissBirthdayDialog() }
         )
     }
+
+    // 🎉 Step Goal Celebration Dialog
+    GoalCelebrationDialog(
+        show = showStepGoalCelebration,
+        goalType = GoalType.STEPS,
+        achievedValue = String.format("%,d", currentSteps),
+        goalValue = String.format("%,d", dailyStepGoal),
+        onDismiss = { viewModel.dismissStepGoalCelebration() }
+    )
 
     Column(
         modifier = Modifier
@@ -267,6 +281,11 @@ fun DashboardScreen(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
                         )
+                        // Show trophy if goal reached
+                        if (stepProgress >= 1f) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "🏆", fontSize = 16.sp)
+                        }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     
@@ -306,7 +325,7 @@ fun DashboardScreen(
                             style = Stroke(width = 6.dp.toPx())
                         )
                         drawArc(
-                            color = OrangePrimary,
+                            color = if (stepProgress >= 1f) Color(0xFF4CAF50) else OrangePrimary,
                             startAngle = -90f,
                             sweepAngle = 360f * animatedStepProgress,
                             useCenter = false,
@@ -314,8 +333,8 @@ fun DashboardScreen(
                         )
                     }
                     Text(
-                        text = "${stepPercentage}%",
-                        color = Color.White,
+                        text = if (stepProgress >= 1f) "✓" else "${stepPercentage}%",
+                        color = if (stepProgress >= 1f) Color(0xFF4CAF50) else Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
