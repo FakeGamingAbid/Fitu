@@ -126,6 +126,9 @@ dependencies {
     // Security (Encrypted SharedPreferences)
     implementation(libs.androidx.security.crypto)
 
+    // Haze - Blur effect for Compose
+    implementation("dev.chrisbanes.haze:haze:0.7.1")
+
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
     testImplementation(libs.kotlinx.coroutines.test)
