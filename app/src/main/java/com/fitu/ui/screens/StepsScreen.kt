@@ -34,8 +34,11 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.fitu.ui.components.AnimatedDecimalCounter
+import com.fitu.ui.components.AnimatedFormattedCounter
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
+import com.fitu.ui.steps.DaySteps
 import com.fitu.ui.steps.StepsViewModel
 import com.fitu.ui.theme.OrangePrimary
 import com.fitu.util.AutoStartManager
@@ -96,8 +99,17 @@ fun StepsScreen(
             .padding(horizontal = 24.dp)
             .padding(top = 32.dp, bottom = 120.dp)
     ) {
-        Text(text = "Steps", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text(text = "Track your daily activity", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
+        Text(
+            text = "Steps",
+            color = Color.White,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Track your daily activity",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 14.sp
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -115,91 +127,238 @@ fun StepsScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
+        // Big circular progress with animated step counter
         Box(
-            modifier = Modifier.fillMaxWidth().aspectRatio(1f).padding(32.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                drawArc(color = Color.White.copy(alpha = 0.1f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round))
+                drawArc(
+                    color = Color.White.copy(alpha = 0.1f),
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
+                )
             }
             Canvas(modifier = Modifier.fillMaxSize()) {
-                drawArc(color = OrangePrimary, startAngle = -90f, sweepAngle = 360f * animatedProgress, useCenter = false, style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round))
+                drawArc(
+                    color = OrangePrimary,
+                    startAngle = -90f,
+                    sweepAngle = 360f * animatedProgress,
+                    useCenter = false,
+                    style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
+                )
             }
-            Box(modifier = Modifier.align(Alignment.TopCenter).offset(y = (-8).dp).size(48.dp).background(Color(0xFF1A1A1F), CircleShape), contentAlignment = Alignment.Center) {
-                Icon(SneakerIcon, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(28.dp))
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-8).dp)
+                    .size(48.dp)
+                    .background(Color(0xFF1A1A1F), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    SneakerIcon,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(28.dp)
+                )
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = String.format("%,d", currentSteps), color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.Bold)
-                Text(text = "STEPS TAKEN", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                // ✨ Animated step counter
+                AnimatedFormattedCounter(
+                    count = currentSteps,
+                    style = TextStyle(
+                        fontSize = 56.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                )
+                Text(
+                    text = "STEPS TAKEN",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        TrackingStatusSection(isServiceRunning, usesHardwareCounter, { viewModel.startService() }, { viewModel.stopService() })
+        TrackingStatusSection(
+            isServiceRunning = isServiceRunning,
+            usesHardwareCounter = usesHardwareCounter,
+            onStartTracking = { viewModel.startService() },
+            onStopTracking = { viewModel.stopService() }
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Distance & calories with animated counters
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             GlassCard(modifier = Modifier.weight(1f)) {
-                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(FootprintsIcon, null, tint = OrangePrimary, modifier = Modifier.size(24.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        FootprintsIcon,
+                        contentDescription = null,
+                        tint = OrangePrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(formattedDistance, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text(distanceUnit, color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                    AnimatedDecimalCounter(
+                        value = formattedDistance,
+                        style = TextStyle(
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    )
+                    Text(
+                        distanceUnit,
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp
+                    )
                 }
             }
             GlassCard(modifier = Modifier.weight(1f)) {
-                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.LocalFireDepartment, null, tint = OrangePrimary, modifier = Modifier.size(24.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = OrangePrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("$caloriesBurned", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text("KCAL", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                    AnimatedFormattedCounter(
+                        count = caloriesBurned,
+                        style = TextStyle(
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    )
+                    Text(
+                        "KCAL",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Today goal card with animated steps
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("📅", fontSize = 14.sp)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("TODAY'S GOAL", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            "TODAY'S GOAL",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text(String.format("%,d", currentSteps), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                        Text(" / ${String.format("%,d", dailyGoal)}", color = Color.White.copy(alpha = 0.4f), fontSize = 16.sp)
+                        AnimatedFormattedCounter(
+                            count = currentSteps,
+                            style = TextStyle(
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        )
+                        Text(
+                            " / ${String.format("%,d", dailyGoal)}",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 16.sp
+                        )
                     }
                 }
-                Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier.size(56.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawArc(color = Color.White.copy(alpha = 0.1f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 4.dp.toPx()))
-                        drawArc(color = OrangePrimary, startAngle = -90f, sweepAngle = 360f * animatedProgress, useCenter = false, style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round))
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.1f),
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = Stroke(width = 4.dp.toPx())
+                        )
+                        drawArc(
+                            color = OrangePrimary,
+                            startAngle = -90f,
+                            sweepAngle = 360f * animatedProgress,
+                            useCenter = false,
+                            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                        )
                     }
-                    Text("${goalProgress}%", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "${goalProgress}%",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("📅", fontSize = 14.sp)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Weekly Activity", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Weekly Activity",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
-            Text("STEPS", color = OrangePrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "STEPS",
+                color = OrangePrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            if (isWeeklyDataLoading) WeeklyChartLoading() else WeeklyChartContent(weeklySteps, currentSteps)
+            if (isWeeklyDataLoading) {
+                WeeklyChartLoading()
+            } else {
+                WeeklyChartContent(weeklySteps, currentSteps)
+            }
         }
     }
 }
@@ -239,18 +398,37 @@ private fun PermissionWarningCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Warning, null, tint = WarningOrange, modifier = Modifier.size(24.dp))
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = WarningOrange,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text("Background permissions needed", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("Step counting may stop when screen is off", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                    Text(
+                        "Background permissions needed",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Step counting may stop when screen is off",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 12.sp
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             if (isBatteryOptimized) {
-                Text(text = batteryHelperText, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, lineHeight = 16.sp)
+                Text(
+                    text = batteryHelperText,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = onBatteryClick,
@@ -270,7 +448,12 @@ private fun PermissionWarningCard(
             }
 
             if (needsAutoStart) {
-                Text(text = autoStartHelperText, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, lineHeight = 16.sp)
+                Text(
+                    text = autoStartHelperText,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = onAutoStartClick,
@@ -288,27 +471,79 @@ private fun PermissionWarningCard(
 }
 
 @Composable
-private fun TrackingStatusSection(isServiceRunning: Boolean, usesHardwareCounter: Boolean, onStartTracking: () -> Unit, onStopTracking: () -> Unit) {
+private fun TrackingStatusSection(
+    isServiceRunning: Boolean,
+    usesHardwareCounter: Boolean,
+    onStartTracking: () -> Unit,
+    onStopTracking: () -> Unit
+) {
     if (isServiceRunning) {
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(modifier = Modifier.size(12.dp).background(SuccessGreen, CircleShape))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(SuccessGreen, CircleShape)
+                    )
                     Column {
-                        Text("Tracking Active", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text(if (usesHardwareCounter) "Using hardware sensor" else "Using accelerometer", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                        Text(
+                            "Tracking Active",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            if (usesHardwareCounter) "Using hardware sensor" else "Using accelerometer",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp
+                        )
                     }
                 }
-                IconButton(onClick = onStopTracking, modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))) {
-                    Icon(Icons.Default.Stop, "Stop Tracking", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                IconButton(
+                    onClick = onStopTracking,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                ) {
+                    Icon(
+                        Icons.Default.Stop,
+                        contentDescription = "Stop Tracking",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
     } else {
-        Button(onClick = onStartTracking, modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary), shape = RoundedCornerShape(16.dp)) {
-            Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(28.dp))
+        Button(
+            onClick = onStartTracking,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Icon(
+                Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Start Tracking", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Start Tracking",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -316,42 +551,114 @@ private fun TrackingStatusSection(isServiceRunning: Boolean, usesHardwareCounter
 @Composable
 private fun WeeklyChartLoading() {
     Column {
-        Row(modifier = Modifier.fillMaxWidth().height(100.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-            repeat(7) { Box(modifier = Modifier.width(24.dp).height((20 + (it * 10)).dp).background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            repeat(7) {
+                Box(
+                    modifier = Modifier
+                        .width(24.dp)
+                        .height((20 + (it * 10)).dp)
+                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                )
+            }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach { Text(it, color = Color.White.copy(alpha = 0.3f), fontSize = 11.sp) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach {
+                Text(
+                    it,
+                    color = Color.White.copy(alpha = 0.3f),
+                    fontSize = 11.sp
+                )
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = OrangePrimary, strokeWidth = 2.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = OrangePrimary,
+                strokeWidth = 2.dp
+            )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Loading weekly data...", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+            Text(
+                "Loading weekly data...",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp
+            )
         }
     }
 }
 
 @Composable
-private fun WeeklyChartContent(weeklySteps: List<com.fitu.ui.steps.DaySteps>, currentSteps: Int) {
-    val maxSteps = remember(weeklySteps, currentSteps) { weeklySteps.maxOfOrNull { if (it.isToday) currentSteps else it.steps }?.coerceAtLeast(1) ?: 1 }
+private fun WeeklyChartContent(
+    weeklySteps: List<DaySteps>,
+    currentSteps: Int
+) {
+    val maxSteps = remember(weeklySteps, currentSteps) {
+        weeklySteps.maxOfOrNull { if (it.isToday) currentSteps else it.steps }
+            ?.coerceAtLeast(1) ?: 1
+    }
     Column {
-        Row(modifier = Modifier.fillMaxWidth().height(100.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom
+        ) {
             weeklySteps.forEach { dayData ->
                 val steps = if (dayData.isToday) currentSteps else dayData.steps
                 val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 80).dp else 4.dp
-                Box(modifier = Modifier.width(24.dp).height(barHeight.coerceAtLeast(4.dp)).background(if (steps > 0) { if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f) } else Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                Box(
+                    modifier = Modifier
+                        .width(24.dp)
+                        .height(barHeight.coerceAtLeast(4.dp))
+                        .background(
+                            if (steps > 0) {
+                                if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
+                            } else Color.White.copy(alpha = 0.1f),
+                            RoundedCornerShape(4.dp)
+                        )
+                )
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            weeklySteps.forEach { dayData -> Text(dayData.day, color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            weeklySteps.forEach { dayData ->
+                Text(
+                    dayData.day,
+                    color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal
+                )
+            }
         }
     }
 }
 
 private val SneakerIcon: ImageVector
-    get() = ImageVector.Builder(name = "Sneaker", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 256f, viewportHeight = 256f).apply {
+    get() = ImageVector.Builder(
+        name = "Sneaker",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 256f,
+        viewportHeight = 256f
+    ).apply {
         path(fill = SolidColor(Color.White)) {
             moveTo(231.16f, 166.63f)
             lineTo(202.53f, 152.32f)
