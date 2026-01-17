@@ -20,7 +20,22 @@ class RepCounter(
         // Anti-jitter configuration
         private const val SMOOTHING_WINDOW = 5        // Average last 5 angles
         private const val DEBOUNCE_FRAMES = 3         // Require 3 consecutive frames in position
-        private const val MIN_REP_INTERVAL_MS = 800L  // Minimum 800ms between reps (max ~75 reps/min)
+        
+        /**
+         * ✅ FIX #4: Get minimum rep interval based on exercise type
+         * Fast exercises (crunches, curls) = 400ms
+         * Medium exercises (push-ups) = 600ms
+         * Slow exercises (squats) = 700ms
+         */
+        private fun getMinRepInterval(exerciseType: ExerciseType): Long {
+            return when (exerciseType) {
+                ExerciseType.CRUNCH -> 400L        // Fast exercise
+                ExerciseType.DUMBBELL_CURL -> 450L // Fast exercise
+                ExerciseType.PUSH_UP -> 600L       // Medium exercise
+                ExerciseType.SQUAT -> 700L         // Slower, deeper movement
+                ExerciseType.PLANK -> 1000L        // Time-based, not used for reps
+            }
+        }
         
         fun forExercise(config: ExerciseConfig): RepCounter {
             return RepCounter(
@@ -49,6 +64,9 @@ class RepCounter(
     
     // Timestamp of last rep
     private var lastRepTimeMs: Long = 0L
+    
+    // ✅ FIX #4: Store the min interval for this exercise
+    private val minRepIntervalMs: Long = getMinRepInterval(exerciseType)
 
     val repCount: Int get() = _repCount
     val currentState: State get() = state
@@ -128,7 +146,8 @@ class RepCounter(
                 // Check if user came back UP → count rep! (requires debounce + time check)
                 if (framesInUp >= DEBOUNCE_FRAMES) {
                     val timeSinceLastRep = currentTime - lastRepTimeMs
-                    if (timeSinceLastRep >= MIN_REP_INTERVAL_MS) {
+                    // ✅ FIX #4: Use exercise-specific interval
+                    if (timeSinceLastRep >= minRepIntervalMs) {
                         state = State.UP
                         _repCount++
                         lastRepTimeMs = currentTime
@@ -186,7 +205,8 @@ class RepCounter(
                 // Check if user extended back (DOWN) → count rep! (requires debounce + time check)
                 if (framesInDown >= DEBOUNCE_FRAMES) {
                     val timeSinceLastRep = currentTime - lastRepTimeMs
-                    if (timeSinceLastRep >= MIN_REP_INTERVAL_MS) {
+                    // ✅ FIX #4: Use exercise-specific interval
+                    if (timeSinceLastRep >= minRepIntervalMs) {
                         state = State.DOWN
                         _repCount++
                         lastRepTimeMs = currentTime
