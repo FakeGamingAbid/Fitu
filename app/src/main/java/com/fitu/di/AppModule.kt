@@ -7,9 +7,9 @@ import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.data.local.dao.MealDao
 import com.fitu.data.local.dao.StepDao
 import com.fitu.data.local.dao.WorkoutDao
+import com.fitu.data.repository.DashboardRepositoryImpl
 import com.fitu.data.repository.StreakRepository
 import com.fitu.domain.repository.DashboardRepository
-import com.fitu.domain.repository.DashboardRepositoryImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
