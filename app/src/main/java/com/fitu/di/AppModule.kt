@@ -1,21 +1,19 @@
 package com.fitu.di
 
-import android.app.Application
 import android.content.Context
-import android.hardware.SensorManager
 import androidx.room.Room
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
-import com.fitu.data.local.FituDatabase
-import com.fitu.data.local.SecureStorage
+import com.fitu.data.local.AppDatabase
 import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.data.local.dao.MealDao
 import com.fitu.data.local.dao.StepDao
 import com.fitu.data.local.dao.WorkoutDao
-import com.fitu.data.local.dao.WorkoutPlanDao
+import com.fitu.data.repository.StreakRepository
+import com.fitu.domain.repository.DashboardRepository
+import com.fitu.domain.repository.DashboardRepositoryImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -25,93 +23,60 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideContext(application: Application): Context {
-        return application.applicationContext
+    fun provideAppDatabase(
+        @ApplicationContext context: Context
+    ): AppDatabase {
+        return Room.databaseBuilder(
+            context,
+            AppDatabase::class.java,
+            "fitu_database"
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides
     @Singleton
-    fun provideSensorManager(context: Context): SensorManager {
-        return context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    fun provideStepDao(database: AppDatabase): StepDao {
+        return database.stepDao()
     }
 
     @Provides
     @Singleton
-    fun provideUserPreferencesRepository(context: Context): UserPreferencesRepository {
+    fun provideMealDao(database: AppDatabase): MealDao {
+        return database.mealDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideWorkoutDao(database: AppDatabase): WorkoutDao {
+        return database.workoutDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideUserPreferencesRepository(
+        @ApplicationContext context: Context
+    ): UserPreferencesRepository {
         return UserPreferencesRepository(context)
     }
 
     @Provides
     @Singleton
-    fun provideSecureStorage(context: Context): SecureStorage {
-        return SecureStorage(context)
+    fun provideDashboardRepository(
+        mealDao: MealDao,
+        workoutDao: WorkoutDao,
+        stepDao: StepDao
+    ): DashboardRepository {
+        return DashboardRepositoryImpl(mealDao, workoutDao, stepDao)
     }
 
     @Provides
     @Singleton
-    fun provideDatabase(application: Application): FituDatabase {
-        return Room.databaseBuilder(
-            application,
-            FituDatabase::class.java,
-            "fitu_db"
-        )
-        .addMigrations(
-            MIGRATION_5_6,
-            MIGRATION_6_7,
-            MIGRATION_7_8  // ✅ Add durationMs to workouts
-        )
-        .fallbackToDestructiveMigrationFrom(1, 2, 3, 4)
-        .build()
-    }
-
-    @Provides
-    @Singleton
-    fun provideWorkoutDao(db: FituDatabase): WorkoutDao {
-        return db.workoutDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideMealDao(db: FituDatabase): MealDao {
-        return db.mealDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideWorkoutPlanDao(db: FituDatabase): WorkoutPlanDao {
-        return db.workoutPlanDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideFoodCacheDao(db: FituDatabase): com.fitu.data.local.dao.FoodCacheDao {
-        return db.foodCacheDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideStepDao(db: FituDatabase): StepDao {
-        return db.stepDao()
-    }
-}
-
-// Existing migration
-val MIGRATION_5_6 = object : Migration(5, 6) {
-    override fun migrate(database: SupportSQLiteDatabase) {
-        // Placeholder migration
-    }
-}
-
-// Migration to add photoUri column to meals table
-val MIGRATION_6_7 = object : Migration(6, 7) {
-    override fun migrate(database: SupportSQLiteDatabase) {
-        database.execSQL("ALTER TABLE meals ADD COLUMN photoUri TEXT DEFAULT NULL")
-    }
-}
-
-// ✅ NEW: Migration to add durationMs column to workouts table
-val MIGRATION_7_8 = object : Migration(7, 8) {
-    override fun migrate(database: SupportSQLiteDatabase) {
-        database.execSQL("ALTER TABLE workouts ADD COLUMN durationMs INTEGER NOT NULL DEFAULT 0")
+    fun provideStreakRepository(
+        stepDao: StepDao,
+        userPreferencesRepository: UserPreferencesRepository
+    ): StreakRepository {
+        return StreakRepository(stepDao, userPreferencesRepository)
     }
 }
