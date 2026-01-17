@@ -18,15 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
 import com.fitu.ui.theme.OrangePrimary
-import kotlinx.coroutines.delay
 import kotlin.math.sin
 import kotlin.random.Random
 
-data class ConfettiParticle(
+private data class ConfettiParticleData(
     val id: Int,
     val x: Float,
     val initialY: Float,
@@ -37,10 +35,10 @@ data class ConfettiParticle(
     val fallSpeed: Float,
     val wobbleSpeed: Float,
     val wobbleAmount: Float,
-    val shape: ConfettiShape
+    val shape: ConfettiShapeType
 )
 
-enum class ConfettiShape {
+private enum class ConfettiShapeType {
     RECTANGLE,
     CIRCLE,
     TRIANGLE,
@@ -54,24 +52,22 @@ fun ConfettiExplosion(
     durationMillis: Int = 4000,
     onComplete: () -> Unit = {}
 ) {
-    val density = LocalDensity.current
-    
     val confettiColors = listOf(
         OrangePrimary,
-        Color(0xFFFF6B6B),      // Red
-        Color(0xFF4ECDC4),      // Teal
-        Color(0xFFFFE66D),      // Yellow
-        Color(0xFF95E1D3),      // Mint
-        Color(0xFFF38181),      // Coral
-        Color(0xFFAA96DA),      // Purple
-        Color(0xFF81C784),      // Green
-        Color(0xFF64B5F6),      // Blue
-        Color(0xFFFFB74D)       // Orange
+        Color(0xFFFF6B6B),
+        Color(0xFF4ECDC4),
+        Color(0xFFFFE66D),
+        Color(0xFF95E1D3),
+        Color(0xFFF38181),
+        Color(0xFFAA96DA),
+        Color(0xFF81C784),
+        Color(0xFF64B5F6),
+        Color(0xFFFFB74D)
     )
 
     val particles = remember {
         List(particleCount) { index ->
-            ConfettiParticle(
+            ConfettiParticleData(
                 id = index,
                 x = Random.nextFloat(),
                 initialY = Random.nextFloat() * -0.5f - 0.1f,
@@ -82,7 +78,7 @@ fun ConfettiExplosion(
                 fallSpeed = Random.nextFloat() * 0.3f + 0.2f,
                 wobbleSpeed = Random.nextFloat() * 4f + 2f,
                 wobbleAmount = Random.nextFloat() * 0.1f + 0.02f,
-                shape = ConfettiShape.entries[Random.nextInt(ConfettiShape.entries.size)]
+                shape = ConfettiShapeType.entries[Random.nextInt(ConfettiShapeType.entries.size)]
             )
         }
     }
@@ -117,7 +113,7 @@ fun ConfettiExplosion(
 
         particles.forEach { particle ->
             val currentY = particle.initialY + progress.value * (1.5f + particle.fallSpeed)
-            
+
             if (currentY < 1.2f) {
                 val wobbleOffset = sin(wobble * particle.wobbleSpeed) * particle.wobbleAmount
                 val currentX = particle.x + wobbleOffset
@@ -131,22 +127,22 @@ fun ConfettiExplosion(
                     pivot = Offset(x, y)
                 ) {
                     when (particle.shape) {
-                        ConfettiShape.RECTANGLE -> {
+                        ConfettiShapeType.RECTANGLE -> {
                             drawRect(
                                 color = particle.color,
                                 topLeft = Offset(x - particle.size / 2, y - particle.size / 4),
                                 size = Size(particle.size, particle.size / 2)
                             )
                         }
-                        ConfettiShape.CIRCLE -> {
+                        ConfettiShapeType.CIRCLE -> {
                             drawCircle(
                                 color = particle.color,
                                 radius = particle.size / 2,
                                 center = Offset(x, y)
                             )
                         }
-                        ConfettiShape.TRIANGLE -> {
-                            val path = androidx.compose.ui.graphics.Path().apply {
+                        ConfettiShapeType.TRIANGLE -> {
+                            val path = Path().apply {
                                 moveTo(x, y - particle.size / 2)
                                 lineTo(x - particle.size / 2, y + particle.size / 2)
                                 lineTo(x + particle.size / 2, y + particle.size / 2)
@@ -154,7 +150,7 @@ fun ConfettiExplosion(
                             }
                             drawPath(path, particle.color)
                         }
-                        ConfettiShape.STAR -> {
+                        ConfettiShapeType.STAR -> {
                             drawCircle(
                                 color = particle.color,
                                 radius = particle.size / 3,
@@ -174,109 +170,6 @@ fun ConfettiExplosion(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun GoalCelebration(
-    show: Boolean,
-    goalType: String = "step",
-    onDismiss: () -> Unit
-) {
-    if (show) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            ConfettiExplosion(
-                particleCount = 150,
-                durationMillis = 4000,
-                onComplete = onDismiss
-            )
-            
-            // Optional: Add celebration text overlay
-            CelebrationOverlay(
-                goalType = goalType,
-                onDismiss = onDismiss
-            )
-        }
-    }
-}
-
-@Composable
-private fun CelebrationOverlay(
-    goalType: String,
-    onDismiss: () -> Unit
-) {
-    val scale = remember { Animatable(0f) }
-    val alpha = remember { Animatable(0f) }
-
-    LaunchedEffect(key1 = true) {
-        // Scale up
-        scale.animateTo(
-            targetValue = 1.2f,
-            animationSpec = tween(300)
-        )
-        scale.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(200)
-        )
-        
-        // Fade in
-        alpha.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(300)
-        )
-        
-        // Wait
-        delay(2500)
-        
-        // Fade out
-        alpha.animateTo(
-            targetValue = 0f,
-            animationSpec = tween(500)
-        )
-    }
-
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = androidx.compose.ui.Alignment.Center
-    ) {
-        androidx.compose.foundation.layout.Column(
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-            modifier = Modifier
-                .androidx.compose.ui.draw.scale(scale.value)
-                .androidx.compose.ui.draw.alpha(alpha.value)
-        ) {
-            androidx.compose.material3.Text(
-                text = "🎉",
-                fontSize = 72.androidx.compose.ui.unit.sp
-            )
-            
-            androidx.compose.foundation.layout.Spacer(
-                modifier = Modifier.androidx.compose.foundation.layout.height(16.dp)
-            )
-            
-            androidx.compose.material3.Text(
-                text = when (goalType) {
-                    "step" -> "Step Goal Reached!"
-                    "calorie" -> "Calorie Goal Reached!"
-                    else -> "Goal Reached!"
-                },
-                color = Color.White,
-                fontSize = 28.androidx.compose.ui.unit.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            
-            androidx.compose.foundation.layout.Spacer(
-                modifier = Modifier.androidx.compose.foundation.layout.height(8.dp)
-            )
-            
-            androidx.compose.material3.Text(
-                text = "Amazing work! Keep it up! 💪",
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 16.androidx.compose.ui.unit.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
         }
     }
 }
