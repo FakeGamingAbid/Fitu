@@ -47,6 +47,7 @@ import com.fitu.ui.components.GoalCelebrationDialog
 import com.fitu.ui.components.GoalType
 import com.fitu.ui.components.StreakBadge
 import com.fitu.ui.components.StreakCounterCard
+import com.fitu.ui.components.skeletons.DashboardSkeleton
 import com.fitu.ui.dashboard.DashboardViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.text.SimpleDateFormat
@@ -111,6 +112,14 @@ fun DashboardScreen(
 
     val streakData by viewModel.streakData.collectAsState()
     val stepsNeededForStreak by viewModel.stepsNeededForStreak.collectAsState()
+
+    // Show skeleton while loading
+    val isLoading = !isStepsInitialized
+    
+    if (isLoading) {
+        DashboardSkeleton()
+        return
+    }
 
     val stepProgress = if (dailyStepGoal > 0) currentSteps.toFloat() / dailyStepGoal else 0f
     val animatedStepProgress by animateFloatAsState(
@@ -326,21 +335,12 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    if (!isStepsInitialized) {
-                        Text(
-                            text = "Loading...",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    } else {
-                        Text(
-                            text = String.format("%,d", currentSteps),
-                            color = Color.White,
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Text(
+                        text = String.format("%,d", currentSteps),
+                        color = Color.White,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                     Text(
                         text = "Goal: ${String.format("%,d", dailyStepGoal)}",
                         color = Color.White.copy(alpha = 0.5f),
