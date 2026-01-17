@@ -41,17 +41,17 @@ interface MealDao {
     @Query("SELECT SUM(calories) FROM meals WHERE date >= :startDate AND date <= :endDate")
     suspend fun getTotalCaloriesInRange(startDate: Long, endDate: Long): Int?
 
-    @Query("SELECT SUM(calories) FROM meals WHERE date >= :startDate AND date <= :endDate")
-    fun getCaloriesConsumedForDay(startDate: Long, endDate: Long): Flow<Int?>
+    @Query("SELECT COALESCE(SUM(calories), 0) FROM meals WHERE date >= :startDate AND date <= :endDate")
+    fun getCaloriesConsumedForDay(startDate: Long, endDate: Long): Flow<Int>
 
-    @Query("SELECT SUM(protein) FROM meals WHERE date >= :startDate AND date <= :endDate")
-    fun getProteinForDay(startDate: Long, endDate: Long): Flow<Float?>
+    @Query("SELECT COALESCE(SUM(protein), 0) FROM meals WHERE date >= :startDate AND date <= :endDate")
+    fun getProteinForDay(startDate: Long, endDate: Long): Flow<Int>
 
-    @Query("SELECT SUM(carbs) FROM meals WHERE date >= :startDate AND date <= :endDate")
-    fun getCarbsForDay(startDate: Long, endDate: Long): Flow<Float?>
+    @Query("SELECT COALESCE(SUM(carbs), 0) FROM meals WHERE date >= :startDate AND date <= :endDate")
+    fun getCarbsForDay(startDate: Long, endDate: Long): Flow<Int>
 
-    @Query("SELECT SUM(fat) FROM meals WHERE date >= :startDate AND date <= :endDate")
-    fun getFatsForDay(startDate: Long, endDate: Long): Flow<Float?>
+    @Query("SELECT COALESCE(SUM(fat), 0) FROM meals WHERE date >= :startDate AND date <= :endDate")
+    fun getFatsForDay(startDate: Long, endDate: Long): Flow<Int>
 
     @Query("DELETE FROM meals WHERE id = :id")
     suspend fun deleteById(id: Long)
