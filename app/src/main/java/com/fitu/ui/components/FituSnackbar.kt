@@ -1,4 +1,3 @@
-// app/src/main/java/com/fitu/ui/components/FituSnackbar.kt
 package com.fitu.ui.components
 
 import androidx.compose.foundation.layout.padding
@@ -27,7 +26,6 @@ fun FituSnackbarHost(
                 shape = RoundedCornerShape(16.dp),
                 containerColor = Color(0xFF2A2A2F),
                 contentColor = Color.White,
-                actionColor = OrangePrimary,
                 action = {
                     data.visuals.actionLabel?.let { actionLabel ->
                         TextButton(onClick = { data.dismiss() }) {
