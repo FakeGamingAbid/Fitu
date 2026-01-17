@@ -1,4 +1,4 @@
- package com.fitu.ui.screens
+package com.fitu.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -34,10 +34,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fitu.ui.components.AnimatedDecimalCounter
+import com.fitu.ui.components.AnimatedFormattedCounter
 import com.fitu.ui.components.AppleIcon
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
@@ -299,7 +302,7 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Steps Card
+        // Steps Card with Animated Counter
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
             onClick = onNavigateToSteps
@@ -331,12 +334,16 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Text(
-                        text = String.format("%,d", currentSteps),
-                        color = Color.White,
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold
+                    // Animated Step Counter
+                    AnimatedFormattedCounter(
+                        count = currentSteps,
+                        style = TextStyle(
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     )
+                    
                     Text(
                         text = "Goal: ${String.format("%,d", dailyStepGoal)}",
                         color = Color.White.copy(alpha = 0.5f),
@@ -376,7 +383,7 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Distance & Burned Row
+        // Distance & Burned Row with Animated Counters
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -400,11 +407,14 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = formattedDistance,
-                            color = Color.White,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold
+                        // Animated Distance Counter
+                        AnimatedDecimalCounter(
+                            value = formattedDistance,
+                            style = TextStyle(
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
@@ -436,11 +446,14 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = "$caloriesBurned",
-                            color = Color.White,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold
+                        // Animated Calories Counter
+                        AnimatedFormattedCounter(
+                            count = caloriesBurned,
+                            style = TextStyle(
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
@@ -504,4 +517,4 @@ fun DashboardScreen(
             }
         }
     }
-} 
+}
