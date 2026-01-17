@@ -54,7 +54,7 @@ class NutritionViewModel @Inject constructor(
         private const val MAX_IMAGE_HEIGHT = 1024
         private const val JPEG_QUALITY = 85
         
-        // ✅ NEW: Thumbnail settings
+        // Thumbnail settings
         private const val THUMBNAIL_SIZE = 200
         private const val THUMBNAIL_QUALITY = 80
         
@@ -89,9 +89,21 @@ class NutritionViewModel @Inject constructor(
     private val _showDeleteConfirmDialog = MutableStateFlow(false)
     val showDeleteConfirmDialog: StateFlow<Boolean> = _showDeleteConfirmDialog
 
-    // ✅ NEW: Store the current photo bitmap for saving
+    // Store the current photo bitmap for saving
     private val _currentPhotoBitmap = MutableStateFlow<Bitmap?>(null)
     val currentPhotoBitmap: StateFlow<Bitmap?> = _currentPhotoBitmap
+
+    /**
+     * ✅ FIX #2: Safely recycle old bitmap before setting new one
+     */
+    private fun setPhotoBitmap(newBitmap: Bitmap?) {
+        val oldBitmap = _currentPhotoBitmap.value
+        if (oldBitmap != null && oldBitmap != newBitmap && !oldBitmap.isRecycled) {
+            oldBitmap.recycle()
+            Log.d(TAG, "Recycled old bitmap")
+        }
+        _currentPhotoBitmap.value = newBitmap
+    }
 
     // Rate limiting
     private var lastRequestTime = 0L
@@ -206,7 +218,7 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
-     * ✅ NEW: Clean old food photos (older than 30 days)
+     * Clean old food photos (older than 30 days)
      */
     private fun cleanOldFoodPhotos() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -228,7 +240,7 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
-     * ✅ NEW: Get the directory for storing food photos
+     * Get the directory for storing food photos
      */
     private fun getFoodPhotosDir(): File {
         val dir = File(context.filesDir, "food_photos")
@@ -239,7 +251,7 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
-     * ✅ NEW: Save bitmap as thumbnail and return the file URI
+     * Save bitmap as thumbnail and return the file URI
      */
     private suspend fun saveFoodPhoto(bitmap: Bitmap): String? {
         return withContext(Dispatchers.IO) {
@@ -257,7 +269,7 @@ class NutritionViewModel @Inject constructor(
                 }
                 
                 // Recycle thumbnail if different from original
-                if (thumbnail != bitmap) {
+                if (thumbnail != bitmap && !thumbnail.isRecycled) {
                     thumbnail.recycle()
                 }
                 
@@ -271,7 +283,7 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
-     * ✅ NEW: Create a thumbnail from bitmap
+     * Create a thumbnail from bitmap
      */
     private fun createThumbnail(bitmap: Bitmap): Bitmap {
         val width = bitmap.width
@@ -294,7 +306,7 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
-     * ✅ NEW: Delete food photo file
+     * Delete food photo file
      */
     private fun deleteFoodPhoto(photoUri: String?) {
         if (photoUri.isNullOrBlank()) return
@@ -367,7 +379,7 @@ class NutritionViewModel @Inject constructor(
     fun hideAddFood() {
         _showAddFoodSheet.value = false
         _analyzedFood.value = null
-        _currentPhotoBitmap.value = null  // ✅ Clear photo
+        setPhotoBitmap(null)  // ✅ FIX: Properly recycle bitmap
         _portion.value = 1f
         _textSearch.value = ""
         _uiState.value = NutritionUiState.Idle
@@ -421,7 +433,7 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
-     * Analyze food from image - ✅ UPDATED to store bitmap
+     * Analyze food from image
      */
     fun analyzeFood(bitmap: Bitmap) {
         if (isRateLimited()) {
@@ -443,8 +455,8 @@ class NutritionViewModel @Inject constructor(
             return
         }
 
-        // ✅ Store the bitmap for later saving
-        _currentPhotoBitmap.value = bitmap
+        // ✅ FIX: Safely store bitmap (recycles old one)
+        setPhotoBitmap(bitmap)
 
         _uiState.value = NutritionUiState.Analyzing
 
@@ -486,18 +498,23 @@ class NutritionViewModel @Inject constructor(
 
                 val food = parseJsonResponse(text)
                 
+                // Recycle compressed bitmap if different from original
+                if (compressedBitmap != bitmap && !compressedBitmap.isRecycled) {
+                    compressedBitmap.recycle()
+                }
+                
                 _analyzedFood.value = food
                 _uiState.value = NutritionUiState.Success(food)
                 Log.d(TAG, "Successfully analyzed: ${food.name}")
 
             } catch (e: GeminiException) {
                 Log.e(TAG, "Gemini error: ${e.errorType} - ${e.message}")
-                _currentPhotoBitmap.value = null  // Clear on error
+                setPhotoBitmap(null)  // ✅ FIX: Properly recycle on error
                 _uiState.value = mapGeminiExceptionToUiState(e)
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Unexpected error", e)
-                _currentPhotoBitmap.value = null  // Clear on error
+                setPhotoBitmap(null)  // ✅ FIX: Properly recycle on error
                 _uiState.value = NutritionUiState.Error(
                     message = "Something went wrong. Please try again.",
                     errorType = NutritionErrorType.UNKNOWN,
@@ -532,8 +549,8 @@ class NutritionViewModel @Inject constructor(
             return
         }
 
-        // ✅ Clear any existing photo since this is text search
-        _currentPhotoBitmap.value = null
+        // ✅ FIX: Clear and recycle any existing photo
+        setPhotoBitmap(null)
 
         _uiState.value = NutritionUiState.Analyzing
 
@@ -715,7 +732,7 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
-     * ✅ UPDATED: Save photo when adding meal
+     * Save photo when adding meal
      */
     private fun addFoodToMealInternal(ignoreDuplicate: Boolean) {
         val food = _analyzedFood.value ?: return
@@ -740,7 +757,7 @@ class NutritionViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            // ✅ Save photo if available
+            // Save photo if available
             val photoUri = _currentPhotoBitmap.value?.let { bitmap ->
                 saveFoodPhoto(bitmap)
             }
@@ -754,7 +771,7 @@ class NutritionViewModel @Inject constructor(
                 timestamp = System.currentTimeMillis(),
                 mealType = mealType,
                 portion = portionMultiplier,
-                photoUri = photoUri  // ✅ Save photo URI
+                photoUri = photoUri
             )
             mealDao.insertMeal(meal)
             
@@ -778,7 +795,7 @@ class NutritionViewModel @Inject constructor(
     }
 
     /**
-     * ✅ UPDATED: Delete photo when deleting meal
+     * Delete photo when deleting meal
      */
     fun confirmDeleteMeal() {
         val meal = _mealToDelete.value ?: return
@@ -795,11 +812,21 @@ class NutritionViewModel @Inject constructor(
     fun reset() {
         _uiState.value = NutritionUiState.Idle
         _analyzedFood.value = null
-        _currentPhotoBitmap.value = null
+        setPhotoBitmap(null)  // ✅ FIX: Properly recycle bitmap
     }
 
     fun retry() {
         _uiState.value = NutritionUiState.Idle
+    }
+
+    /**
+     * ✅ FIX #2: Clean up bitmap when ViewModel is destroyed
+     */
+    override fun onCleared() {
+        super.onCleared()
+        setPhotoBitmap(null)
+        currentAnalysisJob?.cancel()
+        Log.d(TAG, "NutritionViewModel cleared")
     }
 }
 
