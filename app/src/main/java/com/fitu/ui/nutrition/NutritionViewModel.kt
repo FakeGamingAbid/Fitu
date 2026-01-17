@@ -4,9 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.net.Uri
 import android.util.Log
-import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.UserPreferencesRepository
@@ -48,20 +46,12 @@ class NutritionViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "NutritionViewModel"
-        
-        // Image compression settings
         private const val MAX_IMAGE_WIDTH = 1024
         private const val MAX_IMAGE_HEIGHT = 1024
         private const val JPEG_QUALITY = 85
-        
-        // Thumbnail settings
         private const val THUMBNAIL_SIZE = 200
         private const val THUMBNAIL_QUALITY = 80
-        
-        // Rate limiting
         private const val MIN_REQUEST_INTERVAL_MS = 2000L
-        
-        // Duplicate detection settings
         private const val DUPLICATE_DETECTION_WINDOW_MS = 5000L
     }
 
@@ -89,27 +79,19 @@ class NutritionViewModel @Inject constructor(
     private val _showDeleteConfirmDialog = MutableStateFlow(false)
     val showDeleteConfirmDialog: StateFlow<Boolean> = _showDeleteConfirmDialog
 
-    // Store the current photo bitmap for saving
     private val _currentPhotoBitmap = MutableStateFlow<Bitmap?>(null)
     val currentPhotoBitmap: StateFlow<Bitmap?> = _currentPhotoBitmap
 
-    /**
-     * ✅ FIX #2: Safely recycle old bitmap before setting new one
-     */
     private fun setPhotoBitmap(newBitmap: Bitmap?) {
         val oldBitmap = _currentPhotoBitmap.value
         if (oldBitmap != null && oldBitmap != newBitmap && !oldBitmap.isRecycled) {
             oldBitmap.recycle()
-            Log.d(TAG, "Recycled old bitmap")
         }
         _currentPhotoBitmap.value = newBitmap
     }
 
-    // Rate limiting
     private var lastRequestTime = 0L
     private var currentAnalysisJob: Job? = null
-
-    // Duplicate detection
     private var lastAddedFoodName: String? = null
     private var lastAddedFoodTime: Long = 0L
     private var lastAddedMealType: String? = null
@@ -130,7 +112,7 @@ class NutritionViewModel @Inject constructor(
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
         val start = calendar.timeInMillis
-        
+
         calendar.set(Calendar.HOUR_OF_DAY, 23)
         calendar.set(Calendar.MINUTE, 59)
         calendar.set(Calendar.SECOND, 59)
@@ -144,23 +126,19 @@ class NutritionViewModel @Inject constructor(
 
     val caloriesConsumed: StateFlow<Int> = mealDao.getCaloriesConsumedForDay(
         getTodayRange().first, getTodayRange().second
-    ).combine(MutableStateFlow(0)) { cal, _ -> cal ?: 0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val proteinConsumed: StateFlow<Int> = mealDao.getProteinForDay(
         getTodayRange().first, getTodayRange().second
-    ).combine(MutableStateFlow(0)) { p, _ -> p ?: 0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val carbsConsumed: StateFlow<Int> = mealDao.getCarbsForDay(
         getTodayRange().first, getTodayRange().second
-    ).combine(MutableStateFlow(0)) { c, _ -> c ?: 0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val fatsConsumed: StateFlow<Int> = mealDao.getFatsForDay(
         getTodayRange().first, getTodayRange().second
-    ).combine(MutableStateFlow(0)) { f, _ -> f ?: 0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val calorieProgress: StateFlow<Float> = combine(caloriesConsumed, dailyCalorieGoal) { consumed, goal ->
         if (goal > 0) (consumed.toFloat() / goal.toFloat()).coerceIn(0f, 1f) else 0f
@@ -176,14 +154,14 @@ class NutritionViewModel @Inject constructor(
         val hour = calendar.get(Calendar.HOUR_OF_DAY)
         val minute = calendar.get(Calendar.MINUTE)
         val currentMinutes = hour * 60 + minute
-        
+
         val breakfastStart = 5 * 60
         val breakfastEnd = 11 * 60 + 59
         val lunchStart = 12 * 60
         val lunchEnd = 16 * 60
         val dinnerStart = 19 * 60
         val dinnerEnd = 22 * 60
-        
+
         return when {
             currentMinutes in breakfastStart..breakfastEnd -> "breakfast"
             currentMinutes in lunchStart..lunchEnd -> "lunch"
@@ -217,9 +195,6 @@ class NutritionViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Clean old food photos (older than 30 days)
-     */
     private fun cleanOldFoodPhotos() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -229,7 +204,6 @@ class NutritionViewModel @Inject constructor(
                     photosDir.listFiles()?.forEach { file ->
                         if (file.lastModified() < thirtyDaysAgo) {
                             file.delete()
-                            Log.d(TAG, "Deleted old food photo: ${file.name}")
                         }
                     }
                 }
@@ -239,9 +213,6 @@ class NutritionViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Get the directory for storing food photos
-     */
     private fun getFoodPhotosDir(): File {
         val dir = File(context.filesDir, "food_photos")
         if (!dir.exists()) {
@@ -250,30 +221,21 @@ class NutritionViewModel @Inject constructor(
         return dir
     }
 
-    /**
-     * Save bitmap as thumbnail and return the file URI
-     */
     private suspend fun saveFoodPhoto(bitmap: Bitmap): String? {
         return withContext(Dispatchers.IO) {
             try {
-                // Create thumbnail
                 val thumbnail = createThumbnail(bitmap)
-                
-                // Generate unique filename
                 val filename = "food_${UUID.randomUUID()}.jpg"
                 val file = File(getFoodPhotosDir(), filename)
-                
-                // Save to file
+
                 FileOutputStream(file).use { out ->
                     thumbnail.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_QUALITY, out)
                 }
-                
-                // Recycle thumbnail if different from original
+
                 if (thumbnail != bitmap && !thumbnail.isRecycled) {
                     thumbnail.recycle()
                 }
-                
-                Log.d(TAG, "Saved food photo: ${file.absolutePath}")
+
                 file.absolutePath
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to save food photo", e)
@@ -282,41 +244,34 @@ class NutritionViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Create a thumbnail from bitmap
-     */
     private fun createThumbnail(bitmap: Bitmap): Bitmap {
         val width = bitmap.width
         val height = bitmap.height
-        
+
         val scaleFactor = minOf(
             THUMBNAIL_SIZE.toFloat() / width,
             THUMBNAIL_SIZE.toFloat() / height,
             1f
         )
-        
+
         if (scaleFactor >= 1f) {
             return bitmap
         }
-        
+
         val newWidth = (width * scaleFactor).toInt()
         val newHeight = (height * scaleFactor).toInt()
-        
+
         return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
     }
 
-    /**
-     * Delete food photo file
-     */
     private fun deleteFoodPhoto(photoUri: String?) {
         if (photoUri.isNullOrBlank()) return
-        
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val file = File(photoUri)
                 if (file.exists()) {
                     file.delete()
-                    Log.d(TAG, "Deleted food photo: $photoUri")
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to delete food photo", e)
@@ -344,20 +299,20 @@ class NutritionViewModel @Inject constructor(
     private fun compressBitmap(bitmap: Bitmap): Bitmap {
         val width = bitmap.width
         val height = bitmap.height
-        
+
         val scaleFactor = minOf(
             MAX_IMAGE_WIDTH.toFloat() / width,
             MAX_IMAGE_HEIGHT.toFloat() / height,
             1f
         )
-        
+
         if (scaleFactor >= 1f) {
             return bitmap
         }
-        
+
         val newWidth = (width * scaleFactor).toInt()
         val newHeight = (height * scaleFactor).toInt()
-        
+
         return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
     }
 
@@ -379,7 +334,7 @@ class NutritionViewModel @Inject constructor(
     fun hideAddFood() {
         _showAddFoodSheet.value = false
         _analyzedFood.value = null
-        setPhotoBitmap(null)  // ✅ FIX: Properly recycle bitmap
+        setPhotoBitmap(null)
         _portion.value = 1f
         _textSearch.value = ""
         _uiState.value = NutritionUiState.Idle
@@ -399,21 +354,21 @@ class NutritionViewModel @Inject constructor(
     private fun isDuplicateFood(foodName: String, mealType: String): Boolean {
         val now = System.currentTimeMillis()
         val timeSinceLastAdd = now - lastAddedFoodTime
-        
-        if (lastAddedFoodName != null && 
+
+        if (lastAddedFoodName != null &&
             timeSinceLastAdd < DUPLICATE_DETECTION_WINDOW_MS &&
             lastAddedFoodName.equals(foodName, ignoreCase = true) &&
             lastAddedMealType == mealType) {
             return true
         }
-        
+
         return false
     }
 
     private fun findSimilarRecentMeal(foodName: String, mealType: String): MealEntity? {
         val recentMeals = todayMeals.value
         val fiveMinutesAgo = System.currentTimeMillis() - (5 * 60 * 1000L)
-        
+
         return recentMeals.find { meal ->
             meal.name.equals(foodName, ignoreCase = true) &&
             meal.mealType == mealType &&
@@ -432,19 +387,9 @@ class NutritionViewModel @Inject constructor(
         addFoodToMealInternal(ignoreDuplicate = true)
     }
 
-    /**
-     * Analyze food from image
-     */
     fun analyzeFood(bitmap: Bitmap) {
-        if (isRateLimited()) {
-            Log.d(TAG, "Rate limited - ignoring request")
-            return
-        }
-
-        if (_uiState.value is NutritionUiState.Analyzing) {
-            Log.d(TAG, "Already analyzing - ignoring request")
-            return
-        }
+        if (isRateLimited()) return
+        if (_uiState.value is NutritionUiState.Analyzing) return
 
         if (!isOnline()) {
             _uiState.value = NutritionUiState.Error(
@@ -455,16 +400,12 @@ class NutritionViewModel @Inject constructor(
             return
         }
 
-        // ✅ FIX: Safely store bitmap (recycles old one)
         setPhotoBitmap(bitmap)
-
         _uiState.value = NutritionUiState.Analyzing
 
         currentAnalysisJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val compressedBitmap = compressBitmap(bitmap)
-                val sizeKB = getBitmapSizeKB(compressedBitmap)
-                Log.d(TAG, "Sending image: ${compressedBitmap.width}x${compressedBitmap.height}, ~${sizeKB}KB")
 
                 val inputContent = content {
                     image(compressedBitmap)
@@ -475,11 +416,9 @@ class NutritionViewModel @Inject constructor(
                         {"name": "food name", "calories": number, "protein": number, "carbs": number, "fats": number}
                         
                         Rules:
-                        - "name" should be a short, descriptive name (e.g., "Grilled Chicken Salad")
+                        - "name" should be a short, descriptive name
                         - "calories" is in kcal (integer)
                         - "protein", "carbs", "fats" are in grams (integers)
-                        - Estimate for a standard serving size
-                        - Do NOT include markdown, code blocks, or any explanation
                         - Return ONLY the JSON object
                     """.trimIndent())
                 }
@@ -494,27 +433,20 @@ class NutritionViewModel @Inject constructor(
                     "No response from AI"
                 )
 
-                Log.d(TAG, "Raw response: $text")
-
                 val food = parseJsonResponse(text)
-                
-                // Recycle compressed bitmap if different from original
+
                 if (compressedBitmap != bitmap && !compressedBitmap.isRecycled) {
                     compressedBitmap.recycle()
                 }
-                
+
                 _analyzedFood.value = food
                 _uiState.value = NutritionUiState.Success(food)
-                Log.d(TAG, "Successfully analyzed: ${food.name}")
 
             } catch (e: GeminiException) {
-                Log.e(TAG, "Gemini error: ${e.errorType} - ${e.message}")
-                setPhotoBitmap(null)  // ✅ FIX: Properly recycle on error
+                setPhotoBitmap(null)
                 _uiState.value = mapGeminiExceptionToUiState(e)
-                
             } catch (e: Exception) {
-                Log.e(TAG, "Unexpected error", e)
-                setPhotoBitmap(null)  // ✅ FIX: Properly recycle on error
+                setPhotoBitmap(null)
                 _uiState.value = NutritionUiState.Error(
                     message = "Something went wrong. Please try again.",
                     errorType = NutritionErrorType.UNKNOWN,
@@ -524,21 +456,10 @@ class NutritionViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Search food by text description - no photo
-     */
     fun searchFood(query: String) {
         if (query.isBlank()) return
-
-        if (isRateLimited()) {
-            Log.d(TAG, "Rate limited - ignoring request")
-            return
-        }
-
-        if (_uiState.value is NutritionUiState.Analyzing) {
-            Log.d(TAG, "Already analyzing - ignoring request")
-            return
-        }
+        if (isRateLimited()) return
+        if (_uiState.value is NutritionUiState.Analyzing) return
 
         if (!isOnline()) {
             _uiState.value = NutritionUiState.Error(
@@ -549,9 +470,7 @@ class NutritionViewModel @Inject constructor(
             return
         }
 
-        // ✅ FIX: Clear and recycle any existing photo
         setPhotoBitmap(null)
-
         _uiState.value = NutritionUiState.Analyzing
 
         currentAnalysisJob = viewModelScope.launch(Dispatchers.IO) {
@@ -562,7 +481,6 @@ class NutritionViewModel @Inject constructor(
                         val food = parseJsonResponse(cached.resultJson)
                         _analyzedFood.value = food
                         _uiState.value = NutritionUiState.Success(food)
-                        Log.d(TAG, "Loaded from cache: ${food.name}")
                         return@launch
                     } catch (e: Exception) {
                         Log.w(TAG, "Cache invalid, fetching fresh")
@@ -573,17 +491,8 @@ class NutritionViewModel @Inject constructor(
                     text("""
                         Estimate the nutritional information for: "$query"
                         
-                        Assume a standard serving size.
-                        
                         Return ONLY a valid JSON object with these exact fields:
                         {"name": "food name", "calories": number, "protein": number, "carbs": number, "fats": number}
-                        
-                        Rules:
-                        - "name" should be a clean, descriptive name
-                        - "calories" is in kcal (integer)
-                        - "protein", "carbs", "fats" are in grams (integers)
-                        - Do NOT include markdown, code blocks, or any explanation
-                        - Return ONLY the JSON object
                     """.trimIndent())
                 }
 
@@ -596,8 +505,6 @@ class NutritionViewModel @Inject constructor(
                     GeminiErrorType.EMPTY_RESPONSE,
                     "No response from AI"
                 )
-
-                Log.d(TAG, "Raw response: $text")
 
                 val food = parseJsonResponse(text)
 
@@ -612,14 +519,10 @@ class NutritionViewModel @Inject constructor(
 
                 _analyzedFood.value = food
                 _uiState.value = NutritionUiState.Success(food)
-                Log.d(TAG, "Successfully searched: ${food.name}")
 
             } catch (e: GeminiException) {
-                Log.e(TAG, "Gemini error: ${e.errorType} - ${e.message}")
                 _uiState.value = mapGeminiExceptionToUiState(e)
-                
             } catch (e: Exception) {
-                Log.e(TAG, "Unexpected error", e)
                 _uiState.value = NutritionUiState.Error(
                     message = "Something went wrong. Please try again.",
                     errorType = NutritionErrorType.UNKNOWN,
@@ -637,20 +540,18 @@ class NutritionViewModel @Inject constructor(
             .removeSuffix("```")
             .trim()
 
-        Log.d(TAG, "Parsing JSON: $cleanText")
-
         try {
             val json = JSONObject(cleanText)
-            
-            val name = json.optString("name", "").ifBlank { 
-                throw IllegalArgumentException("Missing food name") 
+
+            val name = json.optString("name", "").ifBlank {
+                throw IllegalArgumentException("Missing food name")
             }
-            
+
             val calories = json.optInt("calories", -1).let {
                 if (it < 0) throw IllegalArgumentException("Invalid calories")
                 it
             }
-            
+
             val protein = json.optInt("protein", 0).coerceAtLeast(0)
             val carbs = json.optInt("carbs", 0).coerceAtLeast(0)
             val fats = json.optInt("fats", 0).coerceAtLeast(0)
@@ -662,9 +563,8 @@ class NutritionViewModel @Inject constructor(
                 carbs = carbs.coerceIn(0, 1000),
                 fats = fats.coerceIn(0, 1000)
             )
-            
+
         } catch (e: Exception) {
-            Log.e(TAG, "JSON parse error: ${e.message}")
             throw GeminiException(
                 GeminiErrorType.INVALID_REQUEST,
                 "Could not understand the AI response. Please try again."
@@ -684,11 +584,6 @@ class NutritionViewModel @Inject constructor(
                 errorType = NutritionErrorType.API_KEY,
                 canRetry = false
             )
-            GeminiErrorType.PERMISSION_DENIED -> NutritionUiState.Error(
-                message = "API access denied. Please enable Generative Language API in Google Cloud Console.",
-                errorType = NutritionErrorType.API_KEY,
-                canRetry = false
-            )
             GeminiErrorType.RATE_LIMITED -> NutritionUiState.Error(
                 message = "Too many requests. Please wait a moment and try again.",
                 errorType = NutritionErrorType.RATE_LIMIT,
@@ -697,26 +592,6 @@ class NutritionViewModel @Inject constructor(
             GeminiErrorType.NETWORK_ERROR -> NutritionUiState.Error(
                 message = "No internet connection. Please check your network.",
                 errorType = NutritionErrorType.NETWORK,
-                canRetry = true
-            )
-            GeminiErrorType.TIMEOUT -> NutritionUiState.Error(
-                message = "Request timed out. Please try again.",
-                errorType = NutritionErrorType.NETWORK,
-                canRetry = true
-            )
-            GeminiErrorType.CONTENT_BLOCKED -> NutritionUiState.Error(
-                message = "Image could not be processed. Please try a different photo.",
-                errorType = NutritionErrorType.CONTENT,
-                canRetry = false
-            )
-            GeminiErrorType.MODEL_NOT_FOUND -> NutritionUiState.Error(
-                message = "AI model unavailable. Please try again later.",
-                errorType = NutritionErrorType.SERVICE,
-                canRetry = true
-            )
-            GeminiErrorType.EMPTY_RESPONSE -> NutritionUiState.Error(
-                message = "Could not identify the food. Please try a clearer photo.",
-                errorType = NutritionErrorType.CONTENT,
                 canRetry = true
             )
             else -> NutritionUiState.Error(
@@ -731,9 +606,6 @@ class NutritionViewModel @Inject constructor(
         addFoodToMealInternal(ignoreDuplicate = false)
     }
 
-    /**
-     * Save photo when adding meal
-     */
     private fun addFoodToMealInternal(ignoreDuplicate: Boolean) {
         val food = _analyzedFood.value ?: return
         val mealType = _selectedMealType.value
@@ -741,7 +613,6 @@ class NutritionViewModel @Inject constructor(
 
         if (!ignoreDuplicate) {
             if (isDuplicateFood(food.name, mealType)) {
-                Log.d(TAG, "Duplicate detected (rapid click): ${food.name}")
                 _duplicateWarningMessage.value = "You just added \"${food.name}\" to ${mealType}. Add again?"
                 _showDuplicateWarning.value = true
                 return
@@ -749,7 +620,6 @@ class NutritionViewModel @Inject constructor(
 
             val similarMeal = findSimilarRecentMeal(food.name, mealType)
             if (similarMeal != null) {
-                Log.d(TAG, "Similar meal found recently: ${food.name}")
                 _duplicateWarningMessage.value = "\"${food.name}\" was already added to ${mealType} recently. Add another serving?"
                 _showDuplicateWarning.value = true
                 return
@@ -757,7 +627,6 @@ class NutritionViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            // Save photo if available
             val photoUri = _currentPhotoBitmap.value?.let { bitmap ->
                 saveFoodPhoto(bitmap)
             }
@@ -767,19 +636,19 @@ class NutritionViewModel @Inject constructor(
                 calories = (food.calories * portionMultiplier).toInt(),
                 protein = (food.protein * portionMultiplier).toInt(),
                 carbs = (food.carbs * portionMultiplier).toInt(),
-                fats = (food.fats * portionMultiplier).toInt(),
+                fat = (food.fats * portionMultiplier).toInt(),
+                date = System.currentTimeMillis(),
                 timestamp = System.currentTimeMillis(),
                 mealType = mealType,
                 portion = portionMultiplier,
                 photoUri = photoUri
             )
             mealDao.insertMeal(meal)
-            
+
             lastAddedFoodName = food.name
             lastAddedFoodTime = System.currentTimeMillis()
             lastAddedMealType = mealType
-            
-            Log.d(TAG, "Added meal: ${food.name} to $mealType with photo: $photoUri")
+
             hideAddFood()
         }
     }
@@ -794,15 +663,10 @@ class NutritionViewModel @Inject constructor(
         _showDeleteConfirmDialog.value = false
     }
 
-    /**
-     * Delete photo when deleting meal
-     */
     fun confirmDeleteMeal() {
         val meal = _mealToDelete.value ?: return
         viewModelScope.launch {
-            // Delete photo file if exists
             deleteFoodPhoto(meal.photoUri)
-            
             mealDao.deleteMeal(meal.id)
             _mealToDelete.value = null
             _showDeleteConfirmDialog.value = false
@@ -812,21 +676,17 @@ class NutritionViewModel @Inject constructor(
     fun reset() {
         _uiState.value = NutritionUiState.Idle
         _analyzedFood.value = null
-        setPhotoBitmap(null)  // ✅ FIX: Properly recycle bitmap
+        setPhotoBitmap(null)
     }
 
     fun retry() {
         _uiState.value = NutritionUiState.Idle
     }
 
-    /**
-     * ✅ FIX #2: Clean up bitmap when ViewModel is destroyed
-     */
     override fun onCleared() {
         super.onCleared()
         setPhotoBitmap(null)
         currentAnalysisJob?.cancel()
-        Log.d(TAG, "NutritionViewModel cleared")
     }
 }
 
