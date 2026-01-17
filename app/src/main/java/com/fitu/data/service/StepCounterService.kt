@@ -31,7 +31,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
@@ -58,8 +57,9 @@ class StepCounterService : Service(), SensorEventListener {
     private var currentDate: String = ""
     private var dailyStepGoal: Int = 10000
     
-    // Thread-safe milestone tracking
-    private val notifiedMilestones = ConcurrentHashMap.newKeySet<Int>()
+    // ✅ FIX #5: Use synchronized set with lock object
+    private val milestoneLock = Any()
+    private val notifiedMilestones = mutableSetOf<Int>()
 
     // Persistent storage for step state
     private val stepStatePrefs: SharedPreferences by lazy {
@@ -213,8 +213,10 @@ class StepCounterService : Service(), SensorEventListener {
         initialStepCount = -1
         lastKnownHardwareSteps = -1
         
-        // Clear milestones for new day
-        notifiedMilestones.clear()
+        // ✅ FIX #5: Clear milestones with synchronization
+        synchronized(milestoneLock) {
+            notifiedMilestones.clear()
+        }
         clearNotifiedMilestones()
         
         // Reset persisted state
@@ -424,25 +426,40 @@ class StepCounterService : Service(), SensorEventListener {
         dailyStepGoal = prefs.getInt("daily_step_goal", 10000)
     }
 
+    /**
+     * ✅ FIX #5: Load milestones with synchronization
+     */
     private fun loadNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
         val savedDate = prefs.getString("milestone_date", "")
         
-        if (savedDate == currentDate) {
-            val savedMilestones = prefs.getStringSet("notified_milestones", emptySet()) ?: emptySet()
+        synchronized(milestoneLock) {
             notifiedMilestones.clear()
-            savedMilestones.mapNotNull { it.toIntOrNull() }.forEach { notifiedMilestones.add(it) }
-        } else {
-            notifiedMilestones.clear()
-            clearNotifiedMilestones()
+            
+            if (savedDate == currentDate) {
+                val savedMilestones = prefs.getStringSet("notified_milestones", emptySet()) ?: emptySet()
+                savedMilestones.mapNotNull { it.toIntOrNull() }.forEach { 
+                    notifiedMilestones.add(it) 
+                }
+            }
         }
     }
 
+    /**
+     * ✅ FIX #5: Save milestones with synchronization
+     */
     private fun saveNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
+        
+        // Create a copy while holding the lock
+        val milestoneCopy: Set<String>
+        synchronized(milestoneLock) {
+            milestoneCopy = notifiedMilestones.map { it.toString() }.toSet()
+        }
+        
         prefs.edit()
             .putString("milestone_date", currentDate)
-            .putStringSet("notified_milestones", notifiedMilestones.map { it.toString() }.toSet())
+            .putStringSet("notified_milestones", milestoneCopy)
             .apply()
     }
 
@@ -538,15 +555,25 @@ class StepCounterService : Service(), SensorEventListener {
         manager.notify(NOTIFICATION_ID, buildNotification(steps))
     }
 
+    /**
+     * ✅ FIX #5: Check milestones with synchronization
+     */
     private fun checkMilestones(steps: Int) {
         if (dailyStepGoal <= 0) return
         
         val currentProgress = ((steps.toFloat() / dailyStepGoal) * 100).toInt()
         
         for (milestone in MILESTONES) {
-            if (currentProgress >= milestone && !notifiedMilestones.contains(milestone)) {
+            val shouldNotify: Boolean
+            synchronized(milestoneLock) {
+                shouldNotify = currentProgress >= milestone && !notifiedMilestones.contains(milestone)
+                if (shouldNotify) {
+                    notifiedMilestones.add(milestone)
+                }
+            }
+            
+            if (shouldNotify) {
                 sendMilestoneNotification(steps, milestone)
-                notifiedMilestones.add(milestone)
                 saveNotifiedMilestones()
             }
         }
