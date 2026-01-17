@@ -28,6 +28,12 @@ interface StepDao {
     @Query("SELECT * FROM steps WHERE date >= :startOfDay AND date <= :endOfDay LIMIT 1")
     fun getStepsForDayFlow(startOfDay: Long, endOfDay: Long): Flow<StepEntity?>
 
+    @Query("SELECT * FROM steps WHERE date = :date LIMIT 1")
+    suspend fun getStepsForDate(date: Long): StepEntity?
+
+    @Query("SELECT * FROM steps WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC")
+    suspend fun getStepsBetweenDates(startDate: Long, endDate: Long): List<StepEntity>
+
     @Query("SELECT SUM(steps) FROM steps WHERE date >= :startDate AND date <= :endDate")
     suspend fun getTotalStepsInRange(startDate: Long, endDate: Long): Int?
 
