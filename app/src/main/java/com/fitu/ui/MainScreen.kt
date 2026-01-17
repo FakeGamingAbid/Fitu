@@ -108,10 +108,18 @@ fun MainScreen(
         }
     }
 
-    val startDestination = if (isOnboardingComplete == true) Screen.Dashboard.route else Screen.Onboarding.route
+    // Determine start destination
+    val startDestination = when {
+        isOnboardingComplete == false -> Screen.Onboarding.route
+        else -> Screen.Splash.route  // Show splash first, then navigate to Dashboard
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val showBottomBar = currentDestination?.route != Screen.Onboarding.route
+    
+    // Hide bottom bar on Onboarding and Splash screens
+    val showBottomBar = currentDestination?.route != Screen.Onboarding.route 
+        && currentDestination?.route != Screen.Splash.route
 
     Scaffold(
         containerColor = Color(0xFF0A0A0F)
