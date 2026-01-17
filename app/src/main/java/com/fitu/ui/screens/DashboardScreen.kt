@@ -5,19 +5,32 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -33,10 +46,14 @@ import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
 import com.fitu.ui.components.GoalCelebrationDialog
 import com.fitu.ui.components.GoalType
+import com.fitu.ui.components.StreakBadge
+import com.fitu.ui.components.StreakCounterCard
 import com.fitu.ui.dashboard.DashboardViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
  * Get time-based greeting with emoji
@@ -91,10 +108,10 @@ fun DashboardScreen(
     val caloriesConsumed by viewModel.caloriesConsumed.collectAsState()
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
     val workoutsCompleted by viewModel.workoutsCompleted.collectAsState()
-    
+
     // Step initialization check
     val isStepsInitialized by viewModel.isStepsInitialized.collectAsState()
-    
+
     // Weekly data loading check
     val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
     val weeklySteps by viewModel.weeklySteps.collectAsState()
@@ -102,13 +119,17 @@ fun DashboardScreen(
     // Unit conversion
     val formattedDistance by viewModel.formattedDistance.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
-    
+
     // Birthday feature
     val showBirthdayDialog by viewModel.showBirthdayDialog.collectAsState()
     val isBirthday by viewModel.isBirthday.collectAsState()
 
-    // 🎉 Goal Celebration
+    // Goal Celebration
     val showStepGoalCelebration by viewModel.showStepGoalCelebration.collectAsState()
+
+    // Streak data
+    val streakData by viewModel.streakData.collectAsState()
+    val stepsNeededForStreak by viewModel.stepsNeededForStreak.collectAsState()
 
     val stepProgress = if (dailyStepGoal > 0) currentSteps.toFloat() / dailyStepGoal else 0f
     val animatedStepProgress by animateFloatAsState(
@@ -124,8 +145,8 @@ fun DashboardScreen(
     // Time-based greeting
     val (greeting, subGreeting) = remember { getTimeBasedGreeting() }
     val greetingEmoji = remember { getGreetingEmoji() }
-    val motivationalMessage = remember(stepProgress, workoutsCompleted) { 
-        getMotivationalMessage(stepProgress, workoutsCompleted) 
+    val motivationalMessage = remember(stepProgress, workoutsCompleted) {
+        getMotivationalMessage(stepProgress, workoutsCompleted)
     }
 
     // Birthday wish dialog
@@ -136,7 +157,7 @@ fun DashboardScreen(
         )
     }
 
-    // 🎉 Step Goal Celebration Dialog
+    // Step Goal Celebration Dialog
     GoalCelebrationDialog(
         show = showStepGoalCelebration,
         goalType = GoalType.STEPS,
@@ -196,30 +217,41 @@ fun DashboardScreen(
                     )
                 }
             }
-            
-            // Avatar
-            Box(
-                modifier = Modifier
-                    .size(if (isBirthday) 52.dp else 48.dp)
-                    .background(
-                        if (isBirthday) Brush.linearGradient(
-                            listOf(OrangePrimary, Color(0xFFFFD700))
-                        ) else Brush.linearGradient(
-                            listOf(OrangePrimary, OrangePrimary)
-                        ),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+
+            // Streak badge + Avatar
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (isBirthday) {
-                    Text(text = "🎂", fontSize = 24.sp)
-                } else {
-                    Text(
-                        text = userName.take(1).uppercase().ifEmpty { "U" },
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                // Streak Badge
+                if (streakData.currentStreak > 0) {
+                    StreakBadge(streak = streakData.currentStreak)
+                }
+
+                // Avatar
+                Box(
+                    modifier = Modifier
+                        .size(if (isBirthday) 52.dp else 48.dp)
+                        .background(
+                            if (isBirthday) Brush.linearGradient(
+                                listOf(OrangePrimary, Color(0xFFFFD700))
+                            ) else Brush.linearGradient(
+                                listOf(OrangePrimary, OrangePrimary)
+                            ),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isBirthday) {
+                        Text(text = "🎂", fontSize = 24.sp)
+                    } else {
+                        Text(
+                            text = userName.take(1).uppercase().ifEmpty { "U" },
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -254,7 +286,51 @@ fun DashboardScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- Streak Counter Card ---
+        StreakCounterCard(
+            currentStreak = streakData.currentStreak,
+            longestStreak = streakData.longestStreak,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Steps needed to maintain streak
+        if (stepsNeededForStreak > 0 && streakData.currentStreak > 0) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Color(0xFF1A1A1F),
+                        RoundedCornerShape(12.dp)
+                    )
+                    .border(
+                        1.dp,
+                        OrangePrimary.copy(alpha = 0.2f),
+                        RoundedCornerShape(12.dp)
+                    )
+                    .padding(12.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⚡",
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${String.format("%,d", stepsNeededForStreak)} steps to keep your streak!",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // --- Steps Card ---
         GlassCard(
@@ -288,7 +364,7 @@ fun DashboardScreen(
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    
+
                     // Show loading indicator or actual steps
                     if (!isStepsInitialized) {
                         Text(
@@ -497,9 +573,9 @@ fun DashboardScreen(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 if (isWeeklyDataLoading) {
                     // Show loading skeleton
                     DashboardWeeklyChartLoading()
@@ -516,14 +592,14 @@ fun DashboardScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
                             OrangePrimary.copy(alpha = 0.8f),
                             OrangePrimary.copy(alpha = 0.4f)
                         )
-                    )
+                    ),
+                    RoundedCornerShape(24.dp)
                 )
                 .border(1.dp, OrangePrimary.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
                 .padding(20.dp)
@@ -623,7 +699,7 @@ private fun DashboardWeeklyChartLoading() {
 private fun DashboardWeeklyChartContent(weeklySteps: List<Int>) {
     val days = listOf("M", "T", "W", "T", "F", "S", "S")
     val maxSteps = weeklySteps.maxOrNull()?.coerceAtLeast(1) ?: 1
-    
+
     Column {
         Row(
             modifier = Modifier
