@@ -5,16 +5,15 @@ import com.fitu.data.local.dao.StepDao
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
-import java.time.LocalDate
-import java.time.ZoneId
+import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 
 data class StreakData(
     val currentStreak: Int = 0,
     val longestStreak: Int = 0,
-    val lastStreakDate: LocalDate? = null,
-    val streakHistory: List<LocalDate> = emptyList()
+    val lastStreakDate: Long? = null,
+    val streakHistory: List<Long> = emptyList()
 )
 
 @Singleton
@@ -30,20 +29,17 @@ class StreakRepository @Inject constructor(
         val dailyGoal = userPreferencesRepository.dailyStepGoal.first()
 
         // Get last 365 days of step data
-        val today = LocalDate.now()
-        val startDate = today.minusDays(365)
+        val today = getStartOfDay(System.currentTimeMillis())
+        val startDate = today - (365L * 24 * 60 * 60 * 1000)
 
-        val startMillis = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val endMillis = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val stepRecords = stepDao.getStepsBetweenDatesSync(
+            formatDateString(startDate),
+            formatDateString(today + (24 * 60 * 60 * 1000) - 1)
+        )
 
-        val stepRecords = stepDao.getStepsInRange(startMillis, endMillis)
-
-        // Convert to map of date -> steps
+        // Convert to map of date string -> steps
         val stepsMap = stepRecords.associate { record ->
-            val date = java.time.Instant.ofEpochMilli(record.date)
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate()
-            date to record.steps
+            record.date to record.steps
         }
 
         // Calculate current streak (consecutive days meeting goal, ending today or yesterday)
@@ -51,16 +47,18 @@ class StreakRepository @Inject constructor(
         var checkDate = today
 
         // Check if today's goal is met, if not start from yesterday
-        val todaySteps = stepsMap[today] ?: 0
+        val todayDateStr = formatDateString(today)
+        val todaySteps = stepsMap[todayDateStr] ?: 0
         if (todaySteps < dailyGoal) {
-            checkDate = today.minusDays(1)
+            checkDate = today - (24 * 60 * 60 * 1000) // yesterday
         }
 
         while (true) {
-            val steps = stepsMap[checkDate] ?: 0
+            val dateStr = formatDateString(checkDate)
+            val steps = stepsMap[dateStr] ?: 0
             if (steps >= dailyGoal) {
                 currentStreak++
-                checkDate = checkDate.minusDays(1)
+                checkDate -= (24 * 60 * 60 * 1000) // go back one day
             } else {
                 break
             }
@@ -69,11 +67,12 @@ class StreakRepository @Inject constructor(
         // Calculate longest streak ever
         var longestStreak = 0
         var tempStreak = 0
-        val streakDays = mutableListOf<LocalDate>()
+        val streakDays = mutableListOf<Long>()
 
         var scanDate = startDate
-        while (!scanDate.isAfter(today)) {
-            val steps = stepsMap[scanDate] ?: 0
+        while (scanDate <= today) {
+            val dateStr = formatDateString(scanDate)
+            val steps = stepsMap[dateStr] ?: 0
             if (steps >= dailyGoal) {
                 tempStreak++
                 streakDays.add(scanDate)
@@ -83,7 +82,7 @@ class StreakRepository @Inject constructor(
                 }
                 tempStreak = 0
             }
-            scanDate = scanDate.plusDays(1)
+            scanDate += (24 * 60 * 60 * 1000) // next day
         }
 
         // Check final streak
@@ -93,7 +92,7 @@ class StreakRepository @Inject constructor(
 
         // Determine last streak date
         val lastStreakDate = if (currentStreak > 0) {
-            if (todaySteps >= dailyGoal) today else today.minusDays(1)
+            if (todaySteps >= dailyGoal) today else today - (24 * 60 * 60 * 1000)
         } else {
             streakDays.lastOrNull()
         }
@@ -109,34 +108,41 @@ class StreakRepository @Inject constructor(
     }
 
     /**
-     * Check if user can extend streak today
-     */
-    suspend fun canExtendStreakToday(): Boolean {
-        val dailyGoal = userPreferencesRepository.dailyStepGoal.first()
-        val today = LocalDate.now()
-
-        val startMillis = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val endMillis = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
-        val todayRecord = stepDao.getStepsInRange(startMillis, endMillis).firstOrNull()
-        val todaySteps = todayRecord?.steps ?: 0
-
-        return todaySteps < dailyGoal
-    }
-
-    /**
      * Get steps needed to maintain/extend streak
      */
     suspend fun getStepsNeededForStreak(): Int {
         val dailyGoal = userPreferencesRepository.dailyStepGoal.first()
-        val today = LocalDate.now()
+        val today = getStartOfDay(System.currentTimeMillis())
+        val todayStr = formatDateString(today)
 
-        val startMillis = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val endMillis = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
-        val todayRecord = stepDao.getStepsInRange(startMillis, endMillis).firstOrNull()
+        val todayRecord = stepDao.getStepsForDate(todayStr)
         val todaySteps = todayRecord?.steps ?: 0
 
         return (dailyGoal - todaySteps).coerceAtLeast(0)
+    }
+
+    /**
+     * Get start of day timestamp
+     */
+    private fun getStartOfDay(timestamp: Long): Long {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = timestamp
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
+    }
+
+    /**
+     * Format timestamp to date string "yyyy-MM-dd"
+     */
+    private fun formatDateString(timestamp: Long): String {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = timestamp
+        val year = calendar.get(Calendar.YEAR)
+        val month = calendar.get(Calendar.MONTH) + 1
+        val day = calendar.get(Calendar.DAY_OF_MONTH)
+        return String.format("%04d-%02d-%02d", year, month, day)
     }
 }
