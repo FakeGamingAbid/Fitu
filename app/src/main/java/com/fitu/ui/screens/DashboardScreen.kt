@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.ui.components.AppleIcon
-import com.fitu.ui.components.BirthdayWishDialog
 import com.fitu.ui.components.DumbbellIcon
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
@@ -55,9 +54,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-/**
- * Get time-based greeting with emoji
- */
 private fun getTimeBasedGreeting(): Pair<String, String> {
     val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
     return when (hour) {
@@ -68,9 +64,6 @@ private fun getTimeBasedGreeting(): Pair<String, String> {
     }
 }
 
-/**
- * Get greeting emoji based on time
- */
 private fun getGreetingEmoji(): String {
     val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
     return when (hour) {
@@ -81,9 +74,6 @@ private fun getGreetingEmoji(): String {
     }
 }
 
-/**
- * Get motivational message based on step progress
- */
 private fun getMotivationalMessage(stepProgress: Float, workoutsCompleted: Int): String {
     return when {
         stepProgress >= 1f -> "Amazing! You crushed your step goal! 🎉"
@@ -109,25 +99,16 @@ fun DashboardScreen(
     val dailyCalorieGoal by viewModel.dailyCalorieGoal.collectAsState()
     val workoutsCompleted by viewModel.workoutsCompleted.collectAsState()
 
-    // Step initialization check
     val isStepsInitialized by viewModel.isStepsInitialized.collectAsState()
-
-    // Weekly data loading check
     val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
     val weeklySteps by viewModel.weeklySteps.collectAsState()
 
-    // Unit conversion
     val formattedDistance by viewModel.formattedDistance.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
 
-    // Birthday feature
-    val showBirthdayDialog by viewModel.showBirthdayDialog.collectAsState()
     val isBirthday by viewModel.isBirthday.collectAsState()
-
-    // Goal Celebration
     val showStepGoalCelebration by viewModel.showStepGoalCelebration.collectAsState()
 
-    // Streak data
     val streakData by viewModel.streakData.collectAsState()
     val stepsNeededForStreak by viewModel.stepsNeededForStreak.collectAsState()
 
@@ -142,19 +123,10 @@ fun DashboardScreen(
     val dateFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
     val todayDate = dateFormat.format(Date())
 
-    // Time-based greeting
-    val (greeting, subGreeting) = remember { getTimeBasedGreeting() }
+    val (greeting, _) = remember { getTimeBasedGreeting() }
     val greetingEmoji = remember { getGreetingEmoji() }
     val motivationalMessage = remember(stepProgress, workoutsCompleted) {
         getMotivationalMessage(stepProgress, workoutsCompleted)
-    }
-
-    // Birthday wish dialog
-    if (showBirthdayDialog) {
-        BirthdayWishDialog(
-            userName = userName,
-            onDismiss = { viewModel.dismissBirthdayDialog() }
-        )
     }
 
     // Step Goal Celebration Dialog
@@ -174,7 +146,7 @@ fun DashboardScreen(
             .padding(horizontal = 24.dp)
             .padding(top = 32.dp, bottom = 120.dp)
     ) {
-        // --- Header with Time-Based Greeting ---
+        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -182,7 +154,6 @@ fun DashboardScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 if (isBirthday) {
-                    // Birthday greeting
                     Text(
                         text = "Happy Birthday, ${userName.ifBlank { "User" }}! 🎉",
                         color = OrangePrimary,
@@ -195,7 +166,6 @@ fun DashboardScreen(
                         fontSize = 14.sp
                     )
                 } else {
-                    // Time-based greeting
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "$greeting, ${userName.ifBlank { "User" }}",
@@ -218,17 +188,14 @@ fun DashboardScreen(
                 }
             }
 
-            // Streak badge + Avatar
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Streak Badge
                 if (streakData.currentStreak > 0) {
                     StreakBadge(streak = streakData.currentStreak)
                 }
 
-                // Avatar
                 Box(
                     modifier = Modifier
                         .size(if (isBirthday) 52.dp else 48.dp)
@@ -258,7 +225,7 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // --- Motivational Message Card ---
+        // Motivational Message
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -288,14 +255,14 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Streak Counter Card ---
+        // Streak Counter Card
         StreakCounterCard(
             currentStreak = streakData.currentStreak,
             longestStreak = streakData.longestStreak,
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Steps needed to maintain streak
+        // Steps needed for streak
         if (stepsNeededForStreak > 0 && streakData.currentStreak > 0) {
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -313,13 +280,8 @@ fun DashboardScreen(
                     )
                     .padding(12.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "⚡",
-                        fontSize = 16.sp
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "⚡", fontSize = 16.sp)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "${String.format("%,d", stepsNeededForStreak)} steps to keep your streak!",
@@ -332,7 +294,7 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Steps Card ---
+        // Steps Card
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
             onClick = onNavigateToSteps
@@ -357,7 +319,6 @@ fun DashboardScreen(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
                         )
-                        // Show trophy if goal reached
                         if (stepProgress >= 1f) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(text = "🏆", fontSize = 16.sp)
@@ -365,7 +326,6 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Show loading indicator or actual steps
                     if (!isStepsInitialized) {
                         Text(
                             text = "Loading...",
@@ -387,7 +347,7 @@ fun DashboardScreen(
                         fontSize = 14.sp
                     )
                 }
-                // Progress Ring
+
                 Box(
                     modifier = Modifier.size(64.dp),
                     contentAlignment = Alignment.Center
@@ -420,12 +380,11 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Distance & Burned Row ---
+        // Distance & Burned Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Distance Card with unit conversion
             GlassCard(modifier = Modifier.weight(1f)) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -462,7 +421,6 @@ fun DashboardScreen(
                 }
             }
 
-            // Burned Card
             GlassCard(modifier = Modifier.weight(1f)) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -502,7 +460,7 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Nutrition Card ---
+        // Nutrition Card
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
             onClick = onNavigateToNutrition
@@ -552,7 +510,7 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- Weekly Activity Card with Loading State ---
+        // Weekly Activity Card
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
                 Row(
@@ -577,10 +535,8 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (isWeeklyDataLoading) {
-                    // Show loading skeleton
                     DashboardWeeklyChartLoading()
                 } else {
-                    // Show actual chart
                     DashboardWeeklyChartContent(weeklySteps = weeklySteps)
                 }
             }
@@ -588,7 +544,7 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- AI Workout Coach Card ---
+        // AI Workout Coach Card
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -633,9 +589,6 @@ fun DashboardScreen(
     }
 }
 
-/**
- * Loading skeleton for dashboard weekly chart
- */
 @Composable
 private fun DashboardWeeklyChartLoading() {
     Column {
@@ -692,9 +645,6 @@ private fun DashboardWeeklyChartLoading() {
     }
 }
 
-/**
- * Actual weekly chart content for dashboard
- */
 @Composable
 private fun DashboardWeeklyChartContent(weeklySteps: List<Int>) {
     val days = listOf("M", "T", "W", "T", "F", "S", "S")
