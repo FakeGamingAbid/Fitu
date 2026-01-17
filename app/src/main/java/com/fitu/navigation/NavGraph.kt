@@ -8,10 +8,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -36,97 +32,40 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
 }
 
-// Animation durations
-private const val ANIMATION_DURATION = 400
-private const val FADE_DURATION = 300
+// Fast animation durations
+private const val POPUP_DURATION = 200
+private const val FADE_DURATION = 150
 
 /**
- * Slide in from right
+ * Fast popup enter - scale up with fade
  */
-private fun slideInFromRight(): EnterTransition {
-    return slideInHorizontally(
-        initialOffsetX = { fullWidth -> fullWidth },
-        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
-    ) + fadeIn(animationSpec = tween(FADE_DURATION))
-}
-
-/**
- * Slide out to left
- */
-private fun slideOutToLeft(): ExitTransition {
-    return slideOutHorizontally(
-        targetOffsetX = { fullWidth -> -fullWidth / 3 },
-        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
-    ) + fadeOut(animationSpec = tween(FADE_DURATION))
-}
-
-/**
- * Slide in from left
- */
-private fun slideInFromLeft(): EnterTransition {
-    return slideInHorizontally(
-        initialOffsetX = { fullWidth -> -fullWidth },
-        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
-    ) + fadeIn(animationSpec = tween(FADE_DURATION))
-}
-
-/**
- * Slide out to right
- */
-private fun slideOutToRight(): ExitTransition {
-    return slideOutHorizontally(
-        targetOffsetX = { fullWidth -> fullWidth },
-        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
-    ) + fadeOut(animationSpec = tween(FADE_DURATION))
-}
-
-/**
- * Slide in from bottom (for modals/sheets)
- */
-private fun slideInFromBottom(): EnterTransition {
-    return slideInVertically(
-        initialOffsetY = { fullHeight -> fullHeight },
-        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
-    ) + fadeIn(animationSpec = tween(FADE_DURATION))
-}
-
-/**
- * Slide out to bottom
- */
-private fun slideOutToBottom(): ExitTransition {
-    return slideOutVertically(
-        targetOffsetY = { fullHeight -> fullHeight },
-        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
-    ) + fadeOut(animationSpec = tween(FADE_DURATION))
-}
-
-/**
- * Scale + fade in (for feature screens)
- */
-private fun scaleInWithFade(): EnterTransition {
+private fun popupEnter(): EnterTransition {
     return scaleIn(
-        initialScale = 0.92f,
-        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+        initialScale = 0.85f,
+        animationSpec = tween(POPUP_DURATION, easing = FastOutSlowInEasing)
     ) + fadeIn(animationSpec = tween(FADE_DURATION))
 }
 
 /**
- * Scale + fade out
+ * Fast popup exit - scale down with fade
  */
-private fun scaleOutWithFade(): ExitTransition {
+private fun popupExit(): ExitTransition {
     return scaleOut(
-        targetScale = 0.92f,
-        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+        targetScale = 0.85f,
+        animationSpec = tween(POPUP_DURATION, easing = FastOutSlowInEasing)
     ) + fadeOut(animationSpec = tween(FADE_DURATION))
 }
 
 /**
- * Simple fade transition
+ * Simple fade in (for splash/onboarding)
  */
 private fun fadeInOnly(): EnterTransition {
     return fadeIn(animationSpec = tween(FADE_DURATION))
 }
 
+/**
+ * Simple fade out (for splash/onboarding)
+ */
 private fun fadeOutOnly(): ExitTransition {
     return fadeOut(animationSpec = tween(FADE_DURATION))
 }
@@ -139,11 +78,11 @@ fun NavGraph(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        // Default transitions
-        enterTransition = { slideInFromRight() },
-        exitTransition = { slideOutToLeft() },
-        popEnterTransition = { slideInFromLeft() },
-        popExitTransition = { slideOutToRight() }
+        // Default fast popup transitions for all screens
+        enterTransition = { popupEnter() },
+        exitTransition = { popupExit() },
+        popEnterTransition = { popupEnter() },
+        popExitTransition = { popupExit() }
     ) {
         // Splash Screen - Fade only
         composable(
@@ -175,13 +114,13 @@ fun NavGraph(
             )
         }
 
-        // Dashboard - Scale + fade (main hub)
+        // Dashboard - Fast popup
         composable(
             route = Screen.Dashboard.route,
-            enterTransition = { scaleInWithFade() },
-            exitTransition = { scaleOutWithFade() },
-            popEnterTransition = { scaleInWithFade() },
-            popExitTransition = { scaleOutWithFade() }
+            enterTransition = { popupEnter() },
+            exitTransition = { popupExit() },
+            popEnterTransition = { popupEnter() },
+            popExitTransition = { popupExit() }
         ) {
             DashboardScreen(
                 onNavigateToSteps = {
@@ -193,57 +132,57 @@ fun NavGraph(
             )
         }
 
-        // Steps Screen - Slide from right
+        // Steps Screen - Fast popup
         composable(
             route = Screen.Steps.route,
-            enterTransition = { slideInFromRight() },
-            exitTransition = { slideOutToLeft() },
-            popEnterTransition = { slideInFromLeft() },
-            popExitTransition = { slideOutToRight() }
+            enterTransition = { popupEnter() },
+            exitTransition = { popupExit() },
+            popEnterTransition = { popupEnter() },
+            popExitTransition = { popupExit() }
         ) {
             StepsScreen()
         }
 
-        // Nutrition Screen - Slide from right
+        // Nutrition Screen - Fast popup
         composable(
             route = Screen.Nutrition.route,
-            enterTransition = { slideInFromRight() },
-            exitTransition = { slideOutToLeft() },
-            popEnterTransition = { slideInFromLeft() },
-            popExitTransition = { slideOutToRight() }
+            enterTransition = { popupEnter() },
+            exitTransition = { popupExit() },
+            popEnterTransition = { popupEnter() },
+            popExitTransition = { popupExit() }
         ) {
             NutritionScreen()
         }
 
-        // Coach Screen - Slide from bottom (feature screen)
+        // Coach Screen - Fast popup
         composable(
             route = Screen.Coach.route,
-            enterTransition = { slideInFromBottom() },
-            exitTransition = { slideOutToBottom() },
-            popEnterTransition = { slideInFromBottom() },
-            popExitTransition = { slideOutToBottom() }
+            enterTransition = { popupEnter() },
+            exitTransition = { popupExit() },
+            popEnterTransition = { popupEnter() },
+            popExitTransition = { popupExit() }
         ) {
             CoachScreen()
         }
 
-        // Generator Screen - Scale + fade
+        // Generator Screen - Fast popup
         composable(
             route = Screen.Generator.route,
-            enterTransition = { scaleInWithFade() },
-            exitTransition = { scaleOutWithFade() },
-            popEnterTransition = { scaleInWithFade() },
-            popExitTransition = { scaleOutWithFade() }
+            enterTransition = { popupEnter() },
+            exitTransition = { popupExit() },
+            popEnterTransition = { popupEnter() },
+            popExitTransition = { popupExit() }
         ) {
             GeneratorScreen()
         }
 
-        // Profile Screen - Slide from right
+        // Profile Screen - Fast popup
         composable(
             route = Screen.Profile.route,
-            enterTransition = { slideInFromRight() },
-            exitTransition = { slideOutToLeft() },
-            popEnterTransition = { slideInFromLeft() },
-            popExitTransition = { slideOutToRight() }
+            enterTransition = { popupEnter() },
+            exitTransition = { popupExit() },
+            popEnterTransition = { popupEnter() },
+            popExitTransition = { popupExit() }
         ) {
             ProfileScreen()
         }
