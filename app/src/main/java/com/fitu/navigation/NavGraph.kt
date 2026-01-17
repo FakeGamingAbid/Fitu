@@ -1,6 +1,5 @@
-package com.fitu.navigation
+ package com.fitu.navigation
 
-import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -14,7 +13,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
-import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -42,19 +40,14 @@ sealed class Screen(val route: String) {
 private const val ANIMATION_DURATION = 400
 private const val FADE_DURATION = 300
 
-// Animation specs
-private val tweenSpec = tween<Float>(ANIMATION_DURATION, easing = FastOutSlowInEasing)
-private val fadeSpec = tween<Float>(FADE_DURATION, easing = FastOutSlowInEasing)
-private val intTweenSpec = tween<Int>(ANIMATION_DURATION, easing = FastOutSlowInEasing)
-
 /**
  * Slide in from right
  */
 private fun slideInFromRight(): EnterTransition {
     return slideInHorizontally(
         initialOffsetX = { fullWidth -> fullWidth },
-        animationSpec = intTweenSpec
-    ) + fadeIn(animationSpec = fadeSpec)
+        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeIn(animationSpec = tween(FADE_DURATION))
 }
 
 /**
@@ -63,8 +56,8 @@ private fun slideInFromRight(): EnterTransition {
 private fun slideOutToLeft(): ExitTransition {
     return slideOutHorizontally(
         targetOffsetX = { fullWidth -> -fullWidth / 3 },
-        animationSpec = intTweenSpec
-    ) + fadeOut(animationSpec = fadeSpec)
+        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeOut(animationSpec = tween(FADE_DURATION))
 }
 
 /**
@@ -73,8 +66,8 @@ private fun slideOutToLeft(): ExitTransition {
 private fun slideInFromLeft(): EnterTransition {
     return slideInHorizontally(
         initialOffsetX = { fullWidth -> -fullWidth },
-        animationSpec = intTweenSpec
-    ) + fadeIn(animationSpec = fadeSpec)
+        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeIn(animationSpec = tween(FADE_DURATION))
 }
 
 /**
@@ -83,8 +76,8 @@ private fun slideInFromLeft(): EnterTransition {
 private fun slideOutToRight(): ExitTransition {
     return slideOutHorizontally(
         targetOffsetX = { fullWidth -> fullWidth },
-        animationSpec = intTweenSpec
-    ) + fadeOut(animationSpec = fadeSpec)
+        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeOut(animationSpec = tween(FADE_DURATION))
 }
 
 /**
@@ -93,8 +86,8 @@ private fun slideOutToRight(): ExitTransition {
 private fun slideInFromBottom(): EnterTransition {
     return slideInVertically(
         initialOffsetY = { fullHeight -> fullHeight },
-        animationSpec = intTweenSpec
-    ) + fadeIn(animationSpec = fadeSpec)
+        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeIn(animationSpec = tween(FADE_DURATION))
 }
 
 /**
@@ -103,8 +96,8 @@ private fun slideInFromBottom(): EnterTransition {
 private fun slideOutToBottom(): ExitTransition {
     return slideOutVertically(
         targetOffsetY = { fullHeight -> fullHeight },
-        animationSpec = intTweenSpec
-    ) + fadeOut(animationSpec = fadeSpec)
+        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeOut(animationSpec = tween(FADE_DURATION))
 }
 
 /**
@@ -113,8 +106,8 @@ private fun slideOutToBottom(): ExitTransition {
 private fun scaleInWithFade(): EnterTransition {
     return scaleIn(
         initialScale = 0.92f,
-        animationSpec = tweenSpec
-    ) + fadeIn(animationSpec = fadeSpec)
+        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeIn(animationSpec = tween(FADE_DURATION))
 }
 
 /**
@@ -123,19 +116,19 @@ private fun scaleInWithFade(): EnterTransition {
 private fun scaleOutWithFade(): ExitTransition {
     return scaleOut(
         targetScale = 0.92f,
-        animationSpec = tweenSpec
-    ) + fadeOut(animationSpec = fadeSpec)
+        animationSpec = tween(ANIMATION_DURATION, easing = FastOutSlowInEasing)
+    ) + fadeOut(animationSpec = tween(FADE_DURATION))
 }
 
 /**
  * Simple fade transition
  */
 private fun fadeInOnly(): EnterTransition {
-    return fadeIn(animationSpec = fadeSpec)
+    return fadeIn(animationSpec = tween(FADE_DURATION))
 }
 
 private fun fadeOutOnly(): ExitTransition {
-    return fadeOut(animationSpec = fadeSpec)
+    return fadeOut(animationSpec = tween(FADE_DURATION))
 }
 
 @Composable
@@ -255,4 +248,4 @@ fun NavGraph(
             ProfileScreen()
         }
     }
-}
+} 
