@@ -1,12 +1,20 @@
- package com.fitu.data.local.entity
+package com.fitu.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "daily_steps")
+@Entity(
+    tableName = "steps",
+    indices = [Index(value = ["date"], unique = true)]
+)
 data class StepEntity(
-    @PrimaryKey
-    val date: String, // Format: "yyyy-MM-dd"
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val date: Long,
     val steps: Int,
-    val lastUpdated: Long // Timestamp
-) 
+    val goal: Int = 10000,
+    val caloriesBurned: Int = 0,
+    val distanceMeters: Float = 0f,
+    val lastUpdated: Long = System.currentTimeMillis()
+)
