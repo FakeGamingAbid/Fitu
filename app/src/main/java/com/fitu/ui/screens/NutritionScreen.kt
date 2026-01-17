@@ -96,13 +96,11 @@ fun NutritionScreen(
     val showDeleteConfirmDialog by viewModel.showDeleteConfirmDialog.collectAsState()
     val mealToDelete by viewModel.mealToDelete.collectAsState()
 
-    // Duplicate warning state
     val showDuplicateWarning by viewModel.showDuplicateWarning.collectAsState()
     val duplicateWarningMessage by viewModel.duplicateWarningMessage.collectAsState()
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Delete Confirmation Dialog
     if (showDeleteConfirmDialog && mealToDelete != null) {
         DeleteMealConfirmDialog(
             meal = mealToDelete!!,
@@ -111,7 +109,6 @@ fun NutritionScreen(
         )
     }
 
-    // Duplicate Warning Dialog
     if (showDuplicateWarning) {
         DuplicateFoodWarningDialog(
             message = duplicateWarningMessage,
@@ -145,7 +142,6 @@ fun NutritionScreen(
             .padding(horizontal = 24.dp)
             .padding(top = 32.dp, bottom = 120.dp)
     ) {
-        // Header
         Text(
             text = "Nutrition",
             color = Color.White,
@@ -160,7 +156,6 @@ fun NutritionScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Today's Calories Card
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -203,7 +198,6 @@ fun NutritionScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Today's Meals
         Text(
             text = "Today's Meals",
             color = Color.White,
@@ -255,9 +249,6 @@ fun NutritionScreen(
     }
 }
 
-/**
- * Duplicate Food Warning Dialog
- */
 @Composable
 private fun DuplicateFoodWarningDialog(
     message: String,
@@ -320,9 +311,6 @@ private fun DuplicateFoodWarningDialog(
     )
 }
 
-/**
- * Meal Card with food photo thumbnail
- */
 @Composable
 private fun MealCard(meal: MealEntity, onDeleteClick: () -> Unit) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -330,13 +318,12 @@ private fun MealCard(meal: MealEntity, onDeleteClick: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Food photo or meal type icon
             FoodThumbnail(
                 photoUri = meal.photoUri,
                 mealType = meal.mealType,
                 modifier = Modifier.size(48.dp)
             )
-            
+
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -356,7 +343,7 @@ private fun MealCard(meal: MealEntity, onDeleteClick: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 MacroPill("P: ${meal.protein}g", OrangePrimary)
                 MacroPill("C: ${meal.carbs}g", Color(0xFF4CAF50))
-                MacroPill("F: ${meal.fats}g", Color(0xFF2196F3))
+                MacroPill("F: ${meal.fat}g", Color(0xFF2196F3))
             }
             Spacer(modifier = Modifier.width(8.dp))
             IconButton(onClick = onDeleteClick, modifier = Modifier.size(36.dp)) {
@@ -371,9 +358,6 @@ private fun MealCard(meal: MealEntity, onDeleteClick: () -> Unit) {
     }
 }
 
-/**
- * Food thumbnail that shows photo or meal type icon
- */
 @Composable
 private fun FoodThumbnail(
     photoUri: String?,
@@ -387,7 +371,6 @@ private fun FoodThumbnail(
         contentAlignment = Alignment.Center
     ) {
         if (photoUri != null) {
-            // Load and display the saved photo
             val bitmap = remember(photoUri) {
                 try {
                     val file = File(photoUri)
@@ -398,7 +381,7 @@ private fun FoodThumbnail(
                     null
                 }
             }
-            
+
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
@@ -407,29 +390,24 @@ private fun FoodThumbnail(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                // Photo file not found - show fallback
                 MealTypeIcon(mealType = mealType)
             }
         } else {
-            // No photo - show meal type icon
             MealTypeIcon(mealType = mealType)
         }
     }
 }
 
-/**
- * Meal type specific icon with color
- */
 @Composable
 private fun MealTypeIcon(mealType: String) {
     val (icon, tint) = when (mealType.lowercase()) {
-        "breakfast" -> Icons.Default.FreeBreakfast to Color(0xFFFFB74D) // Orange - coffee/breakfast
-        "lunch" -> Icons.Default.LunchDining to Color(0xFF81C784) // Green - lunch
-        "dinner" -> Icons.Default.DinnerDining to Color(0xFF9575CD) // Purple - dinner
-        "snacks" -> Icons.Default.Cookie to Color(0xFFFFD54F) // Yellow - snacks
+        "breakfast" -> Icons.Default.FreeBreakfast to Color(0xFFFFB74D)
+        "lunch" -> Icons.Default.LunchDining to Color(0xFF81C784)
+        "dinner" -> Icons.Default.DinnerDining to Color(0xFF9575CD)
+        "snacks" -> Icons.Default.Cookie to Color(0xFFFFD54F)
         else -> Icons.Default.Restaurant to Color.White.copy(alpha = 0.5f)
     }
-    
+
     Icon(
         imageVector = icon,
         contentDescription = mealType,
@@ -467,7 +445,6 @@ private fun DeleteMealConfirmDialog(meal: MealEntity, onConfirm: () -> Unit, onD
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Show food thumbnail in delete dialog
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -492,7 +469,7 @@ private fun DeleteMealConfirmDialog(meal: MealEntity, onConfirm: () -> Unit, onD
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "${meal.calories} kcal • P: ${meal.protein}g • C: ${meal.carbs}g • F: ${meal.fats}g",
+                                text = "${meal.calories} kcal • P: ${meal.protein}g • C: ${meal.carbs}g • F: ${meal.fat}g",
                                 color = Color.White.copy(alpha = 0.6f),
                                 fontSize = 13.sp
                             )
@@ -586,7 +563,6 @@ private fun AddFoodSheetContent(
             .fillMaxWidth()
             .padding(24.dp)
     ) {
-        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -600,7 +576,6 @@ private fun AddFoodSheetContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Enhanced meal type selector with time-based suggestion
         MealTypeSelector(
             selectedMealType = selectedMealType,
             onMealTypeSelected = { viewModel.selectMealType(it) },
@@ -611,7 +586,6 @@ private fun AddFoodSheetContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (!showCamera) {
-            // Camera and Gallery buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -662,7 +636,6 @@ private fun AddFoodSheetContent(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Text search
             OutlinedTextField(
                 value = textSearch,
                 onValueChange = { viewModel.updateTextSearch(it) },
@@ -689,7 +662,6 @@ private fun AddFoodSheetContent(
                 }
             }
         } else {
-            // Camera preview
             CameraPreviewSection(
                 onImageCaptured = { bitmap ->
                     viewModel.analyzeFood(bitmap)
@@ -700,7 +672,6 @@ private fun AddFoodSheetContent(
             )
         }
 
-        // Show analyzed food with photo preview
         analyzedFood?.let { food ->
             Spacer(modifier = Modifier.height(16.dp))
             AnalyzedFoodCard(
@@ -713,7 +684,6 @@ private fun AddFoodSheetContent(
             )
         }
 
-        // Loading state
         if (uiState is NutritionUiState.Analyzing) {
             Spacer(modifier = Modifier.height(16.dp))
             Row(
@@ -727,7 +697,6 @@ private fun AddFoodSheetContent(
             }
         }
 
-        // Error state with detailed message and retry
         if (uiState is NutritionUiState.Error) {
             Spacer(modifier = Modifier.height(16.dp))
             ErrorCard(
@@ -740,9 +709,6 @@ private fun AddFoodSheetContent(
     }
 }
 
-/**
- * Analyzed food card with photo preview
- */
 @Composable
 private fun AnalyzedFoodCard(
     food: AnalyzedFood,
@@ -754,12 +720,10 @@ private fun AnalyzedFoodCard(
 ) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column {
-            // Header with photo and name
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Photo preview
                 Box(
                     modifier = Modifier
                         .size(60.dp)
@@ -778,9 +742,9 @@ private fun AnalyzedFoodCard(
                         MealTypeIcon(mealType = selectedMealType)
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.width(12.dp))
-                
+
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = food.name,
@@ -798,10 +762,9 @@ private fun AnalyzedFoodCard(
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(12.dp))
-            
-            // Nutrition info
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "${(food.calories * portion).toInt()} kcal",
@@ -821,10 +784,9 @@ private fun AnalyzedFoodCard(
                     color = Color.White.copy(alpha = 0.7f)
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(12.dp))
-            
-            // Portion slider
+
             Text(
                 text = "Portion: ${String.format("%.1f", portion)}x",
                 color = Color.White.copy(alpha = 0.7f),
@@ -840,10 +802,9 @@ private fun AnalyzedFoodCard(
                     activeTrackColor = OrangePrimary
                 )
             )
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
-            // Add button
+
             Button(
                 onClick = onAddClick,
                 modifier = Modifier.fillMaxWidth(),
@@ -858,9 +819,6 @@ private fun AnalyzedFoodCard(
     }
 }
 
-/**
- * Enhanced Meal Type Selector with time-based suggestions
- */
 @Composable
 private fun MealTypeSelector(
     selectedMealType: String,
@@ -869,9 +827,8 @@ private fun MealTypeSelector(
     getMealTypeTimeRange: (String) -> String
 ) {
     val mealTypes = listOf("breakfast", "lunch", "dinner", "snacks")
-    
+
     Column {
-        // Header with current suggestion
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -900,10 +857,9 @@ private fun MealTypeSelector(
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
-        // Meal type buttons
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -911,7 +867,7 @@ private fun MealTypeSelector(
             mealTypes.forEach { type ->
                 val isSelected = selectedMealType == type
                 val isSuggested = isSuggestedMealType(type)
-                
+
                 MealTypeButton(
                     mealType = type,
                     isSelected = isSelected,
@@ -924,9 +880,6 @@ private fun MealTypeSelector(
     }
 }
 
-/**
- * Individual Meal Type Button
- */
 @Composable
 private fun MealTypeButton(
     mealType: String,
@@ -939,13 +892,13 @@ private fun MealTypeButton(
         isSelected -> OrangePrimary
         else -> Color.White.copy(alpha = 0.1f)
     }
-    
+
     val borderColor = when {
         isSelected -> OrangePrimary
         isSuggested && !isSelected -> SuccessGreen.copy(alpha = 0.5f)
         else -> Color.Transparent
     }
-    
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
@@ -964,7 +917,6 @@ private fun MealTypeButton(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Meal type icon
             Text(
                 text = when (mealType) {
                     "breakfast" -> "🌅"
@@ -975,18 +927,16 @@ private fun MealTypeButton(
                 },
                 fontSize = 16.sp
             )
-            
+
             Spacer(modifier = Modifier.height(4.dp))
-            
-            // Meal type name
+
             Text(
                 text = mealType.replaceFirstChar { it.uppercase() },
                 color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
                 fontSize = 11.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
             )
-            
-            // Show suggested badge or time range
+
             if (isSuggested && !isSelected) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(
@@ -1019,9 +969,6 @@ private fun MealTypeButton(
     }
 }
 
-/**
- * Error card with icon, message, and retry button
- */
 @Composable
 private fun ErrorCard(
     error: NutritionUiState.Error,
@@ -1067,7 +1014,7 @@ private fun ErrorCard(
                     )
                 }
             }
-            
+
             if (error.canRetry) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
@@ -1107,7 +1054,6 @@ private fun CameraPreviewSection(
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
     val executor = ContextCompat.getMainExecutor(context)
 
-    // Clean up camera when leaving composition
     DisposableEffect(Unit) {
         onDispose {
             try {
@@ -1162,7 +1108,6 @@ private fun CameraPreviewSection(
                 }
             )
 
-            // Capture button
             FloatingActionButton(
                 onClick = {
                     imageCapture?.takePicture(
@@ -1188,9 +1133,9 @@ private fun CameraPreviewSection(
                 Icon(Icons.Default.CameraAlt, "Capture", tint = Color.White)
             }
         }
-        
+
         Spacer(modifier = Modifier.height(12.dp))
-        
+
         TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
             Text("Cancel", color = Color.White.copy(alpha = 0.7f))
         }
