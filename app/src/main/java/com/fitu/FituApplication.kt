@@ -1,4 +1,4 @@
- package com.fitu
+package com.fitu
 
 import android.app.Application
 import com.fitu.data.local.dao.StepDao
@@ -9,26 +9,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import javax.inject.Provider
 
 @HiltAndroidApp
 class FituApplication : Application() {
     
     @Inject
-    lateinit var stepDao: StepDao
+    lateinit var stepDaoProvider: Provider<StepDao>
     
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
     override fun onCreate() {
         super.onCreate()
         
-        // ✅ FIX: Pre-load steps from database IMMEDIATELY when app starts
-        // This ensures steps are loaded before any UI is shown
         applicationScope.launch {
             try {
-                StepCounterService.preloadSteps(stepDao)
+                StepCounterService.preloadSteps(stepDaoProvider.get())
             } catch (e: Exception) {
-                // Ignore errors, service will load steps when it starts
+                android.util.Log.w("FituApplication", "Failed to preload steps", e)
             }
         }
     }
-} 
+}
