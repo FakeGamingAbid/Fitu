@@ -111,7 +111,7 @@ class DashboardViewModel @Inject constructor(
         if (imperial) "mi" else "km"
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "km")
 
-    // Birthday feature - simplified without the missing preferences
+    // Birthday feature - simplified
     private val _showBirthdayDialog = MutableStateFlow(false)
     val showBirthdayDialog: StateFlow<Boolean> = _showBirthdayDialog.asStateFlow()
 
@@ -174,22 +174,14 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _isWeeklyDataLoading.value = true
             try {
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val calendar = Calendar.getInstance()
 
-                calendar.set(Calendar.HOUR_OF_DAY, 23)
-                calendar.set(Calendar.MINUTE, 59)
-                calendar.set(Calendar.SECOND, 59)
-                calendar.set(Calendar.MILLISECOND, 999)
-                val endDate = calendar.timeInMillis
-
+                val endDate = dateFormat.format(calendar.time)
                 calendar.add(Calendar.DAY_OF_YEAR, -6)
-                calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.set(Calendar.MINUTE, 0)
-                calendar.set(Calendar.SECOND, 0)
-                calendar.set(Calendar.MILLISECOND, 0)
-                val startDate = calendar.timeInMillis
+                val startDate = dateFormat.format(calendar.time)
 
-                val steps = stepDao.getStepsInRange(startDate, endDate)
+                val steps = stepDao.getStepsBetweenDatesSync(startDate, endDate)
                 _weeklyStepsFromDb.value = steps
             } catch (e: Exception) {
                 _weeklyStepsFromDb.value = emptyList()
@@ -200,33 +192,24 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun buildWeeklyData(stepEntities: List<StepEntity>, todaySteps: Int): List<Int> {
-        val calendar = Calendar.getInstance()
-        val today = calendar.get(Calendar.DAY_OF_YEAR)
-        val currentYear = calendar.get(Calendar.YEAR)
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val todayDate = dateFormat.format(Date())
 
-        val stepsMap = mutableMapOf<Int, Int>()
+        // Create a map of date string to steps
+        val stepsMap = stepEntities.associate { it.date to it.steps }.toMutableMap()
 
-        stepEntities.forEach { entity ->
-            val entityCalendar = Calendar.getInstance().apply {
-                timeInMillis = entity.date
-            }
-            val dayOfYear = entityCalendar.get(Calendar.DAY_OF_YEAR)
-            val year = entityCalendar.get(Calendar.YEAR)
+        // Override today with live steps
+        stepsMap[todayDate] = todaySteps
 
-            if (year == currentYear) {
-                stepsMap[dayOfYear] = entity.steps
-            }
-        }
-
-        stepsMap[today] = todaySteps
-
+        // Build list for last 7 days
         val weeklyList = mutableListOf<Int>()
-        for (i in 6 downTo 0) {
-            val targetCalendar = Calendar.getInstance().apply {
-                add(Calendar.DAY_OF_YEAR, -i)
-            }
-            val targetDay = targetCalendar.get(Calendar.DAY_OF_YEAR)
-            weeklyList.add(stepsMap[targetDay] ?: 0)
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.DAY_OF_YEAR, -6)
+
+        for (i in 0..6) {
+            val date = dateFormat.format(calendar.time)
+            weeklyList.add(stepsMap[date] ?: 0)
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
         }
 
         return weeklyList
