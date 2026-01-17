@@ -27,8 +27,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fitu.R
-import com.fitu.ui.theme.OrangePrimary
 import kotlinx.coroutines.delay
+
+// Splash screen background color
+private val SplashOrange = Color(0xFFF6822B)
 
 @Composable
 fun SplashScreen(
@@ -89,15 +91,7 @@ fun SplashScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF0A0A0F),
-                        Color(0xFF12121A),
-                        Color(0xFF0A0A0F)
-                    )
-                )
-            ),
+            .background(SplashOrange),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -115,15 +109,15 @@ fun SplashScreen(
                         .background(
                             Brush.radialGradient(
                                 colors = listOf(
-                                    OrangePrimary.copy(alpha = 0.6f),
-                                    OrangePrimary.copy(alpha = 0.2f),
+                                    Color.White.copy(alpha = 0.6f),
+                                    Color.White.copy(alpha = 0.2f),
                                     Color.Transparent
                                 )
                             )
                         )
                 )
 
-                // App Logo - using ic_launcher
+                // App Logo
                 Image(
                     painter = painterResource(id = R.mipmap.ic_launcher),
                     contentDescription = "Fitu Logo",
@@ -153,7 +147,7 @@ fun SplashScreen(
                 text = "Your AI Fitness Companion",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Normal,
-                color = Color.White.copy(alpha = 0.6f),
+                color = Color.White.copy(alpha = 0.9f),
                 modifier = Modifier.alpha(textAlpha.value)
             )
         }
@@ -168,7 +162,7 @@ fun SplashScreen(
             Text(
                 text = "v2.0.0",
                 fontSize = 12.sp,
-                color = Color.White.copy(alpha = 0.3f),
+                color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.height(80.dp)
             )
         }
