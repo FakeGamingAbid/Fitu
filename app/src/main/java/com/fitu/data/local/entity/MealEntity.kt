@@ -17,9 +17,13 @@ data class MealEntity(
     val protein: Float = 0f,
     val carbs: Float = 0f,
     val fat: Float = 0f,
+    val fats: Float = 0f,  // Alternative field name for compatibility
     val fiber: Float = 0f,
-    val mealType: String = "snack", // breakfast, lunch, dinner, snack
+    val mealType: String = "snack",
     val imageUri: String? = null,
+    val photoUri: String? = null,  // Alternative field name for compatibility
+    val portion: String? = null,
     val date: Long,
+    val timestamp: Long = System.currentTimeMillis(),
     val createdAt: Long = System.currentTimeMillis()
 )
