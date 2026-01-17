@@ -18,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -37,7 +36,6 @@ fun SplashScreen(
     onSplashFinished: () -> Unit
 ) {
     val scale = remember { Animatable(0f) }
-    val rotation = remember { Animatable(-30f) }
     val alpha = remember { Animatable(0f) }
     val textAlpha = remember { Animatable(0f) }
 
@@ -45,17 +43,6 @@ fun SplashScreen(
         // Logo scale animation
         scale.animateTo(
             targetValue = 1f,
-            animationSpec = tween(
-                durationMillis = 800,
-                easing = FastOutSlowInEasing
-            )
-        )
-    }
-
-    LaunchedEffect(key1 = true) {
-        // Logo rotation animation
-        rotation.animateTo(
-            targetValue = 0f,
             animationSpec = tween(
                 durationMillis = 800,
                 easing = FastOutSlowInEasing
@@ -84,7 +71,7 @@ fun SplashScreen(
         )
 
         // Wait and then navigate
-        delay(1200)
+        delay(1000)
         onSplashFinished()
     }
 
@@ -103,7 +90,7 @@ fun SplashScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(140.dp)
+                        .size(180.dp)
                         .scale(scale.value)
                         .alpha(alpha.value * 0.3f)
                         .background(
@@ -117,14 +104,13 @@ fun SplashScreen(
                         )
                 )
 
-                // App Logo
+                // Custom PNG Logo
                 Image(
-                    painter = painterResource(id = R.mipmap.ic_launcher),
+                    painter = painterResource(id = R.drawable.fitu_logo),
                     contentDescription = "Fitu Logo",
                     modifier = Modifier
-                        .size(120.dp)
+                        .size(150.dp)
                         .scale(scale.value)
-                        .rotate(rotation.value)
                         .alpha(alpha.value)
                 )
             }
