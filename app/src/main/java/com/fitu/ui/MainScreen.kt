@@ -1,4 +1,4 @@
- package com.fitu.ui
+package com.fitu.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -38,6 +38,10 @@ import com.fitu.ui.components.DumbbellIcon
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.HouseIcon
 import com.fitu.ui.theme.OrangePrimary
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
 
 sealed class BottomNavItem(val route: String, val label: String, val icon: ImageVector) {
     object Home : BottomNavItem(Screen.Dashboard.route, "Home", HouseIcon)
@@ -54,6 +58,9 @@ fun MainScreen(
     val isOnboardingComplete by viewModel.isOnboardingComplete.collectAsState(initial = null)
     val navController = rememberNavController()
     
+    // Haze state for blur effect
+    val hazeState = remember { HazeState() }
+    
     val items = listOf(
         BottomNavItem.Home,
         BottomNavItem.Steps,
@@ -66,7 +73,7 @@ fun MainScreen(
 
     val context = LocalContext.current
     
-    // ✅ Permission launcher for multiple permissions
+    // Permission launcher for multiple permissions
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ -> }
@@ -86,7 +93,7 @@ fun MainScreen(
             }
         }
         
-        // ✅ NEW: Notification permission (required for Android 13+)
+        // Notification permission (required for Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     context,
@@ -111,10 +118,16 @@ fun MainScreen(
         containerColor = Color(0xFF0A0A0F)
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
-            // Main Content
-            NavGraph(navController = navController, startDestination = startDestination)
+            // Main Content - Apply haze source here (content that will be blurred behind nav bar)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .haze(hazeState)
+            ) {
+                NavGraph(navController = navController, startDestination = startDestination)
+            }
 
-            // Floating Bottom Navigation
+            // Floating Bottom Navigation with Blur
             if (showBottomBar) {
                 Box(
                     modifier = Modifier
@@ -122,18 +135,25 @@ fun MainScreen(
                         .padding(horizontal = 16.dp)
                         .padding(bottom = 24.dp)
                 ) {
-                    // Glass background
+                    // Blurred glass background
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(72.dp)
-                            .background(
-                                Color.White.copy(alpha = 0.05f),
-                                RoundedCornerShape(24.dp)
+                            .hazeChild(
+                                state = hazeState,
+                                style = HazeStyle(
+                                    backgroundColor = Color(0xFF0A0A0F),
+                                    tint = Color.Black.copy(alpha = 0.2f),
+                                    blurRadius = 20.dp,
+                                    noiseFactor = 0.05f
+                                )
                             )
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
                             .border(
                                 1.dp,
-                                Color.White.copy(alpha = 0.1f),
+                                Color.White.copy(alpha = 0.15f),
                                 RoundedCornerShape(24.dp)
                             )
                     ) {
@@ -222,4 +242,4 @@ fun MainScreen(
             }
         }
     }
-} 
+}
