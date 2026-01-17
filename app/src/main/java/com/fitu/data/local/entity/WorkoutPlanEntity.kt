@@ -9,9 +9,12 @@ data class WorkoutPlanEntity(
     val id: Long = 0,
     val name: String,
     val description: String = "",
-    val exercises: String = "", // JSON string of exercises
+    val exercises: String = "",
     val difficulty: String = "intermediate",
     val durationMinutes: Int = 30,
-    val targetMuscles: String = "", // Comma-separated list
+    val duration: Int = 30,
+    val targetMuscles: String = "",
+    val muscleGroups: String = "",
+    val equipment: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
