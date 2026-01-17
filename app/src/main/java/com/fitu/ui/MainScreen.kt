@@ -39,7 +39,6 @@ import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.HouseIcon
 import com.fitu.ui.theme.OrangePrimary
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.haze
 import dev.chrisbanes.haze.hazeChild
 
@@ -142,12 +141,11 @@ fun MainScreen(
                             .height(72.dp)
                             .hazeChild(
                                 state = hazeState,
-                                shape = RoundedCornerShape(24.dp)
-                            ) {
-                                blurRadius = 20.dp
-                                tint = HazeTint(Color.Black.copy(alpha = 0.3f))
+                                shape = RoundedCornerShape(24.dp),
+                                tint = Color.Black.copy(alpha = 0.4f),
+                                blurRadius = 20.dp,
                                 noiseFactor = 0.05f
-                            }
+                            )
                             .clip(RoundedCornerShape(24.dp))
                             .background(Color.White.copy(alpha = 0.08f))
                             .border(
