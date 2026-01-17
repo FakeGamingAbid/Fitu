@@ -128,7 +128,6 @@ fun StepsScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Big circular progress with animated step counter
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -198,7 +197,6 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Distance & calories with animated counters
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -261,7 +259,6 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Today goal card with animated steps
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -442,7 +439,7 @@ private fun PermissionWarningCard(
                 }
                 if (needsAutoStart) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
