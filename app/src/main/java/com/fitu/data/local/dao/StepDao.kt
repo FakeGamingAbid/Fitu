@@ -22,21 +22,21 @@ interface StepDao {
     @Query("SELECT * FROM steps WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC")
     fun getStepsInRangeFlow(startDate: Long, endDate: Long): Flow<List<StepEntity>>
 
-    @Query("SELECT * FROM steps WHERE date >= :startOfDay AND date <= :endOfDay LIMIT 1")
-    suspend fun getStepsForDay(startOfDay: Long, endOfDay: Long): StepEntity?
-
-    @Query("SELECT * FROM steps WHERE date >= :startOfDay AND date <= :endOfDay LIMIT 1")
-    fun getStepsForDayFlow(startOfDay: Long, endOfDay: Long): Flow<StepEntity?>
+    @Query("SELECT * FROM steps WHERE date = :date LIMIT 1")
+    suspend fun getStepsForDate(date: String): StepEntity?
 
     @Query("SELECT * FROM steps WHERE date = :date LIMIT 1")
-    suspend fun getStepsForDate(date: Long): StepEntity?
+    fun getStepsForDateFlow(date: String): Flow<StepEntity?>
 
     @Query("SELECT * FROM steps WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC")
-    suspend fun getStepsBetweenDates(startDate: Long, endDate: Long): List<StepEntity>
+    fun getStepsBetweenDates(startDate: String, endDate: String): Flow<List<StepEntity>>
+
+    @Query("SELECT * FROM steps WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC")
+    suspend fun getStepsBetweenDatesSync(startDate: String, endDate: String): List<StepEntity>
 
     @Query("SELECT SUM(steps) FROM steps WHERE date >= :startDate AND date <= :endDate")
     suspend fun getTotalStepsInRange(startDate: Long, endDate: Long): Int?
 
     @Query("DELETE FROM steps WHERE date < :beforeDate")
-    suspend fun deleteOldRecords(beforeDate: Long)
+    suspend fun deleteOldRecords(beforeDate: String)
 }
