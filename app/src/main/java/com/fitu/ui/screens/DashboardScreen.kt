@@ -1,4 +1,4 @@
-package com.fitu.ui.screens
+ package com.fitu.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.ui.components.AppleIcon
-import com.fitu.ui.components.DumbbellIcon
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
 import com.fitu.ui.components.GoalCelebrationDialog
@@ -101,8 +99,6 @@ fun DashboardScreen(
     val workoutsCompleted by viewModel.workoutsCompleted.collectAsState()
 
     val isStepsInitialized by viewModel.isStepsInitialized.collectAsState()
-    val isWeeklyDataLoading by viewModel.isWeeklyDataLoading.collectAsState()
-    val weeklySteps by viewModel.weeklySteps.collectAsState()
 
     val formattedDistance by viewModel.formattedDistance.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
@@ -507,189 +503,5 @@ fun DashboardScreen(
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Weekly Activity Card
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Weekly Activity",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "STEPS",
-                        color = OrangePrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (isWeeklyDataLoading) {
-                    DashboardWeeklyChartLoading()
-                } else {
-                    DashboardWeeklyChartContent(weeklySteps = weeklySteps)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // AI Workout Coach Card
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            OrangePrimary.copy(alpha = 0.8f),
-                            OrangePrimary.copy(alpha = 0.4f)
-                        )
-                    ),
-                    RoundedCornerShape(24.dp)
-                )
-                .border(1.dp, OrangePrimary.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
-                .padding(20.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    DumbbellIcon,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "AI Workout Coach",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Real-time form correction",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
     }
-}
-
-@Composable
-private fun DashboardWeeklyChartLoading() {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            repeat(7) {
-                Box(
-                    modifier = Modifier
-                        .width(20.dp)
-                        .height((15 + (it * 6)).dp)
-                        .background(
-                            Color.White.copy(alpha = 0.1f),
-                            RoundedCornerShape(4.dp)
-                        )
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            listOf("M", "T", "W", "T", "F", "S", "S").forEach { day ->
-                Text(
-                    text = day,
-                    color = Color.White.copy(alpha = 0.3f),
-                    fontSize = 10.sp
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(12.dp),
-                color = OrangePrimary,
-                strokeWidth = 2.dp
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "Loading...",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 11.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun DashboardWeeklyChartContent(weeklySteps: List<Int>) {
-    val days = listOf("M", "T", "W", "T", "F", "S", "S")
-    val maxSteps = weeklySteps.maxOrNull()?.coerceAtLeast(1) ?: 1
-
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            weeklySteps.forEachIndexed { index, steps ->
-                val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 50).dp else 4.dp
-                val isToday = index == 6
-                Box(
-                    modifier = Modifier
-                        .width(20.dp)
-                        .height(barHeight.coerceAtLeast(4.dp))
-                        .background(
-                            if (steps > 0) {
-                                if (isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
-                            } else {
-                                Color.White.copy(alpha = 0.1f)
-                            },
-                            RoundedCornerShape(4.dp)
-                        )
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            days.forEachIndexed { index, day ->
-                val isToday = index == 6
-                Text(
-                    text = day,
-                    color = if (isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
-                    fontSize = 10.sp,
-                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
-                )
-            }
-        }
-    }
-}
+} 
