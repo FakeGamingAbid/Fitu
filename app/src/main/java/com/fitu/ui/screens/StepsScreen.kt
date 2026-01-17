@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -169,7 +170,6 @@ fun StepsScreen(
                 )
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // ✨ Animated step counter
                 AnimatedFormattedCounter(
                     count = currentSteps,
                     style = TextStyle(
@@ -442,7 +442,7 @@ private fun PermissionWarningCard(
                 }
                 if (needsAutoStart) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
