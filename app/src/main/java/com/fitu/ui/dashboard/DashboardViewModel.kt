@@ -17,13 +17,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.time.LocalDate
-import java.time.ZoneId
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -99,9 +96,9 @@ class DashboardViewModel @Inject constructor(
         userHeightCm,
         useImperialUnits
     ) { steps, heightCm, useImperial ->
-        val strideLength = heightCm * 0.415 / 100.0 // Convert to meters
+        val strideLength = heightCm * 0.415 / 100.0
         val distanceKm = (steps * strideLength) / 1000.0
-        
+
         if (useImperial) {
             val miles = distanceKm * 0.621371
             String.format("%.2f", miles)
@@ -114,7 +111,7 @@ class DashboardViewModel @Inject constructor(
         if (imperial) "mi" else "km"
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "km")
 
-    // Birthday feature
+    // Birthday feature - simplified without the missing preferences
     private val _showBirthdayDialog = MutableStateFlow(false)
     val showBirthdayDialog: StateFlow<Boolean> = _showBirthdayDialog.asStateFlow()
 
@@ -137,16 +134,13 @@ class DashboardViewModel @Inject constructor(
     init {
         loadDashboardData()
         loadWeeklySteps()
-        checkBirthday()
         loadStreakData()
         observeStepGoalCompletion()
     }
 
     private fun loadDashboardData() {
         viewModelScope.launch {
-            // Load calories burned from steps
             combine(currentSteps, userWeightKg) { steps, weight ->
-                // Approximate: 0.04 kcal per step per kg of body weight / 70kg baseline
                 (steps * 0.04 * weight / 70).toInt()
             }.collect { burned ->
                 _caloriesBurned.value = burned
@@ -154,7 +148,6 @@ class DashboardViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            // Load calories consumed from nutrition repository
             try {
                 val todayRange = getTodayRange()
                 repository.getMealsForDay(todayRange.first, todayRange.second).collect { meals ->
@@ -166,7 +159,6 @@ class DashboardViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            // Load workouts completed today
             try {
                 val todayRange = getTodayRange()
                 repository.getWorkoutsForDay(todayRange.first, todayRange.second).collect { workouts ->
@@ -183,22 +175,20 @@ class DashboardViewModel @Inject constructor(
             _isWeeklyDataLoading.value = true
             try {
                 val calendar = Calendar.getInstance()
-                
-                // Get end of today
+
                 calendar.set(Calendar.HOUR_OF_DAY, 23)
                 calendar.set(Calendar.MINUTE, 59)
                 calendar.set(Calendar.SECOND, 59)
                 calendar.set(Calendar.MILLISECOND, 999)
                 val endDate = calendar.timeInMillis
-                
-                // Get start of 7 days ago
+
                 calendar.add(Calendar.DAY_OF_YEAR, -6)
                 calendar.set(Calendar.HOUR_OF_DAY, 0)
                 calendar.set(Calendar.MINUTE, 0)
                 calendar.set(Calendar.SECOND, 0)
                 calendar.set(Calendar.MILLISECOND, 0)
                 val startDate = calendar.timeInMillis
-                
+
                 val steps = stepDao.getStepsInRange(startDate, endDate)
                 _weeklyStepsFromDb.value = steps
             } catch (e: Exception) {
@@ -213,27 +203,23 @@ class DashboardViewModel @Inject constructor(
         val calendar = Calendar.getInstance()
         val today = calendar.get(Calendar.DAY_OF_YEAR)
         val currentYear = calendar.get(Calendar.YEAR)
-        
-        // Create a map of day of year to steps
+
         val stepsMap = mutableMapOf<Int, Int>()
-        
+
         stepEntities.forEach { entity ->
             val entityCalendar = Calendar.getInstance().apply {
                 timeInMillis = entity.date
             }
             val dayOfYear = entityCalendar.get(Calendar.DAY_OF_YEAR)
             val year = entityCalendar.get(Calendar.YEAR)
-            
-            // Only include if same year or handle year boundary
+
             if (year == currentYear) {
                 stepsMap[dayOfYear] = entity.steps
             }
         }
-        
-        // Override today with live steps
+
         stepsMap[today] = todaySteps
-        
-        // Build list for last 7 days (Monday to Sunday or based on current day)
+
         val weeklyList = mutableListOf<Int>()
         for (i in 6 downTo 0) {
             val targetCalendar = Calendar.getInstance().apply {
@@ -242,39 +228,8 @@ class DashboardViewModel @Inject constructor(
             val targetDay = targetCalendar.get(Calendar.DAY_OF_YEAR)
             weeklyList.add(stepsMap[targetDay] ?: 0)
         }
-        
-        return weeklyList
-    }
 
-    private fun checkBirthday() {
-        viewModelScope.launch {
-            try {
-                userPreferencesRepository.userBirthday.collect { birthdayMillis ->
-                    if (birthdayMillis > 0) {
-                        val birthdayCalendar = Calendar.getInstance().apply {
-                            timeInMillis = birthdayMillis
-                        }
-                        val todayCalendar = Calendar.getInstance()
-                        
-                        val isBirthdayToday = birthdayCalendar.get(Calendar.MONTH) == todayCalendar.get(Calendar.MONTH) &&
-                                birthdayCalendar.get(Calendar.DAY_OF_MONTH) == todayCalendar.get(Calendar.DAY_OF_MONTH)
-                        
-                        _isBirthday.value = isBirthdayToday
-                        
-                        // Show dialog only once per session
-                        if (isBirthdayToday && !_showBirthdayDialog.value) {
-                            val hasShownToday = userPreferencesRepository.hasShownBirthdayDialogToday.first()
-                            if (!hasShownToday) {
-                                _showBirthdayDialog.value = true
-                                userPreferencesRepository.setHasShownBirthdayDialogToday(true)
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                _isBirthday.value = false
-            }
-        }
+        return weeklyList
     }
 
     private fun loadStreakData() {
@@ -299,7 +254,6 @@ class DashboardViewModel @Inject constructor(
                 if (goalReached && !_hasShownStepCelebrationToday.value) {
                     _showStepGoalCelebration.value = true
                     _hasShownStepCelebrationToday.value = true
-                    // Refresh streak data when goal is reached
                     loadStreakData()
                 }
             }
