@@ -24,7 +24,7 @@ class DashboardRepositoryImpl @Inject constructor(
         return workoutDao.getWorkoutsInRange(startOfDay, endOfDay)
     }
 
-    override fun getCaloriesConsumedForDay(startOfDay: Long, endOfDay: Long): Flow<Int?> {
+    override fun getCaloriesConsumedForDay(startOfDay: Long, endOfDay: Long): Flow<Int> {
         return mealDao.getCaloriesConsumedForDay(startOfDay, endOfDay)
     }
 
@@ -34,15 +34,15 @@ class DashboardRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun getProteinForDay(startOfDay: Long, endOfDay: Long): Flow<Float?> {
+    override fun getProteinForDay(startOfDay: Long, endOfDay: Long): Flow<Int> {
         return mealDao.getProteinForDay(startOfDay, endOfDay)
     }
 
-    override fun getCarbsForDay(startOfDay: Long, endOfDay: Long): Flow<Float?> {
+    override fun getCarbsForDay(startOfDay: Long, endOfDay: Long): Flow<Int> {
         return mealDao.getCarbsForDay(startOfDay, endOfDay)
     }
 
-    override fun getFatsForDay(startOfDay: Long, endOfDay: Long): Flow<Float?> {
+    override fun getFatsForDay(startOfDay: Long, endOfDay: Long): Flow<Int> {
         return mealDao.getFatsForDay(startOfDay, endOfDay)
     }
 
