@@ -19,9 +19,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -81,6 +83,10 @@ class NutritionViewModel @Inject constructor(
 
     private val _currentPhotoBitmap = MutableStateFlow<Bitmap?>(null)
     val currentPhotoBitmap: StateFlow<Bitmap?> = _currentPhotoBitmap
+
+    // Pull-to-refresh state
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private fun setPhotoBitmap(newBitmap: Bitmap?) {
         val oldBitmap = _currentPhotoBitmap.value
@@ -147,6 +153,19 @@ class NutritionViewModel @Inject constructor(
     init {
         cleanOldFoodCache()
         cleanOldFoodPhotos()
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                // Meals are already observed via Flow
+                // Just add a small delay to show the refresh indicator
+                delay(500)
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 
     private fun getMealTypeByTime(): String {
@@ -548,172 +567,4 @@ class NutritionViewModel @Inject constructor(
             }
 
             val calories = json.optInt("calories", -1).let {
-                if (it < 0) throw IllegalArgumentException("Invalid calories")
-                it
-            }
-
-            val protein = json.optInt("protein", 0).coerceAtLeast(0)
-            val carbs = json.optInt("carbs", 0).coerceAtLeast(0)
-            val fats = json.optInt("fats", 0).coerceAtLeast(0)
-
-            return AnalyzedFood(
-                name = name.take(100),
-                calories = calories.coerceIn(0, 10000),
-                protein = protein.coerceIn(0, 1000),
-                carbs = carbs.coerceIn(0, 1000),
-                fats = fats.coerceIn(0, 1000)
-            )
-
-        } catch (e: Exception) {
-            throw GeminiException(
-                GeminiErrorType.INVALID_REQUEST,
-                "Could not understand the AI response. Please try again."
-            )
-        }
-    }
-
-    private fun mapGeminiExceptionToUiState(e: GeminiException): NutritionUiState.Error {
-        return when (e.errorType) {
-            GeminiErrorType.API_KEY_MISSING -> NutritionUiState.Error(
-                message = "API key not set. Please add your Gemini API key in Profile settings.",
-                errorType = NutritionErrorType.API_KEY,
-                canRetry = false
-            )
-            GeminiErrorType.API_KEY_INVALID -> NutritionUiState.Error(
-                message = "Invalid API key. Please check your Gemini API key in Profile settings.",
-                errorType = NutritionErrorType.API_KEY,
-                canRetry = false
-            )
-            GeminiErrorType.RATE_LIMITED -> NutritionUiState.Error(
-                message = "Too many requests. Please wait a moment and try again.",
-                errorType = NutritionErrorType.RATE_LIMIT,
-                canRetry = true
-            )
-            GeminiErrorType.NETWORK_ERROR -> NutritionUiState.Error(
-                message = "No internet connection. Please check your network.",
-                errorType = NutritionErrorType.NETWORK,
-                canRetry = true
-            )
-            else -> NutritionUiState.Error(
-                message = e.message,
-                errorType = NutritionErrorType.UNKNOWN,
-                canRetry = true
-            )
-        }
-    }
-
-    fun addFoodToMeal() {
-        addFoodToMealInternal(ignoreDuplicate = false)
-    }
-
-    private fun addFoodToMealInternal(ignoreDuplicate: Boolean) {
-        val food = _analyzedFood.value ?: return
-        val mealType = _selectedMealType.value
-        val portionMultiplier = _portion.value
-
-        if (!ignoreDuplicate) {
-            if (isDuplicateFood(food.name, mealType)) {
-                _duplicateWarningMessage.value = "You just added \"${food.name}\" to ${mealType}. Add again?"
-                _showDuplicateWarning.value = true
-                return
-            }
-
-            val similarMeal = findSimilarRecentMeal(food.name, mealType)
-            if (similarMeal != null) {
-                _duplicateWarningMessage.value = "\"${food.name}\" was already added to ${mealType} recently. Add another serving?"
-                _showDuplicateWarning.value = true
-                return
-            }
-        }
-
-        viewModelScope.launch {
-            val photoUri = _currentPhotoBitmap.value?.let { bitmap ->
-                saveFoodPhoto(bitmap)
-            }
-
-            val meal = MealEntity(
-                name = food.name,
-                calories = (food.calories * portionMultiplier).toInt(),
-                protein = (food.protein * portionMultiplier).toInt(),
-                carbs = (food.carbs * portionMultiplier).toInt(),
-                fat = (food.fats * portionMultiplier).toInt(),
-                date = System.currentTimeMillis(),
-                timestamp = System.currentTimeMillis(),
-                mealType = mealType,
-                portion = portionMultiplier,
-                photoUri = photoUri
-            )
-            mealDao.insertMeal(meal)
-
-            lastAddedFoodName = food.name
-            lastAddedFoodTime = System.currentTimeMillis()
-            lastAddedMealType = mealType
-
-            hideAddFood()
-        }
-    }
-
-    fun requestDeleteMeal(meal: MealEntity) {
-        _mealToDelete.value = meal
-        _showDeleteConfirmDialog.value = true
-    }
-
-    fun cancelDeleteMeal() {
-        _mealToDelete.value = null
-        _showDeleteConfirmDialog.value = false
-    }
-
-    fun confirmDeleteMeal() {
-        val meal = _mealToDelete.value ?: return
-        viewModelScope.launch {
-            deleteFoodPhoto(meal.photoUri)
-            mealDao.deleteMeal(meal.id)
-            _mealToDelete.value = null
-            _showDeleteConfirmDialog.value = false
-        }
-    }
-
-    fun reset() {
-        _uiState.value = NutritionUiState.Idle
-        _analyzedFood.value = null
-        setPhotoBitmap(null)
-    }
-
-    fun retry() {
-        _uiState.value = NutritionUiState.Idle
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        setPhotoBitmap(null)
-        currentAnalysisJob?.cancel()
-    }
-}
-
-data class AnalyzedFood(
-    val name: String,
-    val calories: Int,
-    val protein: Int,
-    val carbs: Int,
-    val fats: Int
-)
-
-enum class NutritionErrorType {
-    NETWORK,
-    API_KEY,
-    RATE_LIMIT,
-    CONTENT,
-    SERVICE,
-    UNKNOWN
-}
-
-sealed class NutritionUiState {
-    object Idle : NutritionUiState()
-    object Analyzing : NutritionUiState()
-    data class Success(val food: AnalyzedFood) : NutritionUiState()
-    data class Error(
-        val message: String,
-        val errorType: NutritionErrorType = NutritionErrorType.UNKNOWN,
-        val canRetry: Boolean = true
-    ) : NutritionUiState()
-}
+                if (i
