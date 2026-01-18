@@ -1,4 +1,4 @@
- package com.fitu.navigation
+package com.fitu.navigation
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -114,7 +114,7 @@ fun NavGraph(
             )
         }
 
-        // Dashboard - Fast popup
+        // Dashboard - Fast popup (no navigation parameters needed)
         composable(
             route = Screen.Dashboard.route,
             enterTransition = { popupEnter() },
@@ -122,14 +122,7 @@ fun NavGraph(
             popEnterTransition = { popupEnter() },
             popExitTransition = { popupExit() }
         ) {
-            DashboardScreen(
-                onNavigateToSteps = {
-                    navController.navigate(Screen.Steps.route)
-                },
-                onNavigateToNutrition = {
-                    navController.navigate(Screen.Nutrition.route)
-                }
-            )
+            DashboardScreen()
         }
 
         // Steps Screen - Fast popup
@@ -187,4 +180,4 @@ fun NavGraph(
             ProfileScreen()
         }
     }
-} 
+}
