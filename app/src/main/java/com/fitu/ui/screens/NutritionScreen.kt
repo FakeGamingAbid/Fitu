@@ -65,6 +65,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.data.local.entity.MealEntity
 import com.fitu.ui.components.GlassCard
+import com.fitu.ui.components.PullToRefreshContainer
 import com.fitu.ui.nutrition.AnalyzedFood
 import com.fitu.ui.nutrition.NutritionErrorType
 import com.fitu.ui.nutrition.NutritionUiState
@@ -92,6 +93,7 @@ fun NutritionScreen(
     val portion by viewModel.portion.collectAsState()
     val textSearch by viewModel.textSearch.collectAsState()
     val selectedMealType by viewModel.selectedMealType.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     val showDeleteConfirmDialog by viewModel.showDeleteConfirmDialog.collectAsState()
     val mealToDelete by viewModel.mealToDelete.collectAsState()
@@ -135,114 +137,119 @@ fun NutritionScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0A0A0F))
-            .padding(horizontal = 24.dp)
-            .padding(top = 32.dp, bottom = 120.dp)
+    PullToRefreshContainer(
+        isRefreshing = isRefreshing,
+        onRefresh = { viewModel.refresh() }
     ) {
-        Text(
-            text = "Nutrition",
-            color = Color.White,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "AI Food Analysis",
-            color = Color.White.copy(alpha = 0.5f),
-            fontSize = 14.sp
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF0A0A0F))
+                .padding(horizontal = 24.dp)
+                .padding(top = 32.dp, bottom = 120.dp)
+        ) {
+            Text(
+                text = "Nutrition",
+                color = Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "AI Food Analysis",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 14.sp
+            )
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "TODAY'S CALORIES",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.Bottom) {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
                         Text(
-                            text = "$caloriesConsumed",
-                            color = OrangePrimary,
-                            fontSize = 32.sp,
+                            text = "TODAY'S CALORIES",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "/ $dailyCalorieGoal",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 16.sp,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = "$caloriesConsumed",
+                                color = OrangePrimary,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "/ $dailyCalorieGoal",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 16.sp,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+                    }
+                    FloatingActionButton(
+                        onClick = { viewModel.showAddFood() },
+                        containerColor = OrangePrimary,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Food", tint = Color.White)
                     }
                 }
-                FloatingActionButton(
-                    onClick = { viewModel.showAddFood() },
-                    containerColor = OrangePrimary,
-                    modifier = Modifier.size(48.dp)
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Today's Meals",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (todayMeals.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Food", tint = Color.White)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "Today's Meals",
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (todayMeals.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Default.CameraAlt,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.2f),
-                    modifier = Modifier.size(64.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "No meals tracked yet.",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 16.sp
-                )
-                Text(
-                    text = "Tap + to add your first meal",
-                    color = Color.White.copy(alpha = 0.3f),
-                    fontSize = 14.sp
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(todayMeals) { meal ->
-                    MealCard(
-                        meal = meal,
-                        onDeleteClick = { viewModel.requestDeleteMeal(meal) }
+                    Icon(
+                        Icons.Default.CameraAlt,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.2f),
+                        modifier = Modifier.size(64.dp)
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "No meals tracked yet.",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = "Tap + to add your first meal",
+                        color = Color.White.copy(alpha = 0.3f),
+                        fontSize = 14.sp
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(todayMeals) { meal ->
+                        MealCard(
+                            meal = meal,
+                            onDeleteClick = { viewModel.requestDeleteMeal(meal) }
+                        )
+                    }
                 }
             }
         }
