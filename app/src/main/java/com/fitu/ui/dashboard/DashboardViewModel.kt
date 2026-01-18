@@ -1,5 +1,6 @@
- package com.fitu.ui.dashboard
+package com.fitu.ui.dashboard
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.UserPreferencesRepository
@@ -10,6 +11,7 @@ import com.fitu.data.repository.StreakData
 import com.fitu.data.service.StepCounterService
 import com.fitu.domain.repository.DashboardRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,11 +31,21 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: DashboardRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val stepDao: StepDao,
     private val streakRepository: StreakRepository
 ) : ViewModel() {
+
+    companion object {
+        private const val PREFS_NAME = "fitu_dashboard_prefs"
+        private const val KEY_CELEBRATION_SHOWN_DATE = "celebration_shown_date"
+    }
+
+    private val prefs by lazy {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
     // User info
     val userName: StateFlow<String> = userPreferencesRepository.userName
@@ -127,8 +139,6 @@ class DashboardViewModel @Inject constructor(
     private val _showStepGoalCelebration = MutableStateFlow(false)
     val showStepGoalCelebration: StateFlow<Boolean> = _showStepGoalCelebration.asStateFlow()
 
-    private val _hasShownStepCelebrationToday = MutableStateFlow(false)
-
     // Streak data
     private val _streakData = MutableStateFlow(StreakData())
     val streakData: StateFlow<StreakData> = _streakData.asStateFlow()
@@ -141,6 +151,27 @@ class DashboardViewModel @Inject constructor(
         loadWeeklySteps()
         loadStreakData()
         observeStepGoalCompletion()
+    }
+
+    /**
+     * Check if celebration was already shown today
+     */
+    private fun hasCelebrationBeenShownToday(): Boolean {
+        val today = getTodayDateString()
+        val shownDate = prefs.getString(KEY_CELEBRATION_SHOWN_DATE, null)
+        return shownDate == today
+    }
+
+    /**
+     * Mark celebration as shown for today
+     */
+    private fun markCelebrationShown() {
+        val today = getTodayDateString()
+        prefs.edit().putString(KEY_CELEBRATION_SHOWN_DATE, today).apply()
+    }
+
+    private fun getTodayDateString(): String {
+        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     }
 
     fun refresh() {
@@ -249,9 +280,12 @@ class DashboardViewModel @Inject constructor(
             }
             .distinctUntilChanged()
             .collect { goalReached ->
-                if (goalReached && !_hasShownStepCelebrationToday.value) {
+                // Only show celebration if:
+                // 1. Goal is reached
+                // 2. Celebration hasn't been shown today yet
+                if (goalReached && !hasCelebrationBeenShownToday()) {
                     _showStepGoalCelebration.value = true
-                    _hasShownStepCelebrationToday.value = true
+                    markCelebrationShown()
                     loadStreakData()
                 }
             }
@@ -292,4 +326,4 @@ class DashboardViewModel @Inject constructor(
 
         return Pair(start, end)
     }
-} 
+}
