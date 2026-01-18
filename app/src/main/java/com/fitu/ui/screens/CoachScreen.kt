@@ -11,6 +11,8 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,6 +34,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -43,6 +46,7 @@ import com.fitu.aicoach.AiCoachViewModel
 import com.fitu.aicoach.ExerciseType
 import com.fitu.aicoach.PoseAnalyzer
 import com.fitu.aicoach.PoseOverlayView
+import com.fitu.ui.components.AnimatedCounter
 import com.fitu.ui.components.GlassCard
 import com.fitu.ui.theme.OrangePrimary
 import java.util.concurrent.Executors
@@ -73,7 +77,7 @@ fun CoachScreen(
     // Auto-save workout and cleanup when leaving the screen
     DisposableEffect(Unit) {
         onDispose {
-            poseAnalyzer?.close()  // ✅ FIX: Close pose detector to prevent memory leak
+            poseAnalyzer?.close()
             viewModel.saveCurrentWorkout()
         }
     }
@@ -386,7 +390,6 @@ private fun CameraPreviewWithOverlay(
                     val analyzer = PoseAnalyzer(
                         overlay = overlay,
                         onPoseDetected = { pose, angle, config ->
-                            // ✅ FIXED: Update stats via callback on every frame
                             analyzerRef?.let { a ->
                                 onStatsUpdate(
                                     a.getRepCount(),
@@ -445,7 +448,7 @@ private fun CameraPreviewWithOverlay(
 }
 
 /**
- * Stats overlay showing reps/time, calories, and form score
+ * Stats overlay showing reps/time, calories, and form score with animations
  */
 @Composable
 private fun StatsOverlay(
@@ -467,7 +470,7 @@ private fun StatsOverlay(
                 Brush.verticalGradient(
                     colors = listOf(
                         Color.Transparent,
-                        Color.Black.copy(alpha = 0.7f)
+                        Color.Black.copy(alpha = 0.8f)
                     )
                 )
             )
@@ -480,36 +483,39 @@ private fun StatsOverlay(
         ) {
             if (exerciseType.isTimeBased) {
                 // Time-based stats (Plank)
-                StatItem(
+                AnimatedTimeStatItem(
                     label = "TIME",
-                    value = formatTime(holdTimeMs),
+                    timeMs = holdTimeMs,
                     highlight = true
                 )
-                StatItem(
+                AnimatedFloatStatItem(
                     label = "KCAL",
-                    value = String.format("%.1f", caloriesBurned),
+                    value = caloriesBurned,
+                    decimals = 1,
                     highlight = false
                 )
-                StatItem(
+                AnimatedFloatStatItem(
                     label = "FORM",
-                    value = String.format("%.0f", formScore),
+                    value = formScore,
+                    decimals = 0,
                     highlight = formScore >= 7f
                 )
             } else {
                 // Rep-based stats
-                StatItem(
+                AnimatedIntStatItem(
                     label = "REPS",
-                    value = repCount.toString(),
+                    value = repCount,
                     highlight = true
                 )
-                StatItem(
+                AnimatedFloatStatItem(
                     label = "KCAL",
-                    value = String.format("%.1f", caloriesBurned),
+                    value = caloriesBurned,
+                    decimals = 1,
                     highlight = false
                 )
-                StatItem(
+                AnimatedAngleStatItem(
                     label = "ANGLE",
-                    value = if (currentAngle > 0) "${currentAngle.toInt()}°" else "--",
+                    angle = currentAngle,
                     highlight = false
                 )
             }
@@ -517,10 +523,13 @@ private fun StatsOverlay(
     }
 }
 
+/**
+ * Animated integer stat item (for reps)
+ */
 @Composable
-private fun StatItem(
+private fun AnimatedIntStatItem(
     label: String,
-    value: String,
+    value: Int,
     highlight: Boolean
 ) {
     Column(
@@ -533,8 +542,49 @@ private fun StatItem(
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(4.dp))
+        AnimatedCounter(
+            count = value,
+            style = TextStyle(
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (highlight) OrangePrimary else Color.White
+            )
+        )
+    }
+}
+
+/**
+ * Animated float stat item (for calories, form score)
+ */
+@Composable
+private fun AnimatedFloatStatItem(
+    label: String,
+    value: Float,
+    decimals: Int,
+    highlight: Boolean
+) {
+    val animatedValue by animateFloatAsState(
+        targetValue = value,
+        animationSpec = tween(300),
+        label = "floatStat"
+    )
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
-            text = value,
+            text = label,
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = if (decimals == 0) {
+                "${animatedValue.toInt()}"
+            } else {
+                String.format("%.${decimals}f", animatedValue)
+            },
             color = if (highlight) OrangePrimary else Color.White,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold
@@ -543,11 +593,87 @@ private fun StatItem(
 }
 
 /**
- * Format milliseconds to MM:SS
+ * Animated time stat item (for hold time)
  */
-private fun formatTime(ms: Long): String {
-    val totalSeconds = ms / 1000
+@Composable
+private fun AnimatedTimeStatItem(
+    label: String,
+    timeMs: Long,
+    highlight: Boolean
+) {
+    val totalSeconds = (timeMs / 1000).toInt()
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return String.format("%02d:%02d", minutes, seconds)
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Minutes
+            AnimatedCounter(
+                count = minutes,
+                style = TextStyle(
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (highlight) OrangePrimary else Color.White
+                )
+            )
+            Text(
+                text = ":",
+                color = if (highlight) OrangePrimary else Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+            // Seconds (with leading zero)
+            Text(
+                text = String.format("%02d", seconds),
+                color = if (highlight) OrangePrimary else Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+/**
+ * Animated angle stat item
+ */
+@Composable
+private fun AnimatedAngleStatItem(
+    label: String,
+    angle: Float,
+    highlight: Boolean
+) {
+    val animatedAngle by animateFloatAsState(
+        targetValue = angle,
+        animationSpec = tween(200),
+        label = "angleStat"
+    )
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = if (angle > 0) "${animatedAngle.toInt()}°" else "--",
+            color = if (highlight) OrangePrimary else Color.White,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
