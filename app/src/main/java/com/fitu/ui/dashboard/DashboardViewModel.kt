@@ -11,6 +11,7 @@ import com.fitu.data.service.StepCounterService
 import com.fitu.domain.repository.DashboardRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -63,6 +64,9 @@ class DashboardViewModel @Inject constructor(
 
     // Track if steps are initialized (to prevent showing 0)
     val isStepsInitialized: StateFlow<Boolean> = StepCounterService.isInitialized
+
+    // Pull-to-refresh state fn-4-87z.3 val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     // Loading state for weekly steps chart
     private val _isWeeklyDataLoading = MutableStateFlow(true)
@@ -136,6 +140,20 @@ class DashboardViewModel @Inject constructor(
         loadWeeklySteps()
         loadStreakData()
         observeStepGoalCompletion()
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                loadDashboardData()
+                loadWeeklySteps()
+                loadStreakData()
+                delay(500) // Small delay to show the refresh indicator
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 
     private fun loadDashboardData() {
