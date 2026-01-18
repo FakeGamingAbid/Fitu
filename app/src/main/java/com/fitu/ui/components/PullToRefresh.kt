@@ -1,19 +1,18 @@
-package com.fitu.ui.components
+ package com.fitu.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.fitu.ui.theme.OrangePrimary
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun PullToRefreshContainer(
     isRefreshing: Boolean,
@@ -21,32 +20,24 @@ fun PullToRefreshContainer(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    val pullToRefreshState = rememberPullToRefreshState()
-
-    LaunchedEffect(pullToRefreshState.isRefreshing) {
-        if (pullToRefreshState.isRefreshing) {
-            onRefresh()
-        }
-    }
-
-    LaunchedEffect(isRefreshing) {
-        if (!isRefreshing && pullToRefreshState.isRefreshing) {
-            pullToRefreshState.endRefresh()
-        }
-    }
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = onRefresh
+    )
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .nestedScroll(pullToRefreshState.nestedScrollConnection)
+            .pullRefresh(pullRefreshState)
     ) {
         content()
 
-        PullToRefreshContainer(
-            state = pullToRefreshState,
+        PullRefreshIndicator(
+            refreshing = isRefreshing,
+            state = pullRefreshState,
             modifier = Modifier.align(Alignment.TopCenter),
-            containerColor = Color(0xFF1A1A1F),
+            backgroundColor = Color(0xFF1A1A1F),
             contentColor = OrangePrimary
         )
     }
-}
+} 
