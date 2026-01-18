@@ -20,6 +20,7 @@ import com.fitu.MainActivity
 import com.fitu.R
 import com.fitu.data.local.dao.StepDao
 import com.fitu.data.local.entity.StepEntity
+import com.fitu.widget.StepsWidget
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -57,7 +58,7 @@ class StepCounterService : Service(), SensorEventListener {
     private var currentDate: String = ""
     private var dailyStepGoal: Int = 10000
     
-    // ✅ FIX #5: Use synchronized set with lock object
+    // Use synchronized set with lock object
     private val milestoneLock = Any()
     private val notifiedMilestones = mutableSetOf<Int>()
 
@@ -133,6 +134,8 @@ class StepCounterService : Service(), SensorEventListener {
         intent?.getIntExtra("step_goal", -1)?.let { goal ->
             if (goal > 0) {
                 dailyStepGoal = goal
+                // Save step goal for widget
+                StepsWidget.saveStepGoal(applicationContext, goal)
             }
         }
         
@@ -213,7 +216,7 @@ class StepCounterService : Service(), SensorEventListener {
         initialStepCount = -1
         lastKnownHardwareSteps = -1
         
-        // ✅ FIX #5: Clear milestones with synchronization
+        // Clear milestones with synchronization
         synchronized(milestoneLock) {
             notifiedMilestones.clear()
         }
@@ -224,6 +227,9 @@ class StepCounterService : Service(), SensorEventListener {
         
         // Load any existing steps for new day (e.g., from another device sync)
         loadTodayStepsAsync()
+        
+        // Update widget for new day
+        StepsWidget.updateWidget(applicationContext)
     }
 
     private fun registerSensors() {
@@ -327,6 +333,9 @@ class StepCounterService : Service(), SensorEventListener {
             
             // Persist state for recovery
             persistState()
+            
+            // Update widget
+            StepsWidget.updateWidget(applicationContext)
         }
     }
 
@@ -336,6 +345,9 @@ class StepCounterService : Service(), SensorEventListener {
         checkMilestones(newSteps)
         saveStepsPeriodically(newSteps)
         persistState()
+        
+        // Update widget
+        StepsWidget.updateWidget(applicationContext)
     }
 
     // Accelerometer fallback variables
@@ -377,6 +389,9 @@ class StepCounterService : Service(), SensorEventListener {
                 checkMilestones(newSteps)
                 saveStepsPeriodically(newSteps)
                 persistState()
+                
+                // Update widget
+                StepsWidget.updateWidget(applicationContext)
             }
         } else if (smoothedMag < RESET_THRESHOLD) {
             isBelowReset = true
@@ -386,6 +401,10 @@ class StepCounterService : Service(), SensorEventListener {
     // Thread-safe save timing
     private val lastSaveTime = AtomicLong(0L)
     private val SAVE_INTERVAL = 10000L // 10 seconds
+    
+    // Widget update timing (don't update too frequently)
+    private val lastWidgetUpdateTime = AtomicLong(0L)
+    private val WIDGET_UPDATE_INTERVAL = 30000L // 30 seconds
 
     private fun saveStepsPeriodically(steps: Int) {
         val now = System.currentTimeMillis()
@@ -424,10 +443,13 @@ class StepCounterService : Service(), SensorEventListener {
     private fun loadStepGoal() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
         dailyStepGoal = prefs.getInt("daily_step_goal", 10000)
+        
+        // Also save to widget prefs
+        StepsWidget.saveStepGoal(applicationContext, dailyStepGoal)
     }
 
     /**
-     * ✅ FIX #5: Load milestones with synchronization
+     * Load milestones with synchronization
      */
     private fun loadNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
@@ -446,7 +468,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     /**
-     * ✅ FIX #5: Save milestones with synchronization
+     * Save milestones with synchronization
      */
     private fun saveNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
@@ -488,6 +510,9 @@ class StepCounterService : Service(), SensorEventListener {
                         .putInt(PREF_STEPS_AT_START_OF_DAY, dbSteps)
                         .putInt(PREF_LAST_SAVED_STEPS, dbSteps)
                         .apply()
+                    
+                    // Update widget
+                    StepsWidget.updateWidget(applicationContext)
                 }
                 
                 _isInitialized.value = true
@@ -556,7 +581,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     /**
-     * ✅ FIX #5: Check milestones with synchronization
+     * Check milestones with synchronization
      */
     private fun checkMilestones(steps: Int) {
         if (dailyStepGoal <= 0) return
@@ -626,6 +651,9 @@ class StepCounterService : Service(), SensorEventListener {
         // Save final state before destruction
         saveSteps(_stepCount.value)
         persistState()
+        
+        // Final widget update
+        StepsWidget.updateWidget(applicationContext)
         
         serviceScope.cancel()
     }
