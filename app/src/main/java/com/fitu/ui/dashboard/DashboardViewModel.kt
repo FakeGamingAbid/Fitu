@@ -1,4 +1,4 @@
-package com.fitu.ui.dashboard
+ package com.fitu.ui.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -65,7 +65,8 @@ class DashboardViewModel @Inject constructor(
     // Track if steps are initialized (to prevent showing 0)
     val isStepsInitialized: StateFlow<Boolean> = StepCounterService.isInitialized
 
-    // Pull-to-refresh state fn-4-87z.3 val _isRefreshing = MutableStateFlow(false)
+    // Pull-to-refresh state
+    private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     // Loading state for weekly steps chart
@@ -149,7 +150,7 @@ class DashboardViewModel @Inject constructor(
                 loadDashboardData()
                 loadWeeklySteps()
                 loadStreakData()
-                delay(500) // Small delay to show the refresh indicator
+                delay(500)
             } finally {
                 _isRefreshing.value = false
             }
@@ -213,13 +214,9 @@ class DashboardViewModel @Inject constructor(
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val todayDate = dateFormat.format(Date())
 
-        // Create a map of date string to steps
         val stepsMap = stepEntities.associate { it.date to it.steps }.toMutableMap()
-
-        // Override today with live steps
         stepsMap[todayDate] = todaySteps
 
-        // Build list for last 7 days
         val weeklyList = mutableListOf<Int>()
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.DAY_OF_YEAR, -6)
@@ -295,4 +292,4 @@ class DashboardViewModel @Inject constructor(
 
         return Pair(start, end)
     }
-}
+} 
