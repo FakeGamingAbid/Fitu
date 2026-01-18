@@ -24,12 +24,13 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.ui.components.AnimatedDecimalCounter
 import com.fitu.ui.components.AnimatedFormattedCounter
-import com.fitu.ui.components.DashboardSkeleton
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
 import com.fitu.ui.components.GoalCelebrationDialog
+import com.fitu.ui.components.GoalType
 import com.fitu.ui.components.PullToRefreshContainer
 import com.fitu.ui.components.StreakCounterCard
+import com.fitu.ui.components.skeletons.DashboardSkeleton
 import com.fitu.ui.dashboard.DashboardViewModel
 import com.fitu.ui.theme.OrangePrimary
 import java.time.LocalDate
@@ -51,7 +52,6 @@ fun DashboardScreen(
     val distanceUnit by viewModel.distanceUnit.collectAsState()
     val isStepsInitialized by viewModel.isStepsInitialized.collectAsState()
     val streakData by viewModel.streakData.collectAsState()
-    val stepsNeededForStreak by viewModel.stepsNeededForStreak.collectAsState()
     val showStepGoalCelebration by viewModel.showStepGoalCelebration.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
@@ -81,13 +81,14 @@ fun DashboardScreen(
         else -> "👟 Let's get moving today!"
     }
 
-    if (showStepGoalCelebration) {
-        GoalCelebrationDialog(
-            steps = currentSteps,
-            goal = dailyStepGoal,
-            onDismiss = { viewModel.dismissStepGoalCelebration() }
-        )
-    }
+    // Goal celebration dialog
+    GoalCelebrationDialog(
+        show = showStepGoalCelebration,
+        goalType = GoalType.STEPS,
+        achievedValue = String.format("%,d", currentSteps),
+        goalValue = String.format("%,d", dailyStepGoal),
+        onDismiss = { viewModel.dismissStepGoalCelebration() }
+    )
 
     if (!isStepsInitialized) {
         DashboardSkeleton()
@@ -138,11 +139,10 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Streak Card
-            if (streakData.currentStreak > 0 || stepsNeededForStreak > 0) {
+            if (streakData.currentStreak > 0 || streakData.longestStreak > 0) {
                 StreakCounterCard(
                     currentStreak = streakData.currentStreak,
-                    longestStreak = streakData.longestStreak,
-                    stepsNeededForStreak = stepsNeededForStreak
+                    longestStreak = streakData.longestStreak
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
