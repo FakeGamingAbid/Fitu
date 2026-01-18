@@ -1,4 +1,4 @@
- package com.fitu.data.local
+package com.fitu.data.local
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fitu.widget.StepsWidget
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -36,7 +37,7 @@ class UserPreferencesRepository @Inject constructor(
         // Birthday wish tracking (only show once per year)
         val LAST_BIRTHDAY_WISH_YEAR = intPreferencesKey("last_birthday_wish_year")
         
-        // ✅ FIX #24: Unit preference (true = imperial, false = metric)
+        // Unit preference (true = imperial, false = metric)
         val USE_IMPERIAL_UNITS = booleanPreferencesKey("use_imperial_units")
     }
 
@@ -85,7 +86,7 @@ class UserPreferencesRepository @Inject constructor(
         preferences[PreferencesKeys.LAST_BIRTHDAY_WISH_YEAR]
     }
 
-    // ✅ FIX #24: Unit preference flow
+    // Unit preference flow
     val useImperialUnits: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[PreferencesKeys.USE_IMPERIAL_UNITS] ?: false
     }
@@ -106,6 +107,9 @@ class UserPreferencesRepository @Inject constructor(
             preferences[PreferencesKeys.DAILY_STEP_GOAL] = stepGoal
             preferences[PreferencesKeys.DAILY_CALORIE_GOAL] = calorieGoal
         }
+        
+        // Sync step goal to widget
+        StepsWidget.saveStepGoal(context, stepGoal)
     }
 
     /**
@@ -136,7 +140,7 @@ class UserPreferencesRepository @Inject constructor(
     }
 
     /**
-     * ✅ FIX #24: Save unit preference
+     * Save unit preference
      */
     suspend fun setUseImperialUnits(useImperial: Boolean) {
         context.dataStore.edit { preferences ->
@@ -151,6 +155,18 @@ class UserPreferencesRepository @Inject constructor(
     }
 
     /**
+     * Update step goal and sync to widget
+     */
+    suspend fun updateStepGoal(stepGoal: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DAILY_STEP_GOAL] = stepGoal
+        }
+        
+        // Sync to widget
+        StepsWidget.saveStepGoal(context, stepGoal)
+    }
+
+    /**
      * Clear all user data (for app reset)
      * Note: This does NOT clear the API key (that's in SecureStorage)
      */
@@ -159,4 +175,4 @@ class UserPreferencesRepository @Inject constructor(
             preferences.clear()
         }
     }
-} 
+}
