@@ -23,14 +23,12 @@ fun PullToRefreshContainer(
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
 
-    // Handle refresh trigger
     LaunchedEffect(pullToRefreshState.isRefreshing) {
         if (pullToRefreshState.isRefreshing) {
             onRefresh()
         }
     }
 
-    // End refresh when isRefreshing becomes false
     LaunchedEffect(isRefreshing) {
         if (!isRefreshing && pullToRefreshState.isRefreshing) {
             pullToRefreshState.endRefresh()
