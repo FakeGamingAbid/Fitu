@@ -1,5 +1,6 @@
 package com.fitu.data.service
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,6 +9,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -17,6 +19,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.fitu.MainActivity
 import com.fitu.R
 import com.fitu.data.local.dao.StepDao
@@ -135,7 +138,6 @@ class StepCounterService : Service(), SensorEventListener {
         intent?.getIntExtra("step_goal", -1)?.let { goal ->
             if (goal > 0) {
                 dailyStepGoal = goal
-                // Save step goal for widget
                 StepsWidget.saveStepGoal(applicationContext, goal)
             }
         }
@@ -143,38 +145,21 @@ class StepCounterService : Service(), SensorEventListener {
         return START_STICKY
     }
 
-    /**
-     * Restore persisted step tracking state.
-     * This handles the case where the service was killed and restarted.
-     */
     private fun restorePersistedState() {
         val savedDate = stepStatePrefs.getString(PREF_CURRENT_DATE, "") ?: ""
         val today = getTodayDate()
         
         if (savedDate == today) {
-            // Same day - restore state
             initialStepCount = stepStatePrefs.getInt(PREF_INITIAL_STEP_COUNT, -1)
             lastKnownHardwareSteps = stepStatePrefs.getInt(PREF_LAST_HARDWARE_STEPS, -1)
             stepsAtStartOfDay = stepStatePrefs.getInt(PREF_STEPS_AT_START_OF_DAY, 0)
-            
-            // Restore the last saved step count to avoid showing 0 briefly
             val lastSavedSteps = stepStatePrefs.getInt(PREF_LAST_SAVED_STEPS, 0)
             _stepCount.value = lastSavedSteps
-            
-            Log.d(TAG, "Restored state: initialStepCount=$initialStepCount, " +
-                    "lastHardwareSteps=$lastKnownHardwareSteps, " +
-                    "stepsAtStartOfDay=$stepsAtStartOfDay, " +
-                    "lastSavedSteps=$lastSavedSteps")
         } else {
-            // New day or first run - reset state
-            Log.d(TAG, "New day or first run, resetting state (saved: $savedDate, today: $today)")
             resetPersistedState()
         }
     }
 
-    /**
-     * Persist current step tracking state.
-     */
     private fun persistState() {
         stepStatePrefs.edit()
             .putString(PREF_CURRENT_DATE, currentDate)
@@ -185,9 +170,6 @@ class StepCounterService : Service(), SensorEventListener {
             .apply()
     }
 
-    /**
-     * Reset persisted state for a new day.
-     */
     private fun resetPersistedState() {
         initialStepCount = -1
         lastKnownHardwareSteps = -1
@@ -203,60 +185,46 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun handleDayChange(newDate: String) {
-        Log.d(TAG, "Day changed from $currentDate to $newDate")
-        
-        // Save final steps for the old day
         saveSteps(_stepCount.value)
-        
-        // Update to new day
         currentDate = newDate
-        
-        // Reset for new day
         _stepCount.value = 0
         stepsAtStartOfDay = 0
         initialStepCount = -1
         lastKnownHardwareSteps = -1
         
-        // Clear milestones with synchronization
         synchronized(milestoneLock) {
             notifiedMilestones.clear()
         }
         clearNotifiedMilestones()
-        
-        // Reset persisted state
         resetPersistedState()
-        
-        // Load any existing steps for new day (e.g., from another device sync)
         loadTodayStepsAsync()
-        
-        // Update widget for new day
         StepsWidget.updateWidget(applicationContext)
     }
 
     private fun registerSensors() {
+        // ✅ FIX #1: Guard against sensor access without permission (Android 10+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) 
+                != PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "Permission missing. Using accelerometer fallback.")
+                _usesHardwareCounter.value = false
+                registerAccelerometerFallback()
+                return
+            }
+        }
+
         stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
         
         if (stepCounterSensor != null) {
             Log.d(TAG, "Using hardware TYPE_STEP_COUNTER")
             _usesHardwareCounter.value = true
-            sensorManager.registerListener(
-                this, 
-                stepCounterSensor, 
-                SensorManager.SENSOR_DELAY_UI
-            )
+            sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_UI)
         } else {
             stepDetectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
-            
             if (stepDetectorSensor != null) {
-                Log.d(TAG, "Using TYPE_STEP_DETECTOR (fallback)")
                 _usesHardwareCounter.value = true
-                sensorManager.registerListener(
-                    this,
-                    stepDetectorSensor,
-                    SensorManager.SENSOR_DELAY_UI
-                )
+                sensorManager.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_UI)
             } else {
-                Log.w(TAG, "No hardware step sensor! Falling back to accelerometer")
                 _usesHardwareCounter.value = false
                 registerAccelerometerFallback()
             }
@@ -272,11 +240,8 @@ class StepCounterService : Service(), SensorEventListener {
 
     override fun onSensorChanged(event: SensorEvent?) {
         event ?: return
-        
         val today = getTodayDate()
-        if (today != currentDate) {
-            handleDayChange(today)
-        }
+        if (today != currentDate) handleDayChange(today)
 
         when (event.sensor.type) {
             Sensor.TYPE_STEP_COUNTER -> handleStepCounter(event)
@@ -287,55 +252,27 @@ class StepCounterService : Service(), SensorEventListener {
 
     private fun handleStepCounter(event: SensorEvent) {
         val totalStepsSinceBoot = event.values[0].toInt()
-        
-        // First reading after service start/restart
         if (initialStepCount < 0) {
-            // Check if we have a valid last known hardware step count from before restart
             if (lastKnownHardwareSteps > 0 && totalStepsSinceBoot >= lastKnownHardwareSteps) {
-                // Service was restarted - calculate steps taken during downtime
                 val stepsDuringDowntime = totalStepsSinceBoot - lastKnownHardwareSteps
-                
-                // Add downtime steps to current count
-                val previousSteps = _stepCount.value
-                _stepCount.value = previousSteps + stepsDuringDowntime
-                
-                Log.d(TAG, "Service restart detected. Steps during downtime: $stepsDuringDowntime, " +
-                        "Previous: $previousSteps, New total: ${_stepCount.value}")
-                
-                // Set initial count to current hardware steps
-                initialStepCount = totalStepsSinceBoot
-                stepsAtStartOfDay = _stepCount.value
-            } else if (lastKnownHardwareSteps > 0 && totalStepsSinceBoot < lastKnownHardwareSteps) {
-                // Device was rebooted (hardware counter reset)
-                Log.d(TAG, "Device reboot detected (hardware steps reset from $lastKnownHardwareSteps to $totalStepsSinceBoot)")
-                
-                // Keep our current step count, just update the initial reference
+                _stepCount.value += stepsDuringDowntime
                 initialStepCount = totalStepsSinceBoot
                 stepsAtStartOfDay = _stepCount.value
             } else {
-                // Fresh start (no previous state)
                 initialStepCount = totalStepsSinceBoot
                 stepsAtStartOfDay = _stepCount.value
-                Log.d(TAG, "Fresh start. Initial step count: $initialStepCount, steps at start: $stepsAtStartOfDay")
             }
         }
         
-        // Calculate today's steps
         val stepsSinceServiceStart = totalStepsSinceBoot - initialStepCount
         val todaySteps = stepsAtStartOfDay + stepsSinceServiceStart
-        
-        // Update last known hardware steps for next restart
         lastKnownHardwareSteps = totalStepsSinceBoot
         
         if (todaySteps != _stepCount.value && todaySteps >= 0) {
             _stepCount.value = todaySteps
             checkMilestones(todaySteps)
             saveStepsPeriodically(todaySteps)
-            
-            // Persist state for recovery
             persistState()
-            
-            // Update widget
             StepsWidget.updateWidget(applicationContext)
         }
     }
@@ -346,17 +283,14 @@ class StepCounterService : Service(), SensorEventListener {
         checkMilestones(newSteps)
         saveStepsPeriodically(newSteps)
         persistState()
-        
-        // Update widget
         StepsWidget.updateWidget(applicationContext)
     }
 
-    // Accelerometer fallback variables
+    // Accelerometer math logic
     private val gravity = FloatArray(3)
     private var smoothedMag = 0.0
     private var isBelowReset = true
     private var lastStepTime = 0L
-
     private val ALPHA = 0.92f
     private val SMOOTH_FACTOR = 0.7f
     private val STEP_THRESHOLD = 2.4f
@@ -367,15 +301,12 @@ class StepCounterService : Service(), SensorEventListener {
         val x = event.values[0]
         val y = event.values[1]
         val z = event.values[2]
-
         gravity[0] = ALPHA * gravity[0] + (1 - ALPHA) * x
         gravity[1] = ALPHA * gravity[1] + (1 - ALPHA) * y
         gravity[2] = ALPHA * gravity[2] + (1 - ALPHA) * z
-
         val lx = x - gravity[0]
         val ly = y - gravity[1]
         val lz = z - gravity[2]
-
         val rawMag = Math.sqrt((lx * lx + ly * ly + lz * lz).toDouble()).toFloat()
         smoothedMag = (SMOOTH_FACTOR * smoothedMag) + ((1 - SMOOTH_FACTOR) * rawMag)
         _motionMagnitude.value = smoothedMag.toFloat()
@@ -390,8 +321,6 @@ class StepCounterService : Service(), SensorEventListener {
                 checkMilestones(newSteps)
                 saveStepsPeriodically(newSteps)
                 persistState()
-                
-                // Update widget
                 StepsWidget.updateWidget(applicationContext)
             }
         } else if (smoothedMag < RESET_THRESHOLD) {
@@ -399,18 +328,12 @@ class StepCounterService : Service(), SensorEventListener {
         }
     }
 
-    // Thread-safe save timing
     private val lastSaveTime = AtomicLong(0L)
-    private val SAVE_INTERVAL = 10000L // 10 seconds
-    
-    // Widget update timing (don't update too frequently)
-    private val lastWidgetUpdateTime = AtomicLong(0L)
-    private val WIDGET_UPDATE_INTERVAL = 30000L // 30 seconds
+    private val SAVE_INTERVAL = 10000L 
 
     private fun saveStepsPeriodically(steps: Int) {
         val now = System.currentTimeMillis()
         val lastSave = lastSaveTime.get()
-        
         if (now - lastSave > SAVE_INTERVAL) {
             if (lastSaveTime.compareAndSet(lastSave, now)) {
                 saveSteps(steps)
@@ -421,20 +344,10 @@ class StepCounterService : Service(), SensorEventListener {
     private fun saveSteps(steps: Int) {
         serviceScope.launch {
             try {
-                val entity = StepEntity(
-                    date = currentDate,
-                    steps = steps,
-                    lastUpdated = System.currentTimeMillis()
-                )
+                val entity = StepEntity(date = currentDate, steps = steps, lastUpdated = System.currentTimeMillis())
                 stepDao.insertOrUpdate(entity)
                 updateNotification(steps)
-                
-                // Also persist to SharedPreferences for quick recovery
-                stepStatePrefs.edit()
-                    .putInt(PREF_LAST_SAVED_STEPS, steps)
-                    .apply()
-                    
-                Log.d(TAG, "Saved steps: $steps for date: $currentDate")
+                stepStatePrefs.edit().putInt(PREF_LAST_SAVED_STEPS, steps).apply()
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving steps", e)
             }
@@ -444,54 +357,32 @@ class StepCounterService : Service(), SensorEventListener {
     private fun loadStepGoal() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
         dailyStepGoal = prefs.getInt("daily_step_goal", 10000)
-        
-        // Also save to widget prefs
-        StepsWidget.saveStepGoal(applicationContext, dailyStepGoal)
     }
 
-    /**
-     * Load milestones with synchronization
-     */
     private fun loadNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
         val savedDate = prefs.getString("milestone_date", "")
-        
         synchronized(milestoneLock) {
             notifiedMilestones.clear()
-            
             if (savedDate == currentDate) {
                 val savedMilestones = prefs.getStringSet("notified_milestones", emptySet()) ?: emptySet()
-                savedMilestones.mapNotNull { it.toIntOrNull() }.forEach { 
-                    notifiedMilestones.add(it) 
-                }
+                savedMilestones.mapNotNull { it.toIntOrNull() }.forEach { notifiedMilestones.add(it) }
             }
         }
     }
 
-    /**
-     * Save milestones with synchronization
-     */
     private fun saveNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
-        
-        // Create a copy while holding the lock
         val milestoneCopy: Set<String>
         synchronized(milestoneLock) {
             milestoneCopy = notifiedMilestones.map { it.toString() }.toSet()
         }
-        
-        prefs.edit()
-            .putString("milestone_date", currentDate)
-            .putStringSet("notified_milestones", milestoneCopy)
-            .apply()
+        prefs.edit().putString("milestone_date", currentDate).putStringSet("notified_milestones", milestoneCopy).apply()
     }
 
     private fun clearNotifiedMilestones() {
         val prefs = getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString("milestone_date", currentDate)
-            .putStringSet("notified_milestones", emptySet())
-            .apply()
+        prefs.edit().putString("milestone_date", currentDate).putStringSet("notified_milestones", emptySet()).apply()
     }
 
     private fun loadTodayStepsAsync() {
@@ -499,27 +390,14 @@ class StepCounterService : Service(), SensorEventListener {
             try {
                 val todaySteps = stepDao.getStepsForDate(currentDate)
                 val dbSteps = todaySteps?.steps ?: 0
-                
-                // Only update if DB has more steps (e.g., synced from another source)
-                // or if we don't have any steps yet
                 if (dbSteps > _stepCount.value || _stepCount.value == 0) {
                     _stepCount.value = dbSteps
                     stepsAtStartOfDay = dbSteps
-                    
-                    // Update persisted state
-                    stepStatePrefs.edit()
-                        .putInt(PREF_STEPS_AT_START_OF_DAY, dbSteps)
-                        .putInt(PREF_LAST_SAVED_STEPS, dbSteps)
-                        .apply()
-                    
-                    // Update widget
+                    stepStatePrefs.edit().putInt(PREF_STEPS_AT_START_OF_DAY, dbSteps).putInt(PREF_LAST_SAVED_STEPS, dbSteps).apply()
                     StepsWidget.updateWidget(applicationContext)
                 }
-                
                 _isInitialized.value = true
-                Log.d(TAG, "Loaded steps from DB: $dbSteps, current: ${_stepCount.value}")
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading steps from DB", e)
                 _isInitialized.value = true
             }
         }
@@ -527,52 +405,23 @@ class StepCounterService : Service(), SensorEventListener {
 
     private fun startForegroundService() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val stepChannel = NotificationChannel(
-                CHANNEL_ID,
-                "Step Counter",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Tracks your daily steps"
-                setShowBadge(false)
-            }
-            notificationManager.createNotificationChannel(stepChannel)
-            
-            val milestoneChannel = NotificationChannel(
-                MILESTONE_CHANNEL_ID,
-                "Step Milestones",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications for step goal progress"
-                setShowBadge(true)
-                enableVibration(true)
-            }
-            notificationManager.createNotificationChannel(milestoneChannel)
+            notificationManager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Step Counter", NotificationManager.IMPORTANCE_LOW))
+            notificationManager.createNotificationChannel(NotificationChannel(MILESTONE_CHANNEL_ID, "Step Milestones", NotificationManager.IMPORTANCE_HIGH))
         }
 
         val notification = buildNotification(_stepCount.value)
-        
-        // ✅ FIX FOR ANDROID 14 FOREGROUND SERVICE CRASH
-        if (Build.VERSION.SDK_INT >= 34) { // Android 14+
-            startForeground(
-                NOTIFICATION_ID, 
-                notification, 
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
-            )
+
+        // ✅ FIX #2: Android 14 (API 34) Foreground Service Type Fix
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
     }
 
     private fun buildNotification(steps: Int): Notification {
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
+        val pendingIntent = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val progress = if (dailyStepGoal > 0) ((steps.toFloat() / dailyStepGoal) * 100).toInt() else 0
         val sensorType = if (_usesHardwareCounter.value) "HW" else "SW"
         
@@ -581,9 +430,7 @@ class StepCounterService : Service(), SensorEventListener {
             .setContentText("$steps steps today ($progress%) [$sensorType]")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setSilent(true)
-            .build()
+            .setOngoing(true).setSilent(true).build()
     }
 
     private fun updateNotification(steps: Int) {
@@ -591,23 +438,15 @@ class StepCounterService : Service(), SensorEventListener {
         manager.notify(NOTIFICATION_ID, buildNotification(steps))
     }
 
-    /**
-     * Check milestones with synchronization
-     */
     private fun checkMilestones(steps: Int) {
         if (dailyStepGoal <= 0) return
-        
         val currentProgress = ((steps.toFloat() / dailyStepGoal) * 100).toInt()
-        
         for (milestone in MILESTONES) {
             val shouldNotify: Boolean
             synchronized(milestoneLock) {
                 shouldNotify = currentProgress >= milestone && !notifiedMilestones.contains(milestone)
-                if (shouldNotify) {
-                    notifiedMilestones.add(milestone)
-                }
+                if (shouldNotify) notifiedMilestones.add(milestone)
             }
-            
             if (shouldNotify) {
                 sendMilestoneNotification(steps, milestone)
                 saveNotifiedMilestones()
@@ -616,13 +455,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     private fun sendMilestoneNotification(steps: Int, milestone: Int) {
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
+        val pendingIntent = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val (title, message) = when (milestone) {
             20 -> "🚶 20% Complete!" to "You've taken $steps steps. Keep moving!"
             40 -> "🏃 40% Complete!" to "You've taken $steps steps. Almost halfway there!"
@@ -631,41 +464,21 @@ class StepCounterService : Service(), SensorEventListener {
             100 -> "🎉 GOAL REACHED!" to "Congratulations! You've completed $steps steps today!"
             else -> "Step Progress" to "You've taken $steps steps"
         }
-        
         val notification = NotificationCompat.Builder(this, MILESTONE_CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_VIBRATE)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-            .build()
-        
+            .setContentTitle(title).setContentText(message).setSmallIcon(R.mipmap.ic_launcher)
+            .setContentIntent(pendingIntent).setAutoCancel(true).setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_VIBRATE).build()
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(MILESTONE_NOTIFICATION_ID + milestone, notification)
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        // No-op
-    }
-
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     override fun onBind(intent: Intent?): IBinder? = null
-
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "Service onDestroy - saving final state")
-        
-        sensorManager.unregisterListener(this)
-        
-        // Save final state before destruction
         saveSteps(_stepCount.value)
         persistState()
-        
-        // Final widget update
         StepsWidget.updateWidget(applicationContext)
-        
         serviceScope.cancel()
     }
 }
