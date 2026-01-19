@@ -1,5 +1,10 @@
 package com.fitu.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -11,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -32,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -47,6 +54,7 @@ import com.fitu.util.BatteryOptimizationHelper
 
 private val WarningOrange = Color(0xFFFF9800)
 private val SuccessGreen = Color(0xFF4CAF50)
+private val PermissionBlue = Color(0xFF2196F3)
 
 @Composable
 fun StepsScreen(
@@ -73,11 +81,45 @@ fun StepsScreen(
     }
     val manufacturerName = AutoStartManager.getManufacturerName()
 
+    // Activity Recognition permission state
+    var hasActivityPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACTIVITY_RECOGNITION
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true // Not required for Android 9 and below
+            }
+        )
+    }
+
+    // Activity Recognition permission launcher
+    val activityPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasActivityPermission = granted
+        if (granted) {
+            // Start service after permission granted
+            viewModel.startService()
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isBatteryOptimized = !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
                 showAutoStartWarning = AutoStartManager.shouldShowAutoStartWarning(context)
+                // Re-check activity permission on resume
+                hasActivityPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACTIVITY_RECOGNITION
+                    ) == PackageManager.PERMISSION_GRANTED
+                } else {
+                    true
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -114,11 +156,18 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (isBatteryOptimized || showAutoStartWarning) {
+        // Permission Warning Cards
+        if (!hasActivityPermission || isBatteryOptimized || showAutoStartWarning) {
             PermissionWarningCard(
+                hasActivityPermission = hasActivityPermission,
                 isBatteryOptimized = isBatteryOptimized,
                 needsAutoStart = showAutoStartWarning,
                 manufacturerName = manufacturerName,
+                onActivityPermissionClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                    }
+                },
                 onBatteryClick = { BatteryOptimizationHelper.requestIgnoreBatteryOptimization(context) },
                 onAutoStartClick = {
                     AutoStartManager.openAutoStartSettings(context)
@@ -191,7 +240,16 @@ fun StepsScreen(
         TrackingStatusSection(
             isServiceRunning = isServiceRunning,
             usesHardwareCounter = usesHardwareCounter,
-            onStartTracking = { viewModel.startService() },
+            hasActivityPermission = hasActivityPermission,
+            onStartTracking = {
+                if (hasActivityPermission) {
+                    viewModel.startService()
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                } else {
+                    viewModel.startService()
+                }
+            },
             onStopTracking = { viewModel.stopService() }
         )
 
@@ -362,9 +420,11 @@ fun StepsScreen(
 
 @Composable
 private fun PermissionWarningCard(
+    hasActivityPermission: Boolean,
     isBatteryOptimized: Boolean,
     needsAutoStart: Boolean,
     manufacturerName: String,
+    onActivityPermissionClick: () -> Unit,
     onBatteryClick: () -> Unit,
     onAutoStartClick: () -> Unit
 ) {
@@ -404,13 +464,13 @@ private fun PermissionWarningCard(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        "Background permissions needed",
+                        "Permissions needed",
                         color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Step counting may stop when screen is off",
+                        "Enable these for accurate step tracking",
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 12.sp
                     )
@@ -419,6 +479,34 @@ private fun PermissionWarningCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Activity Recognition Permission (Android 10+)
+            if (!hasActivityPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                Text(
+                    text = "📋 Allow Fitu to access your physical activity data",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onActivityPermissionClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PermissionBlue),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = SolidColor(PermissionBlue))
+                ) {
+                    Icon(Icons.Default.DirectionsWalk, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Enable Activity Tracking")
+                }
+                
+                if (isBatteryOptimized || needsAutoStart) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+
+            // Battery Optimization
             if (isBatteryOptimized) {
                 Text(
                     text = batteryHelperText,
@@ -444,6 +532,7 @@ private fun PermissionWarningCard(
                 }
             }
 
+            // Auto-Start
             if (needsAutoStart) {
                 Text(
                     text = autoStartHelperText,
@@ -471,6 +560,7 @@ private fun PermissionWarningCard(
 private fun TrackingStatusSection(
     isServiceRunning: Boolean,
     usesHardwareCounter: Boolean,
+    hasActivityPermission: Boolean,
     onStartTracking: () -> Unit,
     onStopTracking: () -> Unit
 ) {
@@ -536,7 +626,7 @@ private fun TrackingStatusSection(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                "Start Tracking",
+                if (hasActivityPermission) "Start Tracking" else "Enable & Start Tracking",
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
