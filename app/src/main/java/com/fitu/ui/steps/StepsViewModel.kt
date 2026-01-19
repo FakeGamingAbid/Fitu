@@ -1,6 +1,5 @@
-package com.fitu.ui.steps
+ package com.fitu.ui.steps
 
-import android.Manifest
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
@@ -22,12 +21,20 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
+
+data class DaySteps(
+    val day: String,
+    val date: String,
+    val steps: Int,
+    val isToday: Boolean
+)
 
 @HiltViewModel
 class StepsViewModel @Inject constructor(
@@ -36,11 +43,9 @@ class StepsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
-    // Direct stream from the background service
     val stepCount: StateFlow<Int> = StepCounterService.stepCount
     val motionMagnitude: StateFlow<Float> = StepCounterService.motionMagnitude
 
-    // User goals and stats
     val dailyStepGoal: StateFlow<Int> = userPreferencesRepository.dailyStepGoal
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 10000)
 
@@ -58,7 +63,6 @@ class StepsViewModel @Inject constructor(
 
     val usesHardwareCounter: StateFlow<Boolean> = StepCounterService.usesHardwareCounter
 
-    // Calculated stats
     val progress: StateFlow<Float> = combine(stepCount, dailyStepGoal) { steps, goal ->
         if (goal > 0) (steps.toFloat() / goal.toFloat()).coerceIn(0f, 1f) else 0f
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
@@ -85,7 +89,6 @@ class StepsViewModel @Inject constructor(
         (steps * weightKg * 0.00057f).toInt()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    // Weekly Chart Data
     private val _isWeeklyDataLoading = MutableStateFlow(true)
     val isWeeklyDataLoading: StateFlow<Boolean> = _isWeeklyDataLoading
 
@@ -100,16 +103,11 @@ class StepsViewModel @Inject constructor(
 
     init {
         checkServiceRunning()
-        
-        // ✅ CRITICAL FIX: Only auto-start if we already have permission.
-        // This stops the app from crashing if the user hasn't clicked "Allow" yet.
         if (hasStepPermission()) {
             startService()
         }
-        
         loadWeeklySteps()
         
-        // Sync goal changes to the service settings
         viewModelScope.launch {
             userPreferencesRepository.dailyStepGoal.collect { goal ->
                 val prefs = context.getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
@@ -117,7 +115,6 @@ class StepsViewModel @Inject constructor(
             }
         }
         
-        // Periodic check to update UI if service is killed/restarted
         viewModelScope.launch {
             while (true) {
                 delay(5000)
@@ -128,7 +125,7 @@ class StepsViewModel @Inject constructor(
 
     private fun hasStepPermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
         } else true
     }
 
@@ -147,7 +144,6 @@ class StepsViewModel @Inject constructor(
             val intent = Intent(context, StepCounterService::class.java).apply {
                 putExtra("step_goal", goal)
             }
-            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -160,10 +156,7 @@ class StepsViewModel @Inject constructor(
 
     fun stopService() {
         context.stopService(Intent(context, StepCounterService::class.java))
-        viewModelScope.launch { 
-            delay(500)
-            checkServiceRunning() 
-        }
+        viewModelScope.launch { delay(500); checkServiceRunning() }
     }
 
     private fun loadWeeklySteps() {
@@ -187,24 +180,15 @@ class StepsViewModel @Inject constructor(
         val dnf = SimpleDateFormat("EEE", Locale.US)
         val stepMap = stepEntities.associateBy { it.date }
         val today = StepCounterService.getTodayDate()
-        
         val weekData = mutableListOf<DaySteps>()
         val cal = Calendar.getInstance()
         cal.add(Calendar.DAY_OF_YEAR, -6)
-        
         for (i in 0..6) {
             val date = df.format(cal.time)
-            val isToday = date == today
-            val steps = if (isToday) todaySteps else stepMap[date]?.steps ?: 0
-            
-            weekData.add(DaySteps(
-                day = dnf.format(cal.time),
-                date = date,
-                steps = steps,
-                isToday = isToday
-            ))
+            val steps = if (date == today) todaySteps else stepMap[date]?.steps ?: 0
+            weekData.add(DaySteps(dnf.format(cal.time), date, steps, date == today))
             cal.add(Calendar.DAY_OF_YEAR, 1)
         }
         return weekData
     }
-}
+} 
