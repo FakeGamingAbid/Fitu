@@ -72,26 +72,14 @@ fun MainScreen(
 
     val context = LocalContext.current
     
-    // Permission launcher for multiple permissions
+    // Permission launcher for notifications only
     val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
+        ActivityResultContracts.RequestPermission()
     ) { _ -> }
 
-    // Request necessary permissions on app start
+    // Request only notification permission on app start
+    // Activity Recognition is now requested on Steps screen
     LaunchedEffect(Unit) {
-        val permissionsToRequest = mutableListOf<String>()
-        
-        // Activity Recognition permission (required for step counting on Android 10+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            if (ContextCompat.checkSelfPermission(
-                    context, 
-                    Manifest.permission.ACTIVITY_RECOGNITION
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                permissionsToRequest.add(Manifest.permission.ACTIVITY_RECOGNITION)
-            }
-        }
-        
         // Notification permission (required for Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
@@ -99,19 +87,15 @@ fun MainScreen(
                     Manifest.permission.POST_NOTIFICATIONS
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
-        }
-        
-        if (permissionsToRequest.isNotEmpty()) {
-            permissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
     }
 
     // Determine start destination
     val startDestination = when {
         isOnboardingComplete == false -> Screen.Onboarding.route
-        else -> Screen.Splash.route  // Show splash first, then navigate to Dashboard
+        else -> Screen.Splash.route
     }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -125,7 +109,7 @@ fun MainScreen(
         containerColor = Color(0xFF0A0A0F)
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
-            // Main Content - Apply haze source here (content that will be blurred behind nav bar)
+            // Main Content
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -174,10 +158,8 @@ fun MainScreen(
                                 val isCoach = screen == BottomNavItem.Coach
 
                                 if (isCoach) {
-                                    // Empty space for FAB
                                     Spacer(modifier = Modifier.width(56.dp))
                                 } else {
-                                    // Nav Item
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier
