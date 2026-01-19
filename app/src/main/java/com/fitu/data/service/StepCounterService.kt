@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -551,7 +552,17 @@ class StepCounterService : Service(), SensorEventListener {
         }
 
         val notification = buildNotification(_stepCount.value)
-        startForeground(NOTIFICATION_ID, notification)
+        
+        // ✅ FIX FOR ANDROID 14 FOREGROUND SERVICE CRASH
+        if (Build.VERSION.SDK_INT >= 34) { // Android 14+
+            startForeground(
+                NOTIFICATION_ID, 
+                notification, 
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     private fun buildNotification(steps: Int): Notification {
