@@ -1,8 +1,12 @@
 package com.fitu.ui.steps
 
+import android.Manifest
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.UserPreferencesRepository
@@ -38,228 +42,146 @@ class StepsViewModel @Inject constructor(
     val dailyStepGoal: StateFlow<Int> = userPreferencesRepository.dailyStepGoal
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 10000)
 
-    // User's physical stats for personalized calculations
     val userHeightCm: StateFlow<Int> = userPreferencesRepository.userHeightCm
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 170)
 
     val userWeightKg: StateFlow<Int> = userPreferencesRepository.userWeightKg
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 70)
 
-    // Unit preference
     val useImperialUnits: StateFlow<Boolean> = userPreferencesRepository.useImperialUnits
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // ✅ FIX #88: Track if service is running
     private val _isServiceRunning = MutableStateFlow(false)
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning
 
-    // ✅ FIX #88: Expose hardware counter state
     val usesHardwareCounter: StateFlow<Boolean> = StepCounterService.usesHardwareCounter
 
-    // Progress (0.0 to 1.0)
     val progress: StateFlow<Float> = combine(stepCount, dailyStepGoal) { steps, goal ->
         if (goal > 0) (steps.toFloat() / goal.toFloat()).coerceIn(0f, 1f) else 0f
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
-    /**
-     * Personalized stride length based on user's height
-     */
     val distanceKm: StateFlow<Float> = combine(stepCount, userHeightCm) { steps, heightCm ->
-        val strideLengthKm = calculateStrideLengthKm(heightCm)
+        val strideLengthKm = (heightCm * 0.415f) / 100_000f
         steps * strideLengthKm
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
-    /**
-     * Formatted distance based on unit preference
-     */
     val formattedDistance: StateFlow<String> = combine(distanceKm, useImperialUnits) { km, useImperial ->
         if (useImperial) {
-            val miles = UnitConverter.kmToMiles(km)
+            val miles = km * 0.621371f
             String.format("%.2f", miles)
         } else {
             String.format("%.2f", km)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "0.00")
 
-    /**
-     * Distance unit label
-     */
     val distanceUnit: StateFlow<String> = useImperialUnits.combine(stepCount) { useImperial, _ ->
-        UnitConverter.getDistanceUnit(useImperial)
+        if (useImperial) "MI" else "KM"
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "KM")
 
-    /**
-     * Personalized calorie calculation based on user's weight
-     */
     val caloriesBurned: StateFlow<Int> = combine(stepCount, userWeightKg) { steps, weightKg ->
-        val caloriesPerStep = calculateCaloriesPerStep(weightKg)
-        (steps * caloriesPerStep).toInt()
+        (steps * weightKg * 0.00057f).toInt()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    // Loading state for weekly steps chart
     private val _isWeeklyDataLoading = MutableStateFlow(true)
     val isWeeklyDataLoading: StateFlow<Boolean> = _isWeeklyDataLoading
 
-    // Weekly steps data - Raw data from database
     private val _weeklyStepsFromDb = MutableStateFlow<List<StepEntity>>(emptyList())
     
-    // Weekly steps - Combines DB data with live step count for reactive updates
     val weeklySteps: StateFlow<List<DaySteps>> = combine(
         _weeklyStepsFromDb,
         stepCount
     ) { stepEntities, todaySteps ->
         buildWeeklyDaySteps(stepEntities, todaySteps)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyByNow())
 
     init {
         checkServiceRunning()
-        startService()
+        // ✅ ONLY START SERVICE IF PERMISSION ALREADY GRANTED
+        if (hasStepPermission()) {
+            startService()
+        }
         loadWeeklySteps()
         
-        // Pass step goal to service when it changes
         viewModelScope.launch {
             userPreferencesRepository.dailyStepGoal.collect { goal ->
-                updateServiceStepGoal(goal)
+                val prefs = context.getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
+                prefs.edit().putInt("daily_step_goal", goal).apply()
             }
         }
         
-        // ✅ FIX #88: Periodically check if service is running
         viewModelScope.launch {
             while (true) {
-                delay(5000) // Check every 5 seconds
+                delay(5000)
                 checkServiceRunning()
             }
         }
     }
 
-    /**
-     * Calculate stride length in kilometers based on height
-     */
-    private fun calculateStrideLengthKm(heightCm: Int): Float {
-        val strideMultiplier = 0.415f
-        val strideLengthCm = heightCm * strideMultiplier
-        return strideLengthCm / 100_000f
+    private fun hasStepPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
+        } else true
     }
 
-    /**
-     * Calculate calories burned per step based on weight
-     */
-    private fun calculateCaloriesPerStep(weightKg: Int): Float {
-        return weightKg * 0.00057f
-    }
-
-    /**
-     * ✅ FIX #88: Check if the step counter service is currently running
-     */
     private fun checkServiceRunning() {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        @Suppress("DEPRECATION")
-        val isRunning = activityManager.getRunningServices(Integer.MAX_VALUE)
-            .any { it.service.className == StepCounterService::class.java.name }
-        
-        _isServiceRunning.value = isRunning
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val running = am.getRunningServices(Integer.MAX_VALUE)?.any { it.service.className == StepCounterService::class.java.name } ?: false
+        _isServiceRunning.value = running
     }
 
     fun startService() {
         viewModelScope.launch {
             val goal = userPreferencesRepository.dailyStepGoal.first()
-            
             val intent = Intent(context, StepCounterService::class.java).apply {
                 putExtra("step_goal", goal)
             }
-            
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
-            
-            // Update running state after a short delay
             delay(500)
             checkServiceRunning()
         }
     }
 
-    /**
-     * ✅ FIX #88: Stop the step counter service
-     */
     fun stopService() {
-        viewModelScope.launch {
-            val intent = Intent(context, StepCounterService::class.java)
-            context.stopService(intent)
-            
-            // Update running state after a short delay
-            delay(500)
-            checkServiceRunning()
-        }
-    }
-    
-    /**
-     * Update step goal in the service
-     */
-    private fun updateServiceStepGoal(goal: Int) {
-        val prefs = context.getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putInt("daily_step_goal", goal).apply()
+        context.stopService(Intent(context, StepCounterService::class.java))
+        viewModelScope.launch { delay(500); checkServiceRunning() }
     }
 
     private fun loadWeeklySteps() {
         viewModelScope.launch {
             _isWeeklyDataLoading.value = true
+            val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val cal = Calendar.getInstance()
+            val end = df.format(cal.time)
+            cal.add(Calendar.DAY_OF_YEAR, -6)
+            val start = df.format(cal.time)
             
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-            val calendar = Calendar.getInstance()
-            
-            val endDate = dateFormat.format(calendar.time)
-            calendar.add(Calendar.DAY_OF_YEAR, -6)
-            val startDate = dateFormat.format(calendar.time)
-            
-            stepDao.getStepsBetweenDates(startDate, endDate).collect { stepEntities ->
-                _weeklyStepsFromDb.value = stepEntities
+            stepDao.getStepsBetweenDates(start, end).collect { 
+                _weeklyStepsFromDb.value = it
                 _isWeeklyDataLoading.value = false
             }
         }
     }
 
-    /**
-     * Build weekly DaySteps list combining DB data with live today's steps.
-     */
     private fun buildWeeklyDaySteps(stepEntities: List<StepEntity>, todaySteps: Int): List<DaySteps> {
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val dayNameFormat = SimpleDateFormat("EEE", Locale.US)
+        val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val dnf = SimpleDateFormat("EEE", Locale.US)
         val stepMap = stepEntities.associateBy { it.date }
-        val todayDate = StepCounterService.getTodayDate()
-        
+        val today = StepCounterService.getTodayDate()
         val weekData = mutableListOf<DaySteps>()
         val cal = Calendar.getInstance()
         cal.add(Calendar.DAY_OF_YEAR, -6)
-        
         for (i in 0..6) {
-            val date = dateFormat.format(cal.time)
-            val dayName = dayNameFormat.format(cal.time)
-            val isToday = date == todayDate
-            
-            val steps = when {
-                isToday -> todaySteps
-                else -> stepMap[date]?.steps ?: 0
-            }
-            
-            weekData.add(DaySteps(
-                day = dayName,
-                date = date,
-                steps = steps,
-                isToday = isToday
-            ))
-            
+            val date = df.format(cal.time)
+            val steps = if (date == today) todaySteps else stepMap[date]?.steps ?: 0
+            weekData.add(DaySteps(dnf.format(cal.time), date, steps, date == today))
             cal.add(Calendar.DAY_OF_YEAR, 1)
         }
-        
         return weekData
     }
-}
 
-data class DaySteps(
-    val day: String,
-    val date: String,
-    val steps: Int,
-    val isToday: Boolean
-)
+    private fun emptyByNow() = emptyList<DaySteps>()
+}
