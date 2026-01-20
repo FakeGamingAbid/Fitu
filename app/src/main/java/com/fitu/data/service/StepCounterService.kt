@@ -91,7 +91,7 @@ class StepCounterService : Service(), SensorEventListener {
         private const val CHANNEL_ID = "step_counter_channel"
         private const val MILESTONE_CHANNEL_ID = "step_milestone_channel"
         
-        val MILESTONES = listOf(20, 40, 60, 80, 100)
+        val MILESTONES = listOf(25, 50, 75, 100)
         
         // Pref keys for persisting step state
         private const val PREF_INITIAL_STEP_COUNT = "initial_step_count"
@@ -457,10 +457,9 @@ class StepCounterService : Service(), SensorEventListener {
     private fun sendMilestoneNotification(steps: Int, milestone: Int) {
         val pendingIntent = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val (title, message) = when (milestone) {
-            20 -> "🚶 20% Complete!" to "You've taken $steps steps. Keep moving!"
-            40 -> "🏃 40% Complete!" to "You've taken $steps steps. Almost halfway there!"
-            60 -> "💪 60% Complete!" to "You've taken $steps steps. Over halfway!"
-            80 -> "🔥 80% Complete!" to "You've taken $steps steps. Almost at your goal!"
+            25 -> "🏃 25% Complete!" to "You've taken $steps steps. Keep moving!"
+            50 -> "💪 50% Complete!" to "You've taken $steps steps. Halfway there!"
+            75 -> "🔥 75% Complete!" to "You've taken $steps steps. Almost at your goal!"
             100 -> "🎉 GOAL REACHED!" to "Congratulations! You've completed $steps steps today!"
             else -> "Step Progress" to "You've taken $steps steps"
         }
