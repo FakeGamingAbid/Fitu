@@ -26,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -172,6 +173,7 @@ fun StepsScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
+        // ✨ IMPROVED: Gradient Progress Ring with Glow Effect
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -179,6 +181,7 @@ fun StepsScreen(
                 .padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
+            // Background track
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawArc(
                     color = Color.White.copy(alpha = 0.1f),
@@ -188,15 +191,43 @@ fun StepsScreen(
                     style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
                 )
             }
+            
+            // Gradient progress arc with glow effect
             Canvas(modifier = Modifier.fillMaxSize()) {
+                // Glow layer (wider, more transparent)
                 drawArc(
-                    color = OrangePrimary,
+                    brush = Brush.sweepGradient(
+                        colors = listOf(
+                            OrangePrimary.copy(alpha = 0.3f),
+                            Color(0xFFFF8A65).copy(alpha = 0.3f),
+                            Color(0xFFFFAB91).copy(alpha = 0.3f),
+                            OrangePrimary.copy(alpha = 0.3f)
+                        )
+                    ),
+                    startAngle = -90f,
+                    sweepAngle = 360f * animatedProgress,
+                    useCenter = false,
+                    style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Round)
+                )
+                
+                // Main gradient progress
+                drawArc(
+                    brush = Brush.sweepGradient(
+                        colors = listOf(
+                            OrangePrimary,
+                            Color(0xFFFF6B35),
+                            Color(0xFFFFAB91),
+                            OrangePrimary
+                        )
+                    ),
                     startAngle = -90f,
                     sweepAngle = 360f * animatedProgress,
                     useCenter = false,
                     style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
                 )
             }
+            
+            // Icon at top
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -212,6 +243,8 @@ fun StepsScreen(
                     modifier = Modifier.size(28.dp)
                 )
             }
+            
+            // Center content
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 AnimatedFormattedCounter(
                     count = currentSteps,
@@ -346,6 +379,8 @@ fun StepsScreen(
                         )
                     }
                 }
+                
+                // Small progress indicator with gradient
                 Box(
                     modifier = Modifier.size(56.dp),
                     contentAlignment = Alignment.Center
@@ -359,7 +394,13 @@ fun StepsScreen(
                             style = Stroke(width = 4.dp.toPx())
                         )
                         drawArc(
-                            color = OrangePrimary,
+                            brush = Brush.sweepGradient(
+                                colors = listOf(
+                                    OrangePrimary,
+                                    Color(0xFFFF8A65),
+                                    OrangePrimary
+                                )
+                            ),
                             startAngle = -90f,
                             sweepAngle = 360f * animatedProgress,
                             useCenter = false,
