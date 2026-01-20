@@ -1,4 +1,4 @@
- package com.fitu.ui.steps
+package com.fitu.ui.steps
 
 import android.app.ActivityManager
 import android.content.Context
@@ -12,7 +12,6 @@ import com.fitu.data.local.UserPreferencesRepository
 import com.fitu.data.local.dao.StepDao
 import com.fitu.data.local.entity.StepEntity
 import com.fitu.data.service.StepCounterService
-import com.fitu.util.UnitConverter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
@@ -28,13 +27,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
-
-data class DaySteps(
-    val day: String,
-    val date: String,
-    val steps: Int,
-    val isToday: Boolean
-)
 
 @HiltViewModel
 class StepsViewModel @Inject constructor(
@@ -93,7 +85,7 @@ class StepsViewModel @Inject constructor(
     val isWeeklyDataLoading: StateFlow<Boolean> = _isWeeklyDataLoading
 
     private val _weeklyStepsFromDb = MutableStateFlow<List<StepEntity>>(emptyList())
-    
+
     val weeklySteps: StateFlow<List<DaySteps>> = combine(
         _weeklyStepsFromDb,
         stepCount
@@ -107,14 +99,14 @@ class StepsViewModel @Inject constructor(
             startService()
         }
         loadWeeklySteps()
-        
+
         viewModelScope.launch {
             userPreferencesRepository.dailyStepGoal.collect { goal ->
                 val prefs = context.getSharedPreferences("fitu_service_prefs", Context.MODE_PRIVATE)
                 prefs.edit().putInt("daily_step_goal", goal).apply()
             }
         }
-        
+
         viewModelScope.launch {
             while (true) {
                 delay(5000)
@@ -125,15 +117,18 @@ class StepsViewModel @Inject constructor(
 
     private fun hasStepPermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACTIVITY_RECOGNITION
+            ) == PackageManager.PERMISSION_GRANTED
         } else true
     }
 
     private fun checkServiceRunning() {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         @Suppress("DEPRECATION")
-        val running = am.getRunningServices(Integer.MAX_VALUE)?.any { 
-            it.service.className == StepCounterService::class.java.name 
+        val running = am.getRunningServices(Integer.MAX_VALUE)?.any {
+            it.service.className == StepCounterService::class.java.name
         } ?: false
         _isServiceRunning.value = running
     }
@@ -156,7 +151,10 @@ class StepsViewModel @Inject constructor(
 
     fun stopService() {
         context.stopService(Intent(context, StepCounterService::class.java))
-        viewModelScope.launch { delay(500); checkServiceRunning() }
+        viewModelScope.launch {
+            delay(500)
+            checkServiceRunning()
+        }
     }
 
     private fun loadWeeklySteps() {
@@ -167,8 +165,8 @@ class StepsViewModel @Inject constructor(
             val end = df.format(cal.time)
             cal.add(Calendar.DAY_OF_YEAR, -6)
             val start = df.format(cal.time)
-            
-            stepDao.getStepsBetweenDates(start, end).collect { 
+
+            stepDao.getStepsBetweenDates(start, end).collect {
                 _weeklyStepsFromDb.value = it
                 _isWeeklyDataLoading.value = false
             }
@@ -191,4 +189,4 @@ class StepsViewModel @Inject constructor(
         }
         return weekData
     }
-} 
+}
