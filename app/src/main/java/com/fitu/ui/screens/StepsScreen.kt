@@ -81,7 +81,6 @@ fun StepsScreen(
     }
     val manufacturerName = AutoStartManager.getManufacturerName()
 
-    // Activity Recognition permission state
     var hasActivityPermission by remember {
         mutableStateOf(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -90,18 +89,16 @@ fun StepsScreen(
                     Manifest.permission.ACTIVITY_RECOGNITION
                 ) == PackageManager.PERMISSION_GRANTED
             } else {
-                true // Not required for Android 9 and below
+                true
             }
         )
     }
 
-    // Activity Recognition permission launcher
     val activityPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasActivityPermission = granted
         if (granted) {
-            // Start service after permission granted
             viewModel.startService()
         }
     }
@@ -111,7 +108,6 @@ fun StepsScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 isBatteryOptimized = !BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
                 showAutoStartWarning = AutoStartManager.shouldShowAutoStartWarning(context)
-                // Re-check activity permission on resume
                 hasActivityPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     ContextCompat.checkSelfPermission(
                         context,
@@ -156,7 +152,6 @@ fun StepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Permission Warning Cards
         if (!hasActivityPermission || isBatteryOptimized || showAutoStartWarning) {
             PermissionWarningCard(
                 hasActivityPermission = hasActivityPermission,
@@ -325,7 +320,7 @@ fun StepsScreen(
             ) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("📅", fontSize = 14.sp)
+                        Text("", fontSize = 14.sp)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "TODAY'S GOAL",
@@ -389,7 +384,7 @@ fun StepsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("📅", fontSize = 14.sp)
+                Text("", fontSize = 14.sp)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     "Weekly Activity",
@@ -429,23 +424,23 @@ private fun PermissionWarningCard(
     onAutoStartClick: () -> Unit
 ) {
     val batteryHelperText = when (AutoStartManager.getManufacturer()) {
-        AutoStartManager.Manufacturer.XIAOMI -> "📋 Find Fitu → Battery saver → Select 'No restrictions'"
-        AutoStartManager.Manufacturer.SAMSUNG -> "📋 Find Fitu → Battery → Select 'Unrestricted'"
-        AutoStartManager.Manufacturer.HUAWEI -> "📋 Find Fitu → Disable 'Power-intensive prompt'"
-        AutoStartManager.Manufacturer.OPPO -> "📋 Find Fitu → Enable 'Allow background activity'"
-        AutoStartManager.Manufacturer.VIVO -> "📋 Find Fitu → Enable 'High background power consumption'"
-        AutoStartManager.Manufacturer.ONEPLUS -> "📋 Find Fitu → Battery → Select 'Don't optimize'"
-        else -> "📋 Set Fitu to 'Unrestricted' in battery settings"
+        AutoStartManager.Manufacturer.XIAOMI -> " Find Fitu → Battery saver → Select 'No restrictions'"
+        AutoStartManager.Manufacturer.SAMSUNG -> " Find Fitu → Battery → Select 'Unrestricted'"
+        AutoStartManager.Manufacturer.HUAWEI -> " Find Fitu → Disable 'Power-intensive prompt'"
+        AutoStartManager.Manufacturer.OPPO -> " Find Fitu → Enable 'Allow background activity'"
+        AutoStartManager.Manufacturer.VIVO -> " Find Fitu → Enable 'High background power consumption'"
+        AutoStartManager.Manufacturer.ONEPLUS -> " Find Fitu → Battery → Select 'Don't optimize'"
+        else -> " Set Fitu to 'Unrestricted' in battery settings"
     }
 
     val autoStartHelperText = when (AutoStartManager.getManufacturer()) {
-        AutoStartManager.Manufacturer.XIAOMI -> "📋 Find 'Fitu' and turn ON the autostart toggle"
-        AutoStartManager.Manufacturer.HUAWEI -> "📋 Find 'Fitu' → Manage manually → Turn on all toggles"
-        AutoStartManager.Manufacturer.OPPO -> "📋 Find 'Fitu' → Enable 'Allow Auto-startup'"
-        AutoStartManager.Manufacturer.VIVO -> "📋 Find 'Fitu' → Enable autostart permission"
-        AutoStartManager.Manufacturer.SAMSUNG -> "📋 Find 'Fitu' → Allow background activity"
-        AutoStartManager.Manufacturer.ONEPLUS -> "📋 Find 'Fitu' → Enable 'Allow auto-launch'"
-        else -> "📋 Find 'Fitu' in the list and enable autostart"
+        AutoStartManager.Manufacturer.XIAOMI -> " Find 'Fitu' and turn ON the autostart toggle"
+        AutoStartManager.Manufacturer.HUAWEI -> " Find 'Fitu' → Manage manually → Turn on all toggles"
+        AutoStartManager.Manufacturer.OPPO -> " Find 'Fitu' → Enable 'Allow Auto-startup'"
+        AutoStartManager.Manufacturer.VIVO -> " Find 'Fitu' → Enable autostart permission"
+        AutoStartManager.Manufacturer.SAMSUNG -> " Find 'Fitu' → Allow background activity"
+        AutoStartManager.Manufacturer.ONEPLUS -> " Find 'Fitu' → Enable 'Allow auto-launch'"
+        else -> " Find 'Fitu' in the list and enable autostart"
     }
 
     Card(
@@ -479,10 +474,9 @@ private fun PermissionWarningCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Activity Recognition Permission (Android 10+)
             if (!hasActivityPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 Text(
-                    text = "📋 Allow Fitu to access your physical activity data",
+                    text = " Allow Fitu to access your physical activity data",
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 12.sp,
                     lineHeight = 16.sp
@@ -498,15 +492,14 @@ private fun PermissionWarningCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Enable Activity Tracking")
                 }
-                
+
                 if (isBatteryOptimized || needsAutoStart) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
-            // Battery Optimization
             if (isBatteryOptimized) {
                 Text(
                     text = batteryHelperText,
@@ -527,12 +520,11 @@ private fun PermissionWarningCard(
                 }
                 if (needsAutoStart) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
-            // Auto-Start
             if (needsAutoStart) {
                 Text(
                     text = autoStartHelperText,
@@ -694,9 +686,11 @@ private fun WeeklyChartContent(
     currentSteps: Int
 ) {
     val maxSteps = remember(weeklySteps, currentSteps) {
-        weeklySteps.maxOfOrNull { if (it.isToday) currentSteps else it.steps }
-            ?.coerceAtLeast(1) ?: 1
+        weeklySteps.maxOfOrNull { daySteps: DaySteps ->
+            if (daySteps.isToday) currentSteps else daySteps.steps
+        }?.coerceAtLeast(1) ?: 1
     }
+
     Column {
         Row(
             modifier = Modifier
@@ -705,7 +699,7 @@ private fun WeeklyChartContent(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom
         ) {
-            weeklySteps.forEach { dayData ->
+            weeklySteps.forEach { dayData: DaySteps ->
                 val steps = if (dayData.isToday) currentSteps else dayData.steps
                 val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 80).dp else 4.dp
                 Box(
@@ -726,7 +720,7 @@ private fun WeeklyChartContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            weeklySteps.forEach { dayData ->
+            weeklySteps.forEach { dayData: DaySteps ->
                 Text(
                     dayData.day,
                     color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
