@@ -506,6 +506,13 @@ class NutritionViewModel @Inject constructor(
                     "\"${food.name}\" analyzed! Tap to add."
                 )
 
+                // ✅ FIX: Automatically open review sheet when analysis completes
+                withContext(Dispatchers.Main) {
+                    _showReviewSheet.value = true
+                    _portion.value = 1f
+                    _selectedMealType.value = getMealTypeByTime()
+                }
+
             } catch (e: GeminiException) {
                 _backgroundAnalysisState.value = mapGeminiExceptionToBackgroundState(e, bitmap, null)
             } catch (e: Exception) {
@@ -570,6 +577,13 @@ class NutritionViewModel @Inject constructor(
                         _backgroundAnalysisState.value = BackgroundAnalysisState.Success(
                             "\"${food.name}\" found! Tap to add."
                         )
+                        
+                        // ✅ FIX: Automatically open review sheet when cache hit
+                        withContext(Dispatchers.Main) {
+                            _showReviewSheet.value = true
+                            _portion.value = 1f
+                            _selectedMealType.value = getMealTypeByTime()
+                        }
                         return@launch
                     } catch (e: Exception) {
                         Log.w(TAG, "Cache invalid, fetching fresh")
@@ -616,6 +630,13 @@ class NutritionViewModel @Inject constructor(
                 _backgroundAnalysisState.value = BackgroundAnalysisState.Success(
                     "\"${food.name}\" found! Tap to add."
                 )
+
+                // ✅ FIX: Automatically open review sheet when search completes
+                withContext(Dispatchers.Main) {
+                    _showReviewSheet.value = true
+                    _portion.value = 1f
+                    _selectedMealType.value = getMealTypeByTime()
+                }
 
             } catch (e: GeminiException) {
                 _backgroundAnalysisState.value = mapGeminiExceptionToBackgroundState(e, null, query)
