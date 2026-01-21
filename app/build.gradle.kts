@@ -1,9 +1,9 @@
-plugins {
+ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.hiltAndroid)
     id("kotlin-kapt")
-    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.20" // Add this line
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.20"
 }
 
 android {
@@ -66,6 +66,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true  // Enable BuildConfig generation
     }
 
     composeOptions {
@@ -131,7 +132,7 @@ dependencies {
     // Pull to Refresh
     implementation("androidx.compose.material:material:1.5.4")
 
-    // Kotlinx Serialization - Add this line
+    // Kotlinx Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     testImplementation(libs.junit)
@@ -147,4 +148,4 @@ dependencies {
 
 kapt {
     correctErrorTypes = true
-}
+} 
