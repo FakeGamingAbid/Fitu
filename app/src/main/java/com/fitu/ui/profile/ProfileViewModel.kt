@@ -1,9 +1,11 @@
- package com.fitu.ui.profile
+package com.fitu.ui.profile
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fitu.data.local.SecureStorage
 import com.fitu.data.local.UserPreferencesRepository
+import com.fitu.domain.repository.BackupRepository
 import com.fitu.util.BirthdayUtils
 import com.fitu.util.UnitConverter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,7 +22,8 @@ import kotlin.math.pow
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val secureStorage: SecureStorage
+    private val secureStorage: SecureStorage,
+    private val backupRepository: BackupRepository
 ) : ViewModel() {
 
     val userName: StateFlow<String> = userPreferencesRepository.userName
@@ -62,16 +65,13 @@ class ProfileViewModel @Inject constructor(
         BirthdayUtils.calculateAge(day, month, year)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // ✅ FIX #24: Unit preference
     val useImperialUnits: StateFlow<Boolean> = userPreferencesRepository.useImperialUnits
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // ✅ FIX #24: Formatted height based on unit preference
     val formattedHeight: StateFlow<String> = combine(userHeightCm, useImperialUnits) { heightCm, useImperial ->
         UnitConverter.formatHeight(heightCm, useImperial)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "170 cm")
 
-    // ✅ FIX #24: Formatted weight based on unit preference
     val formattedWeight: StateFlow<String> = combine(userWeightKg, useImperialUnits) { weightKg, useImperial ->
         UnitConverter.formatWeight(weightKg, useImperial)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "70 kg")
@@ -105,11 +105,9 @@ class ProfileViewModel @Inject constructor(
     private val _showBirthDatePicker = MutableStateFlow(false)
     val showBirthDatePicker: StateFlow<Boolean> = _showBirthDatePicker
 
-    // API Key error
     private val _apiKeyError = MutableStateFlow<String?>(null)
     val apiKeyError: StateFlow<String?> = _apiKeyError
 
-    // Profile validation errors
     private val _profileValidationErrors = MutableStateFlow<ProfileValidationErrors>(ProfileValidationErrors())
     val profileValidationErrors: StateFlow<ProfileValidationErrors> = _profileValidationErrors
 
@@ -143,9 +141,6 @@ class ProfileViewModel @Inject constructor(
         _showBirthDatePicker.value = false
     }
 
-    /**
-     * ✅ FIX #24: Toggle unit preference
-     */
     fun toggleUnitPreference() {
         viewModelScope.launch {
             val currentValue = useImperialUnits.value
@@ -153,18 +148,12 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    /**
-     * ✅ FIX #24: Set unit preference directly
-     */
     fun setUnitPreference(useImperial: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setUseImperialUnits(useImperial)
         }
     }
 
-    /**
-     * Validate profile inputs with realistic ranges
-     */
     fun validateProfile(
         name: String,
         age: Int,
@@ -304,9 +293,6 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Simple API key format validation - NO API call
-     */
     fun validateAndSaveApiKey(newApiKey: String) {
         val key = newApiKey.trim()
 
@@ -332,9 +318,6 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Reset app - clears all user data
-     */
     fun resetOnboarding() {
         viewModelScope.launch {
             userPreferencesRepository.clearAllData()
@@ -342,11 +325,62 @@ class ProfileViewModel @Inject constructor(
             userPreferencesRepository.setOnboardingComplete(false)
         }
     }
+
+    // ==================== BACKUP & RESTORE ====================
+
+    private val _backupState = MutableStateFlow<BackupState>(BackupState.Idle)
+    val backupState: StateFlow<BackupState> = _backupState
+
+    private val _restoreState = MutableStateFlow<RestoreState>(RestoreState.Idle)
+    val restoreState: StateFlow<RestoreState> = _restoreState
+
+    fun exportData(includeApiKey: Boolean = false) {
+        viewModelScope.launch {
+            _backupState.value = BackupState.Loading
+            val result = backupRepository.exportData(includeApiKey)
+            _backupState.value = result.fold(
+                onSuccess = { uri -> BackupState.Success(uri) },
+                onFailure = { error -> BackupState.Error(error.message ?: "Failed to export data") }
+            )
+        }
+    }
+
+    fun importData(uri: Uri) {
+        viewModelScope.launch {
+            _restoreState.value = RestoreState.Loading
+            val result = backupRepository.importData(uri)
+            _restoreState.value = result.fold(
+                onSuccess = { RestoreState.Success },
+                onFailure = { error -> RestoreState.Error(error.message ?: "Failed to import data") }
+            )
+        }
+    }
+
+    suspend fun getBackupInfo(uri: Uri) = backupRepository.getBackupInfo(uri)
+
+    fun resetBackupState() {
+        _backupState.value = BackupState.Idle
+    }
+
+    fun resetRestoreState() {
+        _restoreState.value = RestoreState.Idle
+    }
 }
 
-/**
- * Profile validation errors
- */
+sealed class BackupState {
+    object Idle : BackupState()
+    object Loading : BackupState()
+    data class Success(val uri: Uri) : BackupState()
+    data class Error(val message: String) : BackupState()
+}
+
+sealed class RestoreState {
+    object Idle : RestoreState()
+    object Loading : RestoreState()
+    object Success : RestoreState()
+    data class Error(val message: String) : RestoreState()
+}
+
 data class ProfileValidationErrors(
     var nameError: String? = null,
     var ageError: String? = null,
@@ -354,4 +388,4 @@ data class ProfileValidationErrors(
     var weightError: String? = null,
     var stepGoalError: String? = null,
     var calorieGoalError: String? = null
-) 
+)
