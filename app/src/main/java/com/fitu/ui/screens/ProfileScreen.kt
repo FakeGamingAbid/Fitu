@@ -1,5 +1,9 @@
- package com.fitu.ui.screens
+package com.fitu.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,8 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Straighten
@@ -26,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -35,10 +44,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.ui.components.GlassCard
+import com.fitu.ui.profile.BackupState
 import com.fitu.ui.profile.ProfileViewModel
+import com.fitu.ui.profile.RestoreState
 import com.fitu.ui.theme.OrangePrimary
 import java.text.DecimalFormat
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 private val ErrorRed = Color(0xFFF44336)
 private val SuccessGreen = Color(0xFF4CAF50)
@@ -70,13 +84,46 @@ fun ProfileScreen(
     val calculatedAge by viewModel.calculatedAge.collectAsState()
     val showBirthDatePicker by viewModel.showBirthDatePicker.collectAsState()
 
-    // ✅ FIX #24: Unit preference
+    // Unit preference
     val useImperialUnits by viewModel.useImperialUnits.collectAsState()
     val formattedHeight by viewModel.formattedHeight.collectAsState()
     val formattedWeight by viewModel.formattedWeight.collectAsState()
 
+    // Backup & Restore states
+    val backupState by viewModel.backupState.collectAsState()
+    val restoreState by viewModel.restoreState.collectAsState()
+
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showBackupDialog by remember { mutableStateOf(false) }
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+    var selectedRestoreUri by remember { mutableStateOf<Uri?>(null) }
+
+    val context = LocalContext.current
+
+    // File picker for restore
+    val restoreFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            selectedRestoreUri = it
+            showRestoreConfirmDialog = true
+        }
+    }
+
+    // Share intent for backup file
+    LaunchedEffect(backupState) {
+        if (backupState is BackupState.Success) {
+            val uri = (backupState as BackupState.Success).uri
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                putExtra(Intent.EXTRA_STREAM, uri)
+                type = "application/json"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "Share Backup"))
+        }
+    }
 
     // Safe date picker with proper year range
     val currentYear = Calendar.getInstance().get(Calendar.YEAR)
@@ -196,6 +243,34 @@ fun ProfileScreen(
                 viewModel.resetOnboarding()
             },
             onDismiss = { showResetConfirmDialog = false }
+        )
+    }
+
+    // Backup Options Dialog
+    if (showBackupDialog) {
+        BackupOptionsDialog(
+            onBackup = { includeApiKey ->
+                viewModel.exportData(includeApiKey)
+                showBackupDialog = false
+            },
+            onDismiss = { showBackupDialog = false }
+        )
+    }
+
+    // Restore Confirmation Dialog
+    if (showRestoreConfirmDialog && selectedRestoreUri != null) {
+        RestoreConfirmDialog(
+            uri = selectedRestoreUri!!,
+            viewModel = viewModel,
+            onConfirm = {
+                viewModel.importData(selectedRestoreUri!!)
+                showRestoreConfirmDialog = false
+                selectedRestoreUri = null
+            },
+            onDismiss = {
+                showRestoreConfirmDialog = false
+                selectedRestoreUri = null
+            }
         )
     }
 
@@ -394,7 +469,7 @@ fun ProfileScreen(
                 
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
-                // ✅ FIX #24: Height with unit conversion
+                // Height with unit conversion
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Height", color = Color.White, fontSize = 16.sp)
                     Text(formattedHeight, color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
@@ -402,7 +477,7 @@ fun ProfileScreen(
                 
                 Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
                 
-                // ✅ FIX #24: Weight with unit conversion
+                // Weight with unit conversion
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Weight", color = Color.White, fontSize = 16.sp)
                     Text(formattedWeight, color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
@@ -444,7 +519,7 @@ fun ProfileScreen(
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
-                // ✅ FIX #24: Unit Toggle Setting
+                // Unit Toggle Setting
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -522,6 +597,122 @@ fun ProfileScreen(
                     onClick = { showResetConfirmDialog = true }
                 )
             }
+        }
+
+        // Backup & Restore
+        Text(
+            text = "BACKUP & RESTORE",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                // Backup Data
+                SettingsItem(
+                    icon = Icons.Default.CloudUpload,
+                    iconBgColor = Color(0xFF4CAF50),
+                    title = "Backup Data",
+                    subtitle = "Export all your data to a file",
+                    onClick = { showBackupDialog = true }
+                )
+
+                Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+
+                // Restore Data
+                SettingsItem(
+                    icon = Icons.Default.CloudDownload,
+                    iconBgColor = Color(0xFF2196F3),
+                    title = "Restore Data",
+                    subtitle = "Import data from a backup file",
+                    onClick = {
+                        restoreFilePicker.launch(arrayOf("application/json"))
+                    }
+                )
+            }
+        }
+
+        // Loading/Success/Error Feedback for Backup
+        when (backupState) {
+            is BackupState.Loading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(16.dp),
+                    color = OrangePrimary
+                )
+            }
+            is BackupState.Success -> {
+                Text(
+                    text = "✓ Backup created successfully!",
+                    color = SuccessGreen,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(8.dp)
+                )
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(3000)
+                    viewModel.resetBackupState()
+                }
+            }
+            is BackupState.Error -> {
+                Text(
+                    text = "✗ ${(backupState as BackupState.Error).message}",
+                    color = ErrorRed,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(8.dp)
+                )
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(5000)
+                    viewModel.resetBackupState()
+                }
+            }
+            is BackupState.Idle -> {}
+        }
+
+        // Loading/Success/Error Feedback for Restore
+        when (restoreState) {
+            is RestoreState.Loading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(16.dp),
+                    color = OrangePrimary
+                )
+            }
+            is RestoreState.Success -> {
+                Text(
+                    text = "✓ Data restored successfully!",
+                    color = SuccessGreen,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(8.dp)
+                )
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(3000)
+                    viewModel.resetRestoreState()
+                }
+            }
+            is RestoreState.Error -> {
+                Text(
+                    text = "✗ ${(restoreState as RestoreState.Error).message}",
+                    color = ErrorRed,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(8.dp)
+                )
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(5000)
+                    viewModel.resetRestoreState()
+                }
+            }
+            is RestoreState.Idle -> {}
         }
 
         // Version
@@ -831,6 +1022,239 @@ private fun ResetConfirmDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
 }
 
 @Composable
+private fun BackupOptionsDialog(
+    onBackup: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var includeApiKey by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1A1A1F),
+        icon = {
+            Box(
+                modifier = Modifier.size(56.dp).background(Color(0xFF4CAF50).copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.FileUpload, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(28.dp))
+            }
+        },
+        title = {
+            Text("Backup Your Data", color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "Create a backup file with all your fitness data:",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(
+                        "Step history",
+                        "Meal tracking data",
+                        "Workout records",
+                        "Workout plans",
+                        "Profile settings"
+                    ).forEach {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(modifier = Modifier.size(6.dp).background(Color(0xFF4CAF50), CircleShape))
+                            Text(it, color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // API Key Option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                        .clickable { includeApiKey = !includeApiKey },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Include API Key", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Save your Gemini API key in backup", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                    }
+                    Checkbox(
+                        checked = includeApiKey,
+                        onCheckedChange = { includeApiKey = it },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = OrangePrimary,
+                            uncheckedColor = Color.White.copy(alpha = 0.3f)
+                        )
+                    )
+                }
+                
+                if (includeApiKey) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "⚠️ Security Note: Your API key will be stored in plain text in the backup file. Keep it safe!",
+                        color = Color(0xFFFF9800),
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onBackup(includeApiKey) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Create Backup", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+            }
+        }
+    )
+}
+
+@Composable
+private fun RestoreConfirmDialog(
+    uri: Uri,
+    viewModel: ProfileViewModel,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var backupInfo by remember { mutableStateOf<com.fitu.domain.repository.BackupInfo?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(uri) {
+        try {
+            val result = viewModel.getBackupInfo(uri)
+            result.fold(
+                onSuccess = {
+                    backupInfo = it
+                    isLoading = false
+                },
+                onFailure = {
+                    error = it.message
+                    isLoading = false
+                }
+            )
+        } catch (e: Exception) {
+            error = e.message
+            isLoading = false
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1A1A1F),
+        icon = {
+            Box(
+                modifier = Modifier.size(56.dp).background(Color(0xFF2196F3).copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.FileDownload, null, tint = Color(0xFF2196F3), modifier = Modifier.size(28.dp))
+            }
+        },
+        title = {
+            Text("Restore Data?", color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                when {
+                    isLoading -> {
+                        CircularProgressIndicator(color = OrangePrimary, modifier = Modifier.padding(16.dp))
+                        Text("Reading backup file...", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
+                    }
+                    error != null -> {
+                        Text("Error: $error", color = ErrorRed, fontSize = 14.sp, textAlign = TextAlign.Center)
+                    }
+                    backupInfo != null -> {
+                        Text(
+                            "This will restore the following data:",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            InfoRow("App Version", backupInfo!!.appVersion)
+                            InfoRow("Backup Date", SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(Date(backupInfo!!.exportDate)))
+                            Divider(color = Color.White.copy(alpha = 0.1f))
+                            InfoRow("Step Records", backupInfo!!.stepRecords.toString())
+                            InfoRow("Meal Records", backupInfo!!.mealRecords.toString())
+                            InfoRow("Workout Records", backupInfo!!.workoutRecords.toString())
+                            InfoRow("Workout Plans", backupInfo!!.workoutPlans.toString())
+                            if (backupInfo!!.hasUserProfile) {
+                                InfoRow("Profile", "✓ Included")
+                            }
+                            if (backupInfo!!.hasApiKey) {
+                                InfoRow("API Key", "✓ Included")
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "⚠️ Warning: This will add to your existing data. No data will be deleted.",
+                            color = Color(0xFFFF9800),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (backupInfo != null) {
+                Button(
+                    onClick = onConfirm,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Restore Data", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+            }
+        }
+    )
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+        Text(value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
 private fun SettingsItem(
     icon: ImageVector,
     iconBgColor: Color,
@@ -898,4 +1322,4 @@ private fun getBmiColor(category: String): Color {
         "Obese" -> Color(0xFFF44336)
         else -> Color.Gray
     }
-} 
+}
