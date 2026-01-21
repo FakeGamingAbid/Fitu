@@ -29,6 +29,47 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    # 🆕 AUTO-CLEANUP: Delete old artifacts to prevent storage issues
+    - name: Delete Old Artifacts
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const owner = context.repo.owner;
+          const repo = context.repo.repo;
+          
+          console.log('🧹 Cleaning up old artifacts...');
+          
+          // Get all artifacts
+          const artifacts = await github.rest.actions.listArtifactsForRepo({
+            owner,
+            repo,
+            per_page: 100
+          });
+          
+          // Keep only the 5 most recent artifacts
+          const toDelete = artifacts.data.artifacts
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(5);
+          
+          console.log(`Found ${artifacts.data.artifacts.length} total artifacts`);
+          console.log(`Keeping 5 most recent, deleting ${toDelete.length} old artifacts`);
+          
+          // Delete old artifacts
+          for (const artifact of toDelete) {
+            console.log(`  🗑️  Deleting: ${artifact.name} (created ${artifact.created_at})`);
+            try {
+              await github.rest.actions.deleteArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id
+              });
+            } catch (error) {
+              console.log(`     ⚠️  Failed to delete ${artifact.name}: ${error.message}`);
+            }
+          }
+          
+          console.log('✅ Cleanup complete!');
+
     - name: Setup Java 17
       uses: actions/setup-java@v4
       with:
@@ -84,7 +125,7 @@ jobs:
       with:
         name: Fitu-Debug-APK
         path: app/build/outputs/apk/debug/*.apk
-        retention-days: 30
+        retention-days: 7  # ✅ Reduced from 30 to 7
 
     - name: Upload Release APK
       if: ${{ inputs.build_type == 'release' || inputs.build_type == 'release_aab' }}
@@ -92,7 +133,7 @@ jobs:
       with:
         name: Fitu-Release-APK
         path: app/build/outputs/apk/release/*.apk
-        retention-days: 90
+        retention-days: 14  # ✅ Reduced from 90 to 14
 
     - name: Upload Release AAB
       if: ${{ inputs.build_type == 'release_aab' }}
@@ -100,8 +141,8 @@ jobs:
       with:
         name: Fitu-PlayStore-AAB
         path: app/build/outputs/bundle/release/*.aab
-        retention-days: 90
+        retention-days: 30  # ✅ Reduced from 90 to 30
 
     - name: Cleanup
       if: always()
-      run: rm -f app/release-keystore.jks
+      run: rm -f app/release-keystore.jks 
