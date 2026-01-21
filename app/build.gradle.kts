@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.hiltAndroid)
     id("kotlin-kapt")
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.20" // Add this line
 }
 
 android {
@@ -129,6 +130,9 @@ dependencies {
     
     // Pull to Refresh
     implementation("androidx.compose.material:material:1.5.4")
+
+    // Kotlinx Serialization - Add this line
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
