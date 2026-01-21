@@ -17,6 +17,11 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -67,9 +72,11 @@ import com.fitu.data.local.entity.MealEntity
 import com.fitu.ui.components.GlassCard
 import com.fitu.ui.components.PullToRefreshContainer
 import com.fitu.ui.nutrition.AnalyzedFood
+import com.fitu.ui.nutrition.BackgroundAnalysisState
 import com.fitu.ui.nutrition.NutritionErrorType
 import com.fitu.ui.nutrition.NutritionUiState
 import com.fitu.ui.nutrition.NutritionViewModel
+import com.fitu.ui.nutrition.PendingFoodAnalysis
 import com.fitu.ui.theme.OrangePrimary
 import java.io.File
 import java.io.InputStream
@@ -101,7 +108,13 @@ fun NutritionScreen(
     val showDuplicateWarning by viewModel.showDuplicateWarning.collectAsState()
     val duplicateWarningMessage by viewModel.duplicateWarningMessage.collectAsState()
 
+    // Background analysis state (NEW)
+    val backgroundAnalysisState by viewModel.backgroundAnalysisState.collectAsState()
+    val pendingAnalyzedFood by viewModel.pendingAnalyzedFood.collectAsState()
+    val showReviewSheet by viewModel.showReviewSheet.collectAsState()
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val reviewSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     if (showDeleteConfirmDialog && mealToDelete != null) {
         DeleteMealConfirmDialog(
@@ -137,124 +150,513 @@ fun NutritionScreen(
         }
     }
 
-    PullToRefreshContainer(
-        isRefreshing = isRefreshing,
-        onRefresh = { viewModel.refresh() }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF0A0A0F))
-                .padding(horizontal = 24.dp)
-                .padding(top = 32.dp, bottom = 120.dp)
+    // Review sheet for background analysis results (NEW)
+    if (showReviewSheet && pendingAnalyzedFood != null) {
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.closeReviewSheet() },
+            sheetState = reviewSheetState,
+            containerColor = Color(0xFF1A1A1F)
         ) {
-            Text(
-                text = "Nutrition",
-                color = Color.White,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
+            ReviewFoodSheetContent(
+                pendingFood = pendingAnalyzedFood!!,
+                selectedMealType = selectedMealType,
+                portion = portion,
+                onMealTypeSelected = { viewModel.selectMealType(it) },
+                onPortionChange = { viewModel.updatePortion(it) },
+                onAddClick = { viewModel.addPendingFoodToMeal() },
+                onDismiss = { viewModel.closeReviewSheet() },
+                isSuggestedMealType = { viewModel.isSuggestedMealType(it) }
             )
-            Text(
-                text = "AI Food Analysis",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 14.sp
-            )
+        }
+    }
 
-            Spacer(modifier = Modifier.height(24.dp))
+    Box(modifier = Modifier.fillMaxSize()) {
+        PullToRefreshContainer(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refresh() }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF0A0A0F))
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 32.dp, bottom = 120.dp)
+            ) {
+                Text(
+                    text = "Nutrition",
+                    color = Color.White,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "AI Food Analysis",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 14.sp
+                )
 
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "TODAY'S CALORIES",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.Bottom) {
+                Spacer(modifier = Modifier.height(24.dp))
+
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
                             Text(
-                                text = "$caloriesConsumed",
-                                color = OrangePrimary,
-                                fontSize = 32.sp,
+                                text = "TODAY'S CALORIES",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "/ $dailyCalorieGoal",
-                                color = Color.White.copy(alpha = 0.5f),
-                                fontSize = 16.sp,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(
+                                    text = "$caloriesConsumed",
+                                    color = OrangePrimary,
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "/ $dailyCalorieGoal",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                            }
+                        }
+                        FloatingActionButton(
+                            onClick = { viewModel.showAddFood() },
+                            containerColor = OrangePrimary,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add Food", tint = Color.White)
                         }
                     }
-                    FloatingActionButton(
-                        onClick = { viewModel.showAddFood() },
-                        containerColor = OrangePrimary,
-                        modifier = Modifier.size(48.dp)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "Today's Meals",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (todayMeals.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Food", tint = Color.White)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "Today's Meals",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (todayMeals.isEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        Icons.Default.CameraAlt,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.2f),
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "No meals tracked yet.",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        text = "Tap + to add your first meal",
-                        color = Color.White.copy(alpha = 0.3f),
-                        fontSize = 14.sp
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(todayMeals) { meal ->
-                        MealCard(
-                            meal = meal,
-                            onDeleteClick = { viewModel.requestDeleteMeal(meal) }
+                        Icon(
+                            Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.2f),
+                            modifier = Modifier.size(64.dp)
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No meals tracked yet.",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = "Tap + to add your first meal",
+                            color = Color.White.copy(alpha = 0.3f),
+                            fontSize = 14.sp
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(todayMeals) { meal ->
+                            MealCard(
+                                meal = meal,
+                                onDeleteClick = { viewModel.requestDeleteMeal(meal) }
+                            )
+                        }
                     }
                 }
             }
         }
+
+        // Background Analysis Snackbar (NEW)
+        BackgroundAnalysisSnackbar(
+            state = backgroundAnalysisState,
+            onSuccessClick = { viewModel.openReviewSheet() },
+            onRetryClick = { viewModel.retryBackgroundAnalysis() },
+            onDismiss = { viewModel.dismissBackgroundAnalysis() },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 140.dp)
+        )
     }
 }
+
+// ==================== BACKGROUND ANALYSIS SNACKBAR (NEW) ====================
+
+@Composable
+private fun BackgroundAnalysisSnackbar(
+    state: BackgroundAnalysisState,
+    onSuccessClick: () -> Unit,
+    onRetryClick: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = state !is BackgroundAnalysisState.Idle,
+        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        modifier = modifier
+    ) {
+        when (state) {
+            is BackgroundAnalysisState.Analyzing -> {
+                AnalyzingSnackbar(message = state.message)
+            }
+            is BackgroundAnalysisState.Success -> {
+                SuccessSnackbar(
+                    message = state.message,
+                    onClick = onSuccessClick,
+                    onDismiss = onDismiss
+                )
+            }
+            is BackgroundAnalysisState.Error -> {
+                ErrorSnackbar(
+                    message = state.message,
+                    canRetry = state.canRetry,
+                    onRetryClick = onRetryClick,
+                    onDismiss = onDismiss
+                )
+            }
+            else -> {}
+        }
+    }
+}
+
+@Composable
+private fun AnalyzingSnackbar(message: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2F))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = OrangePrimary,
+                strokeWidth = 2.dp
+            )
+            Text(
+                text = message,
+                color = Color.White,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SuccessSnackbar(
+    message: String,
+    onClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SuccessGreen.copy(alpha = 0.15f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(SuccessGreen.copy(alpha = 0.2f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    tint = SuccessGreen,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(
+                text = message,
+                color = Color.White,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Dismiss",
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ErrorSnackbar(
+    message: String,
+    canRetry: Boolean,
+    onRetryClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .then(if (canRetry) Modifier.clickable { onRetryClick() } else Modifier),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.15f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(ErrorRed.copy(alpha = 0.2f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (canRetry) Icons.Default.Refresh else Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = ErrorRed,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = message,
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                if (canRetry) {
+                    Text(
+                        text = "Tap to retry",
+                        color = ErrorRed,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Dismiss",
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+// ==================== REVIEW FOOD SHEET (NEW) ====================
+
+@Composable
+private fun ReviewFoodSheetContent(
+    pendingFood: PendingFoodAnalysis,
+    selectedMealType: String,
+    portion: Float,
+    onMealTypeSelected: (String) -> Unit,
+    onPortionChange: (Float) -> Unit,
+    onAddClick: () -> Unit,
+    onDismiss: () -> Unit,
+    isSuggestedMealType: (String) -> Boolean
+) {
+    val food = pendingFood.food
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Add to Meal",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Default.Close, null, tint = Color.White)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Meal type selector
+        MealTypeSelector(
+            selectedMealType = selectedMealType,
+            onMealTypeSelected = onMealTypeSelected,
+            isSuggestedMealType = isSuggestedMealType,
+            getMealTypeTimeRange = { "" }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Food preview card
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Photo or icon
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (pendingFood.bitmap != null) {
+                            Image(
+                                bitmap = pendingFood.bitmap.asImageBitmap(),
+                                contentDescription = "Food photo",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            MealTypeIcon(mealType = selectedMealType)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = food.name,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Analyzed by AI ✨",
+                            color = OrangePrimary,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "${(food.calories * portion).toInt()} kcal",
+                        color = OrangePrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "P: ${(food.protein * portion).toInt()}g",
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = "C: ${(food.carbs * portion).toInt()}g",
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = "F: ${(food.fats * portion).toInt()}g",
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Portion: ${String.format("%.1f", portion)}x",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp
+                )
+                Slider(
+                    value = portion,
+                    onValueChange = onPortionChange,
+                    valueRange = 0.5f..3f,
+                    steps = 4,
+                    colors = SliderDefaults.colors(
+                        thumbColor = OrangePrimary,
+                        activeTrackColor = OrangePrimary
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Add button
+        Button(
+            onClick = onAddClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Add to ${selectedMealType.replaceFirstChar { it.uppercase() }}",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+// ==================== EXISTING COMPONENTS (UNCHANGED) ====================
 
 @Composable
 private fun DuplicateFoodWarningDialog(
@@ -583,15 +985,6 @@ private fun AddFoodSheetContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        MealTypeSelector(
-            selectedMealType = selectedMealType,
-            onMealTypeSelected = { viewModel.selectMealType(it) },
-            isSuggestedMealType = { viewModel.isSuggestedMealType(it) },
-            getMealTypeTimeRange = { viewModel.getMealTypeTimeRange(it) }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         if (!showCamera) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -662,8 +1055,7 @@ private fun AddFoodSheetContent(
                 Button(
                     onClick = { viewModel.searchFood(textSearch) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
-                    enabled = uiState !is NutritionUiState.Analyzing
+                    colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary)
                 ) {
                     Text("Analyze", color = Color.White)
                 }
@@ -672,43 +1064,9 @@ private fun AddFoodSheetContent(
             CameraPreviewSection(
                 onImageCaptured = { bitmap ->
                     viewModel.analyzeFood(bitmap)
-                    showCamera = false
                 },
                 onError = { Log.e("NutritionScreen", "Camera error", it) },
                 onCancel = { showCamera = false }
-            )
-        }
-
-        analyzedFood?.let { food ->
-            Spacer(modifier = Modifier.height(16.dp))
-            AnalyzedFoodCard(
-                food = food,
-                portion = portion,
-                photoBitmap = viewModel.currentPhotoBitmap.collectAsState().value,
-                selectedMealType = selectedMealType,
-                onPortionChange = { viewModel.updatePortion(it) },
-                onAddClick = { viewModel.addFoodToMeal() }
-            )
-        }
-
-        if (uiState is NutritionUiState.Analyzing) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CircularProgressIndicator(color = OrangePrimary, modifier = Modifier.size(24.dp))
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("Analyzing your food...", color = Color.White)
-            }
-        }
-
-        if (uiState is NutritionUiState.Error) {
-            Spacer(modifier = Modifier.height(16.dp))
-            ErrorCard(
-                error = uiState,
-                onRetry = { viewModel.retry() }
             )
         }
 
