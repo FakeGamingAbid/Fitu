@@ -1,4 +1,4 @@
- package com.fitu.di
+package com.fitu.di
 
 import android.content.Context
 import android.hardware.SensorManager
@@ -11,8 +11,10 @@ import com.fitu.data.local.dao.MealDao
 import com.fitu.data.local.dao.StepDao
 import com.fitu.data.local.dao.WorkoutDao
 import com.fitu.data.local.dao.WorkoutPlanDao
+import com.fitu.data.repository.BackupRepositoryImpl
 import com.fitu.data.repository.DashboardRepositoryImpl
 import com.fitu.data.repository.StreakRepository
+import com.fitu.domain.repository.BackupRepository
 import com.fitu.domain.repository.DashboardRepository
 import dagger.Module
 import dagger.Provides
@@ -111,4 +113,26 @@ object AppModule {
     ): StreakRepository {
         return StreakRepository(stepDao, userPreferencesRepository)
     }
-} 
+
+    @Provides
+    @Singleton
+    fun provideBackupRepository(
+        @ApplicationContext context: Context,
+        stepDao: StepDao,
+        mealDao: MealDao,
+        workoutDao: WorkoutDao,
+        workoutPlanDao: WorkoutPlanDao,
+        userPreferencesRepository: UserPreferencesRepository,
+        secureStorage: SecureStorage
+    ): BackupRepository {
+        return BackupRepositoryImpl(
+            context,
+            stepDao,
+            mealDao,
+            workoutDao,
+            workoutPlanDao,
+            userPreferencesRepository,
+            secureStorage
+        )
+    }
+}
