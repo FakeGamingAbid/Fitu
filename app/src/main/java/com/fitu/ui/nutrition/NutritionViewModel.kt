@@ -1,4 +1,4 @@
- package com.fitu.ui.nutrition
+package com.fitu.ui.nutrition
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -57,8 +57,8 @@ class NutritionViewModel @Inject constructor(
         private const val DUPLICATE_DETECTION_WINDOW_MS = 5000L
     }
 
-    // ==================== BACKGROUND ANALYSIS STATE ====================
-    
+    // ==================== BACKGROUND ANALYSIS STATE (NEW) ====================
+
     private val _backgroundAnalysisState = MutableStateFlow<BackgroundAnalysisState>(BackgroundAnalysisState.Idle)
     val backgroundAnalysisState: StateFlow<BackgroundAnalysisState> = _backgroundAnalysisState.asStateFlow()
 
@@ -99,6 +99,7 @@ class NutritionViewModel @Inject constructor(
     private val _currentPhotoBitmap = MutableStateFlow<Bitmap?>(null)
     val currentPhotoBitmap: StateFlow<Bitmap?> = _currentPhotoBitmap
 
+    // Pull-to-refresh state
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
@@ -173,6 +174,8 @@ class NutritionViewModel @Inject constructor(
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
+                // Meals are already observed via Flow
+                // Just add a small delay to show the refresh indicator
                 delay(500)
             } finally {
                 _isRefreshing.value = false
@@ -347,6 +350,12 @@ class NutritionViewModel @Inject constructor(
         return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
     }
 
+    private fun getBitmapSizeKB(bitmap: Bitmap): Int {
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)
+        return stream.size() / 1024
+    }
+
     fun selectMealType(type: String) {
         _selectedMealType.value = type
     }
@@ -376,15 +385,51 @@ class NutritionViewModel @Inject constructor(
         _textSearch.value = value
     }
 
-    // ==================== BACKGROUND ANALYSIS METHODS ====================
+    private fun isDuplicateFood(foodName: String, mealType: String): Boolean {
+        val now = System.currentTimeMillis()
+        val timeSinceLastAdd = now - lastAddedFoodTime
+
+        if (lastAddedFoodName != null &&
+            timeSinceLastAdd < DUPLICATE_DETECTION_WINDOW_MS &&
+            lastAddedFoodName.equals(foodName, ignoreCase = true) &&
+            lastAddedMealType == mealType) {
+            return true
+        }
+
+        return false
+    }
+
+    private fun findSimilarRecentMeal(foodName: String, mealType: String): MealEntity? {
+        val recentMeals = todayMeals.value
+        val fiveMinutesAgo = System.currentTimeMillis() - (5 * 60 * 1000L)
+
+        return recentMeals.find { meal ->
+            meal.name.equals(foodName, ignoreCase = true) &&
+            meal.mealType == mealType &&
+            meal.timestamp > fiveMinutesAgo
+        }
+    }
+
+    fun dismissDuplicateWarning() {
+        _showDuplicateWarning.value = false
+        _duplicateWarningMessage.value = ""
+    }
+
+    fun forceAddFoodToMeal() {
+        _showDuplicateWarning.value = false
+        _duplicateWarningMessage.value = ""
+        addFoodToMealInternal(ignoreDuplicate = true)
+    }
+
+    // ==================== BACKGROUND ANALYSIS METHODS (NEW) ====================
 
     /**
      * Start background analysis for a photo - closes sheet immediately
      */
-    fun analyzeFoodInBackground(bitmap: Bitmap) {
+    fun analyzeFood(bitmap: Bitmap) {
         if (isRateLimited()) {
             _backgroundAnalysisState.value = BackgroundAnalysisState.Error(
-                "Please wait a moment before scanning again",
+                message = "Please wait a moment before scanning again",
                 canRetry = true,
                 retryBitmap = bitmap,
                 retryQuery = null
@@ -394,7 +439,7 @@ class NutritionViewModel @Inject constructor(
 
         if (!isOnline()) {
             _backgroundAnalysisState.value = BackgroundAnalysisState.Error(
-                "No internet connection",
+                message = "No internet connection",
                 canRetry = true,
                 retryBitmap = bitmap,
                 retryQuery = null
@@ -402,7 +447,7 @@ class NutritionViewModel @Inject constructor(
             return
         }
 
-        // Cancel any existing analysis
+        // Cancel any existing background analysis
         backgroundAnalysisJob?.cancel()
 
         // Close the add food sheet immediately
@@ -443,7 +488,7 @@ class NutritionViewModel @Inject constructor(
 
                 val food = parseJsonResponse(text)
 
-                // Save photo for later use
+                // Save photo for later use when adding to meal
                 val photoUri = saveFoodPhoto(bitmap)
 
                 if (compressedBitmap != bitmap && !compressedBitmap.isRecycled) {
@@ -466,7 +511,7 @@ class NutritionViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Background analysis failed", e)
                 _backgroundAnalysisState.value = BackgroundAnalysisState.Error(
-                    "Analysis failed. Tap to retry.",
+                    message = "Analysis failed. Tap to retry.",
                     canRetry = true,
                     retryBitmap = bitmap,
                     retryQuery = null
@@ -478,11 +523,12 @@ class NutritionViewModel @Inject constructor(
     /**
      * Start background analysis for text search - closes sheet immediately
      */
-    fun searchFoodInBackground(query: String) {
+    fun searchFood(query: String) {
         if (query.isBlank()) return
+
         if (isRateLimited()) {
             _backgroundAnalysisState.value = BackgroundAnalysisState.Error(
-                "Please wait a moment before searching again",
+                message = "Please wait a moment before searching again",
                 canRetry = true,
                 retryBitmap = null,
                 retryQuery = query
@@ -492,7 +538,7 @@ class NutritionViewModel @Inject constructor(
 
         if (!isOnline()) {
             _backgroundAnalysisState.value = BackgroundAnalysisState.Error(
-                "No internet connection",
+                message = "No internet connection",
                 canRetry = true,
                 retryBitmap = null,
                 retryQuery = query
@@ -500,7 +546,7 @@ class NutritionViewModel @Inject constructor(
             return
         }
 
-        // Cancel any existing analysis
+        // Cancel any existing background analysis
         backgroundAnalysisJob?.cancel()
 
         // Close the add food sheet immediately
@@ -576,7 +622,7 @@ class NutritionViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Background search failed", e)
                 _backgroundAnalysisState.value = BackgroundAnalysisState.Error(
-                    "Search failed. Tap to retry.",
+                    message = "Search failed. Tap to retry.",
                     canRetry = true,
                     retryBitmap = null,
                     retryQuery = query
@@ -592,9 +638,13 @@ class NutritionViewModel @Inject constructor(
         val currentState = _backgroundAnalysisState.value
         if (currentState is BackgroundAnalysisState.Error && currentState.canRetry) {
             if (currentState.retryBitmap != null) {
-                analyzeFoodInBackground(currentState.retryBitmap)
+                // Reset rate limit for retry
+                lastRequestTime = 0L
+                analyzeFood(currentState.retryBitmap)
             } else if (currentState.retryQuery != null) {
-                searchFoodInBackground(currentState.retryQuery)
+                // Reset rate limit for retry
+                lastRequestTime = 0L
+                searchFood(currentState.retryQuery)
             }
         }
     }
@@ -693,16 +743,6 @@ class NutritionViewModel @Inject constructor(
 
     // ==================== EXISTING METHODS (kept for compatibility) ====================
 
-    fun analyzeFood(bitmap: Bitmap) {
-        // Redirect to background analysis
-        analyzeFoodInBackground(bitmap)
-    }
-
-    fun searchFood(query: String) {
-        // Redirect to background analysis
-        searchFoodInBackground(query)
-    }
-
     private fun parseJsonResponse(text: String): AnalyzedFood {
         val cleanText = text
             .removePrefix("```json")
@@ -743,40 +783,34 @@ class NutritionViewModel @Inject constructor(
         }
     }
 
-    private fun isDuplicateFood(foodName: String, mealType: String): Boolean {
-        val now = System.currentTimeMillis()
-        val timeSinceLastAdd = now - lastAddedFoodTime
-
-        if (lastAddedFoodName != null &&
-            timeSinceLastAdd < DUPLICATE_DETECTION_WINDOW_MS &&
-            lastAddedFoodName.equals(foodName, ignoreCase = true) &&
-            lastAddedMealType == mealType) {
-            return true
+    private fun mapGeminiExceptionToUiState(e: GeminiException): NutritionUiState.Error {
+        return when (e.errorType) {
+            GeminiErrorType.API_KEY_MISSING -> NutritionUiState.Error(
+                message = "API key not set. Please add your Gemini API key in Profile settings.",
+                errorType = NutritionErrorType.API_KEY,
+                canRetry = false
+            )
+            GeminiErrorType.API_KEY_INVALID -> NutritionUiState.Error(
+                message = "Invalid API key. Please check your Gemini API key in Profile settings.",
+                errorType = NutritionErrorType.API_KEY,
+                canRetry = false
+            )
+            GeminiErrorType.RATE_LIMITED -> NutritionUiState.Error(
+                message = "Too many requests. Please wait a moment and try again.",
+                errorType = NutritionErrorType.RATE_LIMIT,
+                canRetry = true
+            )
+            GeminiErrorType.NETWORK_ERROR -> NutritionUiState.Error(
+                message = "No internet connection. Please check your network.",
+                errorType = NutritionErrorType.NETWORK,
+                canRetry = true
+            )
+            else -> NutritionUiState.Error(
+                message = e.message,
+                errorType = NutritionErrorType.UNKNOWN,
+                canRetry = true
+            )
         }
-
-        return false
-    }
-
-    private fun findSimilarRecentMeal(foodName: String, mealType: String): MealEntity? {
-        val recentMeals = todayMeals.value
-        val fiveMinutesAgo = System.currentTimeMillis() - (5 * 60 * 1000L)
-
-        return recentMeals.find { meal ->
-            meal.name.equals(foodName, ignoreCase = true) &&
-            meal.mealType == mealType &&
-            meal.timestamp > fiveMinutesAgo
-        }
-    }
-
-    fun dismissDuplicateWarning() {
-        _showDuplicateWarning.value = false
-        _duplicateWarningMessage.value = ""
-    }
-
-    fun forceAddFoodToMeal() {
-        _showDuplicateWarning.value = false
-        _duplicateWarningMessage.value = ""
-        addFoodToMealInternal(ignoreDuplicate = true)
     }
 
     fun addFoodToMeal() {
@@ -914,4 +948,4 @@ sealed class BackgroundAnalysisState {
         val retryBitmap: Bitmap?,
         val retryQuery: String?
     ) : BackgroundAnalysisState()
-} 
+}
