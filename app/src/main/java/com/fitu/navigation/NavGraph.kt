@@ -1,4 +1,4 @@
-package com.fitu.navigation
+ package com.fitu.navigation
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.fitu.ui.nutrition.NutritionViewModel
 import com.fitu.ui.onboarding.OnboardingScreen
 import com.fitu.ui.screens.CoachScreen
 import com.fitu.ui.screens.DashboardScreen
@@ -32,13 +33,9 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
 }
 
-// Fast animation durations
 private const val POPUP_DURATION = 200
 private const val FADE_DURATION = 150
 
-/**
- * Fast popup enter - scale up with fade
- */
 private fun popupEnter(): EnterTransition {
     return scaleIn(
         initialScale = 0.85f,
@@ -46,9 +43,6 @@ private fun popupEnter(): EnterTransition {
     ) + fadeIn(animationSpec = tween(FADE_DURATION))
 }
 
-/**
- * Fast popup exit - scale down with fade
- */
 private fun popupExit(): ExitTransition {
     return scaleOut(
         targetScale = 0.85f,
@@ -56,16 +50,10 @@ private fun popupExit(): ExitTransition {
     ) + fadeOut(animationSpec = tween(FADE_DURATION))
 }
 
-/**
- * Simple fade in (for splash/onboarding)
- */
 private fun fadeInOnly(): EnterTransition {
     return fadeIn(animationSpec = tween(FADE_DURATION))
 }
 
-/**
- * Simple fade out (for splash/onboarding)
- */
 private fun fadeOutOnly(): ExitTransition {
     return fadeOut(animationSpec = tween(FADE_DURATION))
 }
@@ -73,18 +61,18 @@ private fun fadeOutOnly(): ExitTransition {
 @Composable
 fun NavGraph(
     navController: NavHostController,
-    startDestination: String = Screen.Splash.route
+    startDestination: String = Screen.Splash.route,
+    // NEW: Accept shared NutritionViewModel from MainScreen
+    nutritionViewModel: NutritionViewModel? = null
 ) {
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        // Default fast popup transitions for all screens
         enterTransition = { popupEnter() },
         exitTransition = { popupExit() },
         popEnterTransition = { popupEnter() },
         popExitTransition = { popupExit() }
     ) {
-        // Splash Screen - Fade only
         composable(
             route = Screen.Splash.route,
             enterTransition = { fadeInOnly() },
@@ -99,7 +87,6 @@ fun NavGraph(
             )
         }
 
-        // Onboarding - Fade transition
         composable(
             route = Screen.Onboarding.route,
             enterTransition = { fadeInOnly() },
@@ -114,7 +101,6 @@ fun NavGraph(
             )
         }
 
-        // Dashboard - Fast popup (no navigation parameters needed)
         composable(
             route = Screen.Dashboard.route,
             enterTransition = { popupEnter() },
@@ -125,7 +111,6 @@ fun NavGraph(
             DashboardScreen()
         }
 
-        // Steps Screen - Fast popup
         composable(
             route = Screen.Steps.route,
             enterTransition = { popupEnter() },
@@ -136,7 +121,7 @@ fun NavGraph(
             StepsScreen()
         }
 
-        // Nutrition Screen - Fast popup
+        // UPDATED: Pass the shared NutritionViewModel to NutritionScreen
         composable(
             route = Screen.Nutrition.route,
             enterTransition = { popupEnter() },
@@ -144,10 +129,14 @@ fun NavGraph(
             popEnterTransition = { popupEnter() },
             popExitTransition = { popupExit() }
         ) {
-            NutritionScreen()
+            // Use the shared viewModel if provided, otherwise let Hilt create one
+            if (nutritionViewModel != null) {
+                NutritionScreen(viewModel = nutritionViewModel)
+            } else {
+                NutritionScreen()
+            }
         }
 
-        // Coach Screen - Fast popup
         composable(
             route = Screen.Coach.route,
             enterTransition = { popupEnter() },
@@ -158,7 +147,6 @@ fun NavGraph(
             CoachScreen()
         }
 
-        // Generator Screen - Fast popup
         composable(
             route = Screen.Generator.route,
             enterTransition = { popupEnter() },
@@ -169,7 +157,6 @@ fun NavGraph(
             GeneratorScreen()
         }
 
-        // Profile Screen - Fast popup
         composable(
             route = Screen.Profile.route,
             enterTransition = { popupEnter() },
@@ -180,4 +167,4 @@ fun NavGraph(
             ProfileScreen()
         }
     }
-}
+} 

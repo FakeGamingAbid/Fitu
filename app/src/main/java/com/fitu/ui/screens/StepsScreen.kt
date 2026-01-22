@@ -5,8 +5,11 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -22,10 +25,14 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -37,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -47,15 +55,13 @@ import com.fitu.ui.components.AnimatedDecimalCounter
 import com.fitu.ui.components.AnimatedFormattedCounter
 import com.fitu.ui.components.FootprintsIcon
 import com.fitu.ui.components.GlassCard
+import com.fitu.ui.components.AccentGlassCard
 import com.fitu.ui.steps.DaySteps
 import com.fitu.ui.steps.StepsViewModel
+import com.fitu.ui.theme.AppColors
 import com.fitu.ui.theme.OrangePrimary
 import com.fitu.util.AutoStartManager
 import com.fitu.util.BatteryOptimizationHelper
-
-private val WarningOrange = Color(0xFFFF9800)
-private val SuccessGreen = Color(0xFF4CAF50)
-private val PermissionBlue = Color(0xFF2196F3)
 
 @Composable
 fun StepsScreen(
@@ -120,340 +126,501 @@ fun StepsScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     val progress = if (dailyGoal > 0) currentSteps.toFloat() / dailyGoal.toFloat() else 0f
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = tween(1000),
+        animationSpec = tween(1200),
         label = "progress"
     )
     val goalProgress = if (dailyGoal > 0) (currentSteps.toFloat() / dailyGoal * 100).toInt() else 0
 
+    // Animation state
+    var showContent by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { showContent = true }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0A0F))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        AppColors.BackgroundDark,
+                        AppColors.BackgroundElevated
+                    )
+                )
+            )
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
             .padding(top = 32.dp, bottom = 120.dp)
     ) {
-        Text(
-            text = "Steps",
-            color = Color.White,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "Track your daily activity",
-            color = Color.White.copy(alpha = 0.5f),
-            fontSize = 14.sp
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (!hasActivityPermission || isBatteryOptimized || showAutoStartWarning) {
-            PermissionWarningCard(
-                hasActivityPermission = hasActivityPermission,
-                isBatteryOptimized = isBatteryOptimized,
-                needsAutoStart = showAutoStartWarning,
-                manufacturerName = manufacturerName,
-                onActivityPermissionClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-                    }
-                },
-                onBatteryClick = { BatteryOptimizationHelper.requestIgnoreBatteryOptimization(context) },
-                onAutoStartClick = {
-                    AutoStartManager.openAutoStartSettings(context)
-                    showAutoStartWarning = false
-                }
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // ✨ IMPROVED: Gradient Progress Ring with Glow Effect
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .padding(32.dp),
-            contentAlignment = Alignment.Center
+        // ==================== HEADER ====================
+        AnimatedVisibility(
+            visible = showContent,
+            enter = fadeIn(tween(300)) + slideInVertically(tween(400)) { -20 }
         ) {
-            // Background track
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                drawArc(
-                    color = Color.White.copy(alpha = 0.1f),
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
-                )
-            }
-            
-            // Gradient progress arc with glow effect
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                // Glow layer (wider, more transparent)
-                drawArc(
-                    brush = Brush.sweepGradient(
-                        colors = listOf(
-                            OrangePrimary.copy(alpha = 0.3f),
-                            Color(0xFFFF8A65).copy(alpha = 0.3f),
-                            Color(0xFFFFAB91).copy(alpha = 0.3f),
-                            OrangePrimary.copy(alpha = 0.3f)
-                        )
-                    ),
-                    startAngle = -90f,
-                    sweepAngle = 360f * animatedProgress,
-                    useCenter = false,
-                    style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Round)
-                )
-                
-                // Main gradient progress
-                drawArc(
-                    brush = Brush.sweepGradient(
-                        colors = listOf(
-                            OrangePrimary,
-                            Color(0xFFFF6B35),
-                            Color(0xFFFFAB91),
-                            OrangePrimary
-                        )
-                    ),
-                    startAngle = -90f,
-                    sweepAngle = 360f * animatedProgress,
-                    useCenter = false,
-                    style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
-                )
-            }
-            
-            // Icon at top
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-8).dp)
-                    .size(48.dp)
-                    .background(Color(0xFF1A1A1F), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    SneakerIcon,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            
-            // Center content
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                AnimatedFormattedCounter(
-                    count = currentSteps,
-                    style = TextStyle(
-                        fontSize = 56.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+            Column {
+                Text(
+                    text = "Steps",
+                    color = AppColors.TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "STEPS TAKEN",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
+                    text = "Track your daily activity",
+                    color = AppColors.TextTertiary,
+                    fontSize = 14.sp
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        TrackingStatusSection(
-            isServiceRunning = isServiceRunning,
-            usesHardwareCounter = usesHardwareCounter,
-            hasActivityPermission = hasActivityPermission,
-            onStartTracking = {
-                if (hasActivityPermission) {
-                    viewModel.startService()
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-                } else {
-                    viewModel.startService()
-                }
-            },
-            onStopTracking = { viewModel.stopService() }
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        // ==================== PERMISSION WARNINGS ====================
+        AnimatedVisibility(
+            visible = showContent && (!hasActivityPermission || isBatteryOptimized || showAutoStartWarning),
+            enter = fadeIn(tween(300, 100)) + slideInVertically(tween(400, 100)) { 20 }
         ) {
-            GlassCard(modifier = Modifier.weight(1f)) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        FootprintsIcon,
-                        contentDescription = null,
-                        tint = OrangePrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    AnimatedDecimalCounter(
-                        value = formattedDistance,
-                        style = TextStyle(
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+            Column {
+                PermissionWarningCard(
+                    hasActivityPermission = hasActivityPermission,
+                    isBatteryOptimized = isBatteryOptimized,
+                    needsAutoStart = showAutoStartWarning,
+                    manufacturerName = manufacturerName,
+                    onActivityPermissionClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                        }
+                    },
+                    onBatteryClick = {
+                        BatteryOptimizationHelper.requestIgnoreBatteryOptimization(context)
+                    },
+                    onAutoStartClick = {
+                        AutoStartManager.openAutoStartSettings(context)
+                        showAutoStartWarning = false
+                    }
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+        }
+
+        // ==================== MAIN PROGRESS RING ====================
+        AnimatedVisibility(
+            visible = showContent,
+            enter = fadeIn(tween(300, 150)) + slideInVertically(tween(400, 150)) { 20 }
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Outer glow effect
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                AppColors.OrangePrimary.copy(alpha = 0.15f * animatedProgress),
+                                Color.Transparent
+                            ),
+                            center = center,
+                            radius = size.minDimension / 2
                         )
-                    )
-                    Text(
-                        distanceUnit,
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp
                     )
                 }
-            }
-            GlassCard(modifier = Modifier.weight(1f)) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+
+                // Background track
+                Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.06f),
+                        startAngle = -90f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                }
+
+                // Glow layer for progress
+                Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                    drawArc(
+                        brush = Brush.sweepGradient(
+                            colors = listOf(
+                                AppColors.OrangePrimary.copy(alpha = 0.3f),
+                                AppColors.OrangeSecondary.copy(alpha = 0.3f),
+                                AppColors.OrangeLight.copy(alpha = 0.3f),
+                                AppColors.OrangePrimary.copy(alpha = 0.3f)
+                            )
+                        ),
+                        startAngle = -90f,
+                        sweepAngle = 360f * animatedProgress,
+                        useCenter = false,
+                        style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                }
+
+                // Main gradient progress
+                Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    drawArc(
+                        brush = Brush.sweepGradient(
+                            colors = listOf(
+                                AppColors.OrangePrimary,
+                                AppColors.OrangeSecondary,
+                                AppColors.OrangeLight,
+                                AppColors.OrangePrimary
+                            )
+                        ),
+                        startAngle = -90f,
+                        sweepAngle = 360f * animatedProgress,
+                        useCenter = false,
+                        style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                }
+
+                // Top icon indicator
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = 8.dp)
+                        .size(52.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    AppColors.SurfaceLight,
+                                    AppColors.SurfaceDark
+                                )
+                            ),
+                            CircleShape
+                        )
+                        .padding(2.dp)
+                        .background(AppColors.BackgroundDark, CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Default.LocalFireDepartment,
+                        SneakerIcon,
                         contentDescription = null,
-                        tint = OrangePrimary,
-                        modifier = Modifier.size(24.dp)
+                        tint = AppColors.OrangePrimary,
+                        modifier = Modifier.size(26.dp)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // Center content
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     AnimatedFormattedCounter(
-                        count = caloriesBurned,
+                        count = currentSteps,
                         style = TextStyle(
-                            fontSize = 24.sp,
+                            fontSize = 52.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     )
                     Text(
-                        "KCAL",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp
+                        text = "STEPS TAKEN",
+                        color = AppColors.TextTertiary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
                     )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Progress percentage badge
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                AppColors.tint(AppColors.OrangePrimary),
+                                RoundedCornerShape(16.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "${goalProgress}% of goal",
+                            color = AppColors.OrangePrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        // ==================== TRACKING STATUS ====================
+        AnimatedVisibility(
+            visible = showContent,
+            enter = fadeIn(tween(300, 200)) + slideInVertically(tween(400, 200)) { 20 }
+        ) {
+            TrackingStatusSection(
+                isServiceRunning = isServiceRunning,
+                usesHardwareCounter = usesHardwareCounter,
+                hasActivityPermission = hasActivityPermission,
+                onStartTracking = {
+                    if (hasActivityPermission) {
+                        viewModel.startService()
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                    } else {
+                        viewModel.startService()
+                    }
+                },
+                onStopTracking = { viewModel.stopService() }
+            )
+        }
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ==================== STATS CARDS ====================
+        AnimatedVisibility(
+            visible = showContent,
+            enter = fadeIn(tween(300, 250)) + slideInVertically(tween(400, 250)) { 20 }
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("", fontSize = 14.sp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "TODAY'S GOAL",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        AnimatedFormattedCounter(
-                            count = currentSteps,
+                // Distance Card
+                GlassCard(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(
+                                    AppColors.iconBackground(AppColors.Info),
+                                    RoundedCornerShape(12.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                FootprintsIcon,
+                                contentDescription = null,
+                                tint = AppColors.Info,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        AnimatedDecimalCounter(
+                            value = formattedDistance,
                             style = TextStyle(
-                                fontSize = 28.sp,
+                                fontSize = 26.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                         )
                         Text(
-                            " / ${String.format("%,d", dailyGoal)}",
-                            color = Color.White.copy(alpha = 0.4f),
-                            fontSize = 16.sp
+                            text = distanceUnit.uppercase(),
+                            color = AppColors.TextTertiary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
                         )
                     }
                 }
-                
-                // Small progress indicator with gradient
-                Box(
-                    modifier = Modifier.size(56.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawArc(
-                            color = Color.White.copy(alpha = 0.1f),
-                            startAngle = -90f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            style = Stroke(width = 4.dp.toPx())
+
+                // Calories Card
+                GlassCard(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(
+                                    AppColors.iconBackground(AppColors.CaloriesColor),
+                                    RoundedCornerShape(12.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.LocalFireDepartment,
+                                contentDescription = null,
+                                tint = AppColors.CaloriesColor,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        AnimatedFormattedCounter(
+                            count = caloriesBurned,
+                            style = TextStyle(
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         )
-                        drawArc(
-                            brush = Brush.sweepGradient(
-                                colors = listOf(
-                                    OrangePrimary,
-                                    Color(0xFFFF8A65),
-                                    OrangePrimary
-                                )
-                            ),
-                            startAngle = -90f,
-                            sweepAngle = 360f * animatedProgress,
-                            useCenter = false,
-                            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                        Text(
+                            text = "KCAL",
+                            color = AppColors.TextTertiary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
                         )
                     }
-                    Text(
-                        "${goalProgress}%",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ==================== TODAY'S GOAL CARD ====================
+        AnimatedVisibility(
+            visible = showContent,
+            enter = fadeIn(tween(300, 300)) + slideInVertically(tween(400, 300)) { 20 }
+        ) {
+            AccentGlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                accentColor = if (goalProgress >= 100) AppColors.Success else AppColors.OrangePrimary
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("🎯", fontSize = 16.sp)
+                            Text(
+                                text = "TODAY'S GOAL",
+                                color = AppColors.TextTertiary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            AnimatedFormattedCounter(
+                                count = currentSteps,
+                                style = TextStyle(
+                                    fontSize = 30.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                            Text(
+                                text = " / ${String.format("%,d", dailyGoal)}",
+                                color = AppColors.TextHint,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    // Mini progress ring
+                    Box(
+                        modifier = Modifier.size(64.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawArc(
+                                color = Color.White.copy(alpha = 0.1f),
+                                startAngle = -90f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                style = Stroke(width = 6.dp.toPx())
+                            )
+                            drawArc(
+                                brush = Brush.sweepGradient(
+                                    colors = if (goalProgress >= 100) {
+                                        listOf(AppColors.Success, AppColors.SuccessLight, AppColors.Success)
+                                    } else {
+                                        listOf(AppColors.OrangePrimary, AppColors.OrangeLight, AppColors.OrangePrimary)
+                                    }
+                                ),
+                                startAngle = -90f,
+                                sweepAngle = 360f * animatedProgress,
+                                useCenter = false,
+                                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+                            )
+                        }
+                        
+                        if (goalProgress >= 100) {
+                            Icon(
+                                Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = AppColors.Success,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "${goalProgress}%",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // ==================== WEEKLY ACTIVITY ====================
+        AnimatedVisibility(
+            visible = showContent,
+            enter = fadeIn(tween(300, 350)) + slideInVertically(tween(400, 350)) { 20 }
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("", fontSize = 14.sp)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    "Weekly Activity",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Text(
-                "STEPS",
-                color = OrangePrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("📊", fontSize = 16.sp)
+                        Text(
+                            text = "Weekly Activity",
+                            color = AppColors.TextPrimary,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                AppColors.tint(AppColors.OrangePrimary),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "STEPS",
+                            color = AppColors.OrangePrimary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
 
-        Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            if (isWeeklyDataLoading) {
-                WeeklyChartLoading()
-            } else {
-                WeeklyChartContent(weeklySteps, currentSteps)
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    if (isWeeklyDataLoading) {
+                        WeeklyChartLoading()
+                    } else {
+                        WeeklyChartContent(weeklySteps, currentSteps, dailyGoal)
+                    }
+                }
             }
         }
     }
 }
 
+// ==================== PERMISSION WARNING CARD ====================
 @Composable
 private fun PermissionWarningCard(
     hasActivityPermission: Boolean,
@@ -465,130 +632,152 @@ private fun PermissionWarningCard(
     onAutoStartClick: () -> Unit
 ) {
     val batteryHelperText = when (AutoStartManager.getManufacturer()) {
-        AutoStartManager.Manufacturer.XIAOMI -> " Find Fitu → Battery saver → Select 'No restrictions'"
-        AutoStartManager.Manufacturer.SAMSUNG -> " Find Fitu → Battery → Select 'Unrestricted'"
-        AutoStartManager.Manufacturer.HUAWEI -> " Find Fitu → Disable 'Power-intensive prompt'"
-        AutoStartManager.Manufacturer.OPPO -> " Find Fitu → Enable 'Allow background activity'"
-        AutoStartManager.Manufacturer.VIVO -> " Find Fitu → Enable 'High background power consumption'"
-        AutoStartManager.Manufacturer.ONEPLUS -> " Find Fitu → Battery → Select 'Don't optimize'"
-        else -> " Set Fitu to 'Unrestricted' in battery settings"
+        AutoStartManager.Manufacturer.XIAOMI -> "Find Fitu → Battery saver → Select 'No restrictions'"
+        AutoStartManager.Manufacturer.SAMSUNG -> "Find Fitu → Battery → Select 'Unrestricted'"
+        AutoStartManager.Manufacturer.HUAWEI -> "Find Fitu → Disable 'Power-intensive prompt'"
+        AutoStartManager.Manufacturer.OPPO -> "Find Fitu → Enable 'Allow background activity'"
+        AutoStartManager.Manufacturer.VIVO -> "Find Fitu → Enable 'High background power consumption'"
+        AutoStartManager.Manufacturer.ONEPLUS -> "Find Fitu → Battery → Select 'Don't optimize'"
+        else -> "Set Fitu to 'Unrestricted' in battery settings"
     }
 
     val autoStartHelperText = when (AutoStartManager.getManufacturer()) {
-        AutoStartManager.Manufacturer.XIAOMI -> " Find 'Fitu' and turn ON the autostart toggle"
-        AutoStartManager.Manufacturer.HUAWEI -> " Find 'Fitu' → Manage manually → Turn on all toggles"
-        AutoStartManager.Manufacturer.OPPO -> " Find 'Fitu' → Enable 'Allow Auto-startup'"
-        AutoStartManager.Manufacturer.VIVO -> " Find 'Fitu' → Enable autostart permission"
-        AutoStartManager.Manufacturer.SAMSUNG -> " Find 'Fitu' → Allow background activity"
-        AutoStartManager.Manufacturer.ONEPLUS -> " Find 'Fitu' → Enable 'Allow auto-launch'"
-        else -> " Find 'Fitu' in the list and enable autostart"
+        AutoStartManager.Manufacturer.XIAOMI -> "Find 'Fitu' and turn ON the autostart toggle"
+        AutoStartManager.Manufacturer.HUAWEI -> "Find 'Fitu' → Manage manually → Turn on all toggles"
+        AutoStartManager.Manufacturer.OPPO -> "Find 'Fitu' → Enable 'Allow Auto-startup'"
+        AutoStartManager.Manufacturer.VIVO -> "Find 'Fitu' → Enable autostart permission"
+        AutoStartManager.Manufacturer.SAMSUNG -> "Find 'Fitu' → Allow background activity"
+        AutoStartManager.Manufacturer.ONEPLUS -> "Find 'Fitu' → Enable 'Allow auto-launch'"
+        else -> "Find 'Fitu' in the list and enable autostart"
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = WarningOrange.copy(alpha = 0.1f))
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = AppColors.Warning.copy(alpha = 0.08f)
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = WarningOrange,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(
+                            AppColors.iconBackground(AppColors.Warning),
+                            RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = AppColors.Warning,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 Column {
                     Text(
-                        "Permissions needed",
-                        color = Color.White,
-                        fontSize = 14.sp,
+                        text = "Permissions Needed",
+                        color = AppColors.TextPrimary,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Enable these for accurate step tracking",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp
+                        text = "Enable for accurate step tracking",
+                        color = AppColors.TextTertiary,
+                        fontSize = 13.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             if (!hasActivityPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                Text(
-                    text = " Allow Fitu to access your physical activity data",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp
+                PermissionButton(
+                    icon = Icons.Default.DirectionsWalk,
+                    title = "Activity Tracking",
+                    description = "Allow access to physical activity data",
+                    buttonText = "Enable",
+                    color = AppColors.Info,
+                    onClick = onActivityPermissionClick
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = onActivityPermissionClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PermissionBlue),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = SolidColor(PermissionBlue))
-                ) {
-                    Icon(Icons.Default.DirectionsWalk, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Enable Activity Tracking")
-                }
 
                 if (isBatteryOptimized || needsAutoStart) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Divider(color = AppColors.DividerColor, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
 
             if (isBatteryOptimized) {
-                Text(
-                    text = batteryHelperText,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp
+                PermissionButton(
+                    icon = Icons.Default.BatteryAlert,
+                    title = "Battery Optimization",
+                    description = batteryHelperText,
+                    buttonText = "Disable Restrictions",
+                    color = AppColors.Warning,
+                    onClick = onBatteryClick
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = onBatteryClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningOrange),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = SolidColor(WarningOrange))
-                ) {
-                    Icon(Icons.Default.BatteryAlert, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Disable Battery Restrictions")
-                }
+
                 if (needsAutoStart) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Divider(color = AppColors.DividerColor, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
 
             if (needsAutoStart) {
-                Text(
-                    text = autoStartHelperText,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp
+                PermissionButton(
+                    icon = Icons.Default.Settings,
+                    title = "Auto-Start ($manufacturerName)",
+                    description = autoStartHelperText,
+                    buttonText = "Enable",
+                    color = AppColors.Warning,
+                    onClick = onAutoStartClick
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = onAutoStartClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningOrange),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = SolidColor(WarningOrange))
-                ) {
-                    Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Enable Auto-Start ($manufacturerName)")
-                }
             }
         }
     }
 }
 
+@Composable
+private fun PermissionButton(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    buttonText: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Column {
+        Text(
+            text = description,
+            color = AppColors.TextSecondary,
+            fontSize = 12.sp,
+            lineHeight = 16.sp
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = color),
+            border = ButtonDefaults.outlinedButtonBorder.copy(
+                brush = SolidColor(color.copy(alpha = 0.5f))
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(icon, null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(buttonText, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+// ==================== TRACKING STATUS ====================
 @Composable
 private fun TrackingStatusSection(
     isServiceRunning: Boolean,
@@ -606,38 +795,54 @@ private fun TrackingStatusSection(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // Animated pulse indicator
                     Box(
                         modifier = Modifier
-                            .size(12.dp)
-                            .background(SuccessGreen, CircleShape)
+                            .size(14.dp)
+                            .background(AppColors.Success, CircleShape)
                     )
                     Column {
                         Text(
-                            "Tracking Active",
-                            color = Color.White,
+                            text = "Tracking Active",
+                            color = AppColors.TextPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            if (usesHardwareCounter) "Using hardware sensor" else "Using accelerometer",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 12.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                if (usesHardwareCounter) Icons.Rounded.Check else Icons.Rounded.Schedule,
+                                contentDescription = null,
+                                tint = AppColors.TextHint,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = if (usesHardwareCounter) "Hardware sensor" else "Accelerometer",
+                                color = AppColors.TextTertiary,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
+
                 IconButton(
                     onClick = onStopTracking,
                     modifier = Modifier
-                        .size(40.dp)
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                        .size(44.dp)
+                        .background(
+                            AppColors.iconBackground(AppColors.Error),
+                            RoundedCornerShape(12.dp)
+                        )
                 ) {
                     Icon(
                         Icons.Default.Stop,
                         contentDescription = "Stop Tracking",
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(20.dp)
+                        tint = AppColors.Error,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
@@ -647,8 +852,10 @@ private fun TrackingStatusSection(
             onClick = onStartTracking,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = OrangePrimary),
+                .height(60.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppColors.OrangePrimary
+            ),
             shape = RoundedCornerShape(16.dp)
         ) {
             Icon(
@@ -657,65 +864,54 @@ private fun TrackingStatusSection(
                 tint = Color.White,
                 modifier = Modifier.size(28.dp)
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
-                if (hasActivityPermission) "Start Tracking" else "Enable & Start Tracking",
+                text = if (hasActivityPermission) "Start Tracking" else "Enable & Start",
                 color = Color.White,
-                fontSize = 18.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold
             )
         }
     }
 }
 
+// ==================== WEEKLY CHART ====================
 @Composable
 private fun WeeklyChartLoading() {
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(100.dp),
+                .height(120.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom
         ) {
-            repeat(7) {
+            repeat(7) { index ->
                 Box(
                     modifier = Modifier
-                        .width(24.dp)
-                        .height((20 + (it * 10)).dp)
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                        .width(28.dp)
+                        .height((30 + (index * 12)).dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
                 )
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach {
-                Text(
-                    it,
-                    color = Color.White.copy(alpha = 0.3f),
-                    fontSize = 11.sp
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                color = OrangePrimary,
+                modifier = Modifier.size(18.dp),
+                color = AppColors.OrangePrimary,
                 strokeWidth = 2.dp
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
-                "Loading weekly data...",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp
+                text = "Loading weekly data...",
+                color = AppColors.TextTertiary,
+                fontSize = 13.sp
             )
         }
     }
@@ -724,7 +920,8 @@ private fun WeeklyChartLoading() {
 @Composable
 private fun WeeklyChartContent(
     weeklySteps: List<DaySteps>,
-    currentSteps: Int
+    currentSteps: Int,
+    dailyGoal: Int
 ) {
     val maxSteps = remember(weeklySteps, currentSteps) {
         weeklySteps.maxOfOrNull { daySteps: DaySteps ->
@@ -736,43 +933,77 @@ private fun WeeklyChartContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(100.dp),
+                .height(120.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.Bottom
         ) {
             weeklySteps.forEach { dayData: DaySteps ->
                 val steps = if (dayData.isToday) currentSteps else dayData.steps
-                val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 80).dp else 4.dp
-                Box(
-                    modifier = Modifier
-                        .width(24.dp)
-                        .height(barHeight.coerceAtLeast(4.dp))
-                        .background(
-                            if (steps > 0) {
-                                if (dayData.isToday) OrangePrimary else OrangePrimary.copy(alpha = 0.6f)
-                            } else Color.White.copy(alpha = 0.1f),
-                            RoundedCornerShape(4.dp)
+                val barHeight = if (maxSteps > 0) (steps.toFloat() / maxSteps * 100).dp else 6.dp
+                val reachedGoal = steps >= dailyGoal
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Step count on top of bar
+                    if (steps > 0) {
+                        Text(
+                            text = if (steps >= 1000) "${steps / 1000}k" else "$steps",
+                            color = if (dayData.isToday) AppColors.OrangePrimary else AppColors.TextTertiary,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .width(28.dp)
+                            .height(barHeight.coerceAtLeast(6.dp))
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                brush = when {
+                                    steps == 0 -> SolidColor(Color.White.copy(alpha = 0.08f))
+                                    reachedGoal -> Brush.verticalGradient(
+                                        colors = listOf(AppColors.Success, AppColors.SuccessLight)
+                                    )
+                                    dayData.isToday -> Brush.verticalGradient(
+                                        colors = listOf(AppColors.OrangePrimary, AppColors.OrangeLight)
+                                    )
+                                    else -> Brush.verticalGradient(
+                                        colors = listOf(
+                                            AppColors.OrangePrimary.copy(alpha = 0.7f),
+                                            AppColors.OrangeLight.copy(alpha = 0.5f)
+                                        )
+                                    )
+                                }
+                            )
+                    )
+                }
             }
         }
+
         Spacer(modifier = Modifier.height(12.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             weeklySteps.forEach { dayData: DaySteps ->
                 Text(
-                    dayData.day,
-                    color = if (dayData.isToday) OrangePrimary else Color.White.copy(alpha = 0.5f),
+                    text = dayData.day,
+                    color = if (dayData.isToday) AppColors.OrangePrimary else AppColors.TextTertiary,
                     fontSize = 11.sp,
-                    fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Normal
+                    fontWeight = if (dayData.isToday) FontWeight.Bold else FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(28.dp)
                 )
             }
         }
     }
 }
 
+// ==================== ICONS ====================
 private val SneakerIcon: ImageVector
     get() = ImageVector.Builder(
         name = "Sneaker",

@@ -10,6 +10,7 @@ import com.fitu.data.repository.StreakRepository
 import com.fitu.data.repository.StreakData
 import com.fitu.data.service.StepCounterService
 import com.fitu.domain.repository.DashboardRepository
+import com.fitu.ui.steps.StepsViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -96,10 +97,14 @@ class DashboardViewModel @Inject constructor(
         buildWeeklyData(stepEntities, todaySteps)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf(0, 0, 0, 0, 0, 0, 0))
 
-    // Calories
-    private val _caloriesBurned = MutableStateFlow(0)
-    val caloriesBurned: StateFlow<Int> = _caloriesBurned.asStateFlow()
+    // FIX #1: Calories burned now uses stateIn instead of collect in a coroutine
+    // This prevents multiple collectors from being created on each refresh
+    // Also uses the unified formula from StepsViewModel.calculateCaloriesBurned()
+    val caloriesBurned: StateFlow<Int> = combine(currentSteps, userWeightKg) { steps, weight ->
+        StepsViewModel.calculateCaloriesBurned(steps, weight)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    // Calories consumed - observed from repository
     private val _caloriesConsumed = MutableStateFlow(0)
     val caloriesConsumed: StateFlow<Int> = _caloriesConsumed.asStateFlow()
 
@@ -147,9 +152,16 @@ class DashboardViewModel @Inject constructor(
     val stepsNeededForStreak: StateFlow<Int> = _stepsNeededForStreak.asStateFlow()
 
     init {
-        loadDashboardData()
+        // FIX #2: Start data collectors only once in init
+        // These collectors will live for the lifetime of the ViewModel
+        startCaloriesConsumedCollector()
+        startWorkoutsCollector()
+
+        // Load initial data
         loadWeeklySteps()
         loadStreakData()
+
+        // Observe step goal completion
         observeStepGoalCompletion()
     }
 
@@ -178,25 +190,23 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                loadDashboardData()
+                // FIX #3: Only refresh data that needs to be reloaded from DB
+                // Do NOT call startCaloriesConsumedCollector() or startWorkoutsCollector() here
+                // because they are already running from init
                 loadWeeklySteps()
                 loadStreakData()
-                delay(500)
+                delay(500) // Brief delay for UI feedback
             } finally {
                 _isRefreshing.value = false
             }
         }
     }
 
-    private fun loadDashboardData() {
-        viewModelScope.launch {
-            combine(currentSteps, userWeightKg) { steps, weight ->
-                (steps * 0.04 * weight / 70).toInt()
-            }.collect { burned ->
-                _caloriesBurned.value = burned
-            }
-        }
-
+    /**
+     * FIX #4: Separate method for starting calories consumed collector.
+     * Called only once in init, not on every refresh.
+     */
+    private fun startCaloriesConsumedCollector() {
         viewModelScope.launch {
             try {
                 val todayRange = getTodayRange()
@@ -207,7 +217,13 @@ class DashboardViewModel @Inject constructor(
                 _caloriesConsumed.value = 0
             }
         }
+    }
 
+    /**
+     * FIX #5: Separate method for starting workouts collector.
+     * Called only once in init, not on every refresh.
+     */
+    private fun startWorkoutsCollector() {
         viewModelScope.launch {
             try {
                 val todayRange = getTodayRange()
@@ -226,8 +242,8 @@ class DashboardViewModel @Inject constructor(
             try {
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val calendar = Calendar.getInstance()
-
                 val endDate = dateFormat.format(calendar.time)
+
                 calendar.add(Calendar.DAY_OF_YEAR, -6)
                 val startDate = dateFormat.format(calendar.time)
 
@@ -278,17 +294,17 @@ class DashboardViewModel @Inject constructor(
             combine(currentSteps, dailyStepGoal) { steps, goal ->
                 steps >= goal && goal > 0
             }
-            .distinctUntilChanged()
-            .collect { goalReached ->
-                // Only show celebration if:
-                // 1. Goal is reached
-                // 2. Celebration hasn't been shown today yet
-                if (goalReached && !hasCelebrationBeenShownToday()) {
-                    _showStepGoalCelebration.value = true
-                    markCelebrationShown()
-                    loadStreakData()
+                .distinctUntilChanged()
+                .collect { goalReached ->
+                    // Only show celebration if:
+                    // 1. Goal is reached
+                    // 2. Celebration hasn't been shown today yet
+                    if (goalReached && !hasCelebrationBeenShownToday()) {
+                        _showStepGoalCelebration.value = true
+                        markCelebrationShown()
+                        loadStreakData()
+                    }
                 }
-            }
         }
     }
 
@@ -304,8 +320,10 @@ class DashboardViewModel @Inject constructor(
         loadStreakData()
     }
 
+    /**
+     * FIX #6: Simplified refreshData - no longer starts new collectors
+     */
     fun refreshData() {
-        loadDashboardData()
         loadWeeklySteps()
         loadStreakData()
     }
