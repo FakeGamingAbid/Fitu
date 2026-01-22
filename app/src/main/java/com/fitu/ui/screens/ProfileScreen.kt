@@ -318,9 +318,7 @@ fun ProfileScreen(
             enter = fadeIn(tween(300, 50)) + slideInVertically(tween(400, 50)) { 20 }
         ) {
             GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                enableGlow = true,
-                glowColor = AppColors.OrangePrimary
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

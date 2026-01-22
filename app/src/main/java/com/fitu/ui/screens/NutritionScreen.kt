@@ -22,6 +22,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -162,6 +166,10 @@ fun NutritionScreen(
         }
     }
 
+    // Animation state
+    var showContent by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { showContent = true }
+
     // Main content
     Box(modifier = Modifier.fillMaxSize()) {
         PullToRefreshContainer(
@@ -176,92 +184,114 @@ fun NutritionScreen(
                     .padding(top = 32.dp, bottom = 120.dp)
             ) {
                 // Header
-                Text(
-                    text = "Nutrition",
-                    color = AppColors.TextPrimary,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "AI Food Analysis",
-                    color = AppColors.TextTertiary,
-                    fontSize = 14.sp
-                )
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = fadeIn(tween(300)) + slideInVertically(tween(400)) { -20 }
+                ) {
+                    Column {
+                        Text(
+                            text = "Nutrition",
+                            color = AppColors.TextPrimary,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "AI Food Analysis",
+                            color = AppColors.TextTertiary,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Calorie summary card
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "TODAY'S CALORIES",
-                                color = AppColors.TextTertiary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.Bottom) {
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = fadeIn(tween(300, 100)) + slideInVertically(tween(400, 100)) { 20 }
+                ) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
                                 Text(
-                                    text = "$caloriesConsumed",
-                                    color = AppColors.OrangePrimary,
-                                    fontSize = 32.sp,
+                                    text = "TODAY'S CALORIES",
+                                    color = AppColors.TextTertiary,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "/ $dailyCalorieGoal",
-                                    color = AppColors.TextTertiary,
-                                    fontSize = 16.sp,
-                                    modifier = Modifier.padding(bottom = 4.dp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        text = "$caloriesConsumed",
+                                        color = AppColors.OrangePrimary,
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "/ $dailyCalorieGoal",
+                                        color = AppColors.TextTertiary,
+                                        fontSize = 16.sp,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                }
+                            }
+
+                            FloatingActionButton(
+                                onClick = { viewModel.showAddFood() },
+                                containerColor = AppColors.OrangePrimary,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Add Food",
+                                    tint = Color.White
                                 )
                             }
-                        }
-
-                        FloatingActionButton(
-                            onClick = { viewModel.showAddFood() },
-                            containerColor = AppColors.OrangePrimary,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = "Add Food",
-                                tint = Color.White
-                            )
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text(
-                    text = "Today's Meals",
-                    color = AppColors.TextPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = fadeIn(tween(300, 150)) + slideInVertically(tween(400, 150)) { 20 }
+                ) {
+                    Text(
+                        text = "Today's Meals",
+                        color = AppColors.TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Meals list or empty state
-                if (todayMeals.isEmpty()) {
-                    EmptyMealsState(
-                        onAddClick = { viewModel.showAddFood() }
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(todayMeals) { meal ->
-                            MealCard(
-                                meal = meal,
-                                onDeleteClick = { viewModel.requestDeleteMeal(meal) }
-                            )
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = fadeIn(tween(300, 200)) + slideInVertically(tween(400, 200)) { 20 }
+                ) {
+                    if (todayMeals.isEmpty()) {
+                        EmptyMealsState(
+                            onAddClick = { viewModel.showAddFood() }
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(todayMeals) { meal ->
+                                MealCard(
+                                    meal = meal,
+                                    onDeleteClick = { viewModel.requestDeleteMeal(meal) }
+                                )
+                            }
                         }
                     }
                 }
@@ -293,25 +323,13 @@ private fun EmptyMealsState(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            // Stacked food icons for visual interest
-            Box {
-                Icon(
-                    Icons.Default.Restaurant,
-                    contentDescription = null,
-                    tint = AppColors.OrangePrimary.copy(alpha = 0.3f),
-                    modifier = Modifier
-                        .size(64.dp)
-                        .offset(x = (-8).dp, y = (-8).dp)
-                )
-                Icon(
-                    Icons.Default.CameraAlt,
-                    contentDescription = null,
-                    tint = AppColors.OrangePrimary,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .offset(x = 12.dp, y = 12.dp)
-                )
-            }
+            // Single camera icon for clean look
+            Icon(
+                Icons.Default.CameraAlt,
+                contentDescription = null,
+                tint = AppColors.OrangePrimary,
+                modifier = Modifier.size(48.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
