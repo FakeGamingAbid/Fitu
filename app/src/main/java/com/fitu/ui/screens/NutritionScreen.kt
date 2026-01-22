@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fitu.data.local.entity.MealEntity
@@ -298,6 +299,7 @@ fun NutritionScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 140.dp)
+                .zIndex(Float.MAX_VALUE) // ADD THIS LINE - keeps snackbar on top
         )
     }
 }
