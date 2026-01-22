@@ -17,6 +17,9 @@ interface FoodCacheDao {
     @Query("DELETE FROM food_cache WHERE timestamp < :beforeTimestamp")
     suspend fun clearOldCache(beforeTimestamp: Long)
 
+    @Query("SELECT * FROM food_cache ORDER BY timestamp DESC")
+    suspend fun getAllCache(): List<FoodCacheEntity>
+
     @Query("DELETE FROM food_cache")
     suspend fun clearAllCache()
 }

@@ -90,7 +90,7 @@ class BackupRestoreRepository @Inject constructor(
             val steps = stepDao.getAllSteps()
             val meals = mealDao.getAllMeals()
             val workouts = workoutDao.getAllWorkouts()
-            val workoutPlans = workoutPlanDao.getAllPlans()
+            val workoutPlans = workoutPlanDao.getAllPlansSync()
             val foodCache = foodCacheDao.getAllCache()
 
             val backupData = BackupData(

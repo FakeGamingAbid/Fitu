@@ -29,6 +29,9 @@ interface WorkoutPlanDao {
     @Query("DELETE FROM workout_plans WHERE id = :id")
     suspend fun deletePlanById(id: Long)
 
+    @Query("SELECT * FROM workout_plans ORDER BY createdAt DESC")
+    suspend fun getAllPlansSync(): List<WorkoutPlanEntity>
+
     @Query("SELECT COUNT(*) FROM workout_plans")
     suspend fun getPlansCount(): Int
 }

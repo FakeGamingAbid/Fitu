@@ -37,6 +37,9 @@ interface StepDao {
     @Query("SELECT SUM(steps) FROM steps WHERE date >= :startDate AND date <= :endDate")
     suspend fun getTotalStepsInRange(startDate: Long, endDate: Long): Int?
 
+    @Query("SELECT * FROM steps ORDER BY date ASC")
+    suspend fun getAllSteps(): List<StepEntity>
+
     @Query("DELETE FROM steps WHERE date < :beforeDate")
     suspend fun deleteOldRecords(beforeDate: String)
 }

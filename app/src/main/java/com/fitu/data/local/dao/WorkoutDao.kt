@@ -35,6 +35,9 @@ interface WorkoutDao {
     @Query("SELECT COUNT(*) FROM workouts WHERE date >= :startDate AND date <= :endDate")
     suspend fun getWorkoutCountInRange(startDate: Long, endDate: Long): Int
 
+    @Query("SELECT * FROM workouts ORDER BY date DESC")
+    suspend fun getAllWorkouts(): List<WorkoutEntity>
+
     @Query("DELETE FROM workouts WHERE id = :id")
     suspend fun deleteById(id: Long)
 }

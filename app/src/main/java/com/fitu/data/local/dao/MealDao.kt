@@ -53,6 +53,9 @@ interface MealDao {
     @Query("SELECT COALESCE(SUM(fat), 0) FROM meals WHERE date >= :startDate AND date <= :endDate")
     fun getFatsForDay(startDate: Long, endDate: Long): Flow<Int>
 
+    @Query("SELECT * FROM meals ORDER BY date DESC")
+    suspend fun getAllMeals(): List<MealEntity>
+
     @Query("DELETE FROM meals WHERE id = :id")
     suspend fun deleteById(id: Long)
 }
