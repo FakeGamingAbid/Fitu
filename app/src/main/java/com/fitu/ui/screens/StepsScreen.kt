@@ -657,7 +657,7 @@ private fun PermissionWarningCard(
 
                 if (isBatteryOptimized || needsAutoStart) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(color = AppColors.DividerColor, thickness = 1.dp)
+                    Divider(color = AppColors.DividerColor, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
@@ -674,7 +674,7 @@ private fun PermissionWarningCard(
 
                 if (needsAutoStart) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(color = AppColors.DividerColor, thickness = 1.dp)
+                    Divider(color = AppColors.DividerColor, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
