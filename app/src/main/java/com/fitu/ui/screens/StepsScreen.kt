@@ -32,7 +32,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -59,7 +58,6 @@ import com.fitu.ui.components.AccentGlassCard
 import com.fitu.ui.steps.DaySteps
 import com.fitu.ui.steps.StepsViewModel
 import com.fitu.ui.theme.AppColors
-import com.fitu.ui.theme.OrangePrimary
 import com.fitu.util.AutoStartManager
 import com.fitu.util.BatteryOptimizationHelper
 
@@ -208,7 +206,7 @@ fun StepsScreen(
             }
         }
 
-        // ==================== MAIN PROGRESS RING ====================
+        // ==================== MAIN PROGRESS RING (FIXED - Same as Dashboard) ====================
         AnimatedVisibility(
             visible = showContent,
             enter = fadeIn(tween(300, 150)) + slideInVertically(tween(400, 150)) { 20 }
@@ -216,137 +214,88 @@ fun StepsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .padding(24.dp),
+                    .padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Outer glow effect
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                AppColors.OrangePrimary.copy(alpha = 0.15f * animatedProgress),
-                                Color.Transparent
-                            ),
-                            center = center,
-                            radius = size.minDimension / 2
-                        )
-                    )
-                }
-
-                // Background track
-                Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                    drawArc(
-                        color = Color.White.copy(alpha = 0.06f),
-                        startAngle = -90f,
-                        sweepAngle = 360f,
-                        useCenter = false,
-                        style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
-
-                // Glow layer for progress
-                Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                    drawArc(
-                        brush = Brush.sweepGradient(
-                            colors = listOf(
-                                AppColors.OrangePrimary.copy(alpha = 0.3f),
-                                AppColors.OrangeSecondary.copy(alpha = 0.3f),
-                                AppColors.OrangeLight.copy(alpha = 0.3f),
-                                AppColors.OrangePrimary.copy(alpha = 0.3f)
-                            )
-                        ),
-                        startAngle = -90f,
-                        sweepAngle = 360f * animatedProgress,
-                        useCenter = false,
-                        style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
-
-                // Main gradient progress
-                Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                    drawArc(
-                        brush = Brush.sweepGradient(
-                            colors = listOf(
-                                AppColors.OrangePrimary,
-                                AppColors.OrangeSecondary,
-                                AppColors.OrangeLight,
-                                AppColors.OrangePrimary
-                            )
-                        ),
-                        startAngle = -90f,
-                        sweepAngle = 360f * animatedProgress,
-                        useCenter = false,
-                        style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
-
-                // Top icon indicator
                 Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = 8.dp)
-                        .size(52.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    AppColors.SurfaceLight,
-                                    AppColors.SurfaceDark
-                                )
-                            ),
-                            CircleShape
-                        )
-                        .padding(2.dp)
-                        .background(AppColors.BackgroundDark, CircleShape),
+                    modifier = Modifier.size(200.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        SneakerIcon,
-                        contentDescription = null,
-                        tint = AppColors.OrangePrimary,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-
-                // Center content
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    AnimatedFormattedCounter(
-                        count = currentSteps,
-                        style = TextStyle(
-                            fontSize = 52.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    )
-                    Text(
-                        text = "STEPS TAKEN",
-                        color = AppColors.TextTertiary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Progress percentage badge
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                AppColors.tint(AppColors.OrangePrimary),
-                                RoundedCornerShape(16.dp)
+                    // Glow effect
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    AppColors.OrangePrimary.copy(alpha = 0.2f * animatedProgress),
+                                    Color.Transparent
+                                ),
+                                center = center,
+                                radius = size.minDimension / 2
                             )
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
+                        )
+                    }
+
+                    // Background track
+                    Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.08f),
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+
+                    // Progress arc with gradient
+                    Canvas(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                        drawArc(
+                            brush = Brush.sweepGradient(
+                                colors = listOf(
+                                    AppColors.OrangePrimary,
+                                    AppColors.OrangeSecondary,
+                                    AppColors.OrangeLight,
+                                    AppColors.OrangePrimary
+                                )
+                            ),
+                            startAngle = -90f,
+                            sweepAngle = 360f * animatedProgress,
+                            useCenter = false,
+                            style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+
+                    // Center content
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        AnimatedFormattedCounter(
+                            count = currentSteps,
+                            style = TextStyle(
+                                fontSize = 42.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        )
                         Text(
-                            text = "${goalProgress}% of goal",
+                            text = "steps",
+                            color = AppColors.TextTertiary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Progress percentage
+                        Text(
+                            text = "${goalProgress}%",
                             color = AppColors.OrangePrimary,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // ==================== TRACKING STATUS ====================
         AnimatedVisibility(
@@ -708,7 +657,7 @@ private fun PermissionWarningCard(
 
                 if (isBatteryOptimized || needsAutoStart) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    Divider(color = AppColors.DividerColor, thickness = 1.dp)
+                    HorizontalDivider(color = AppColors.DividerColor, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
@@ -725,7 +674,7 @@ private fun PermissionWarningCard(
 
                 if (needsAutoStart) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    Divider(color = AppColors.DividerColor, thickness = 1.dp)
+                    HorizontalDivider(color = AppColors.DividerColor, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
@@ -1002,33 +951,3 @@ private fun WeeklyChartContent(
         }
     }
 }
-
-// ==================== ICONS ====================
-private val SneakerIcon: ImageVector
-    get() = ImageVector.Builder(
-        name = "Sneaker",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 256f,
-        viewportHeight = 256f
-    ).apply {
-        path(fill = SolidColor(Color.White)) {
-            moveTo(231.16f, 166.63f)
-            lineTo(202.53f, 152.32f)
-            arcTo(47.74f, 47.74f, 0f, false, true, 176f, 109.39f)
-            verticalLineTo(80f)
-            arcTo(8f, 8f, 0f, false, false, 168f, 72f)
-            arcTo(48.05f, 48.05f, 0f, false, true, 120f, 24f)
-            arcTo(8f, 8f, 0f, false, false, 107.17f, 17.63f)
-            lineTo(30.13f, 76f)
-            lineTo(29.93f, 76.16f)
-            arcTo(16f, 16f, 0f, false, false, 28.69f, 99.91f)
-            lineTo(142.4f, 213.66f)
-            arcTo(8f, 8f, 0f, false, false, 148.06f, 216f)
-            horizontalLineTo(224f)
-            arcTo(16f, 16f, 0f, false, false, 240f, 200f)
-            verticalLineTo(180.94f)
-            arcTo(15.92f, 15.92f, 0f, false, false, 231.16f, 166.63f)
-            close()
-        }
-    }.build()
